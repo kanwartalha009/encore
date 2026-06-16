@@ -1,0 +1,61 @@
+{%- comment -%}
+  Encore — Back-in-stock button (app block, product template).
+  Shows a "Notify me" button when the selected variant is sold out (and the app
+  has back-in-stock enabled). Clicking opens a popup that posts the shopper's
+  email/phone to /apps/encore/notify, which records a WaitlistSubscription.
+{%- endcomment -%}
+{%- if product -%}
+  {%- assign ev = product.selected_or_first_available_variant -%}
+  <div
+    class="encore encore-notify"
+    data-encore-notify
+    data-product-id="{{ product.id }}"
+    data-variant-id="{{ ev.id }}"
+    data-product-title="{{ product.title | escape }}"
+    data-available="{% if ev.available %}true{% else %}false{% endif %}"
+    data-locale="{{ localization.language.iso_code | default: request.locale.iso_code }}"
+    data-button="{{ block.settings.button_label | escape }}"
+    data-collect-phone="{{ block.settings.collect_phone }}"
+    style="--encore-accent: {{ block.settings.button_bg }}; --encore-on-accent: {{ block.settings.button_fg }}; --encore-radius: {{ block.settings.radius }}px;"
+    {{ block.shopify_attributes }}
+  >
+    <button type="button" class="encore-btn encore-btn--outline" data-encore-notify-btn hidden>
+      {{ block.settings.button_label | escape }}
+    </button>
+  </div>
+  <script type="application/json" data-encore-variants="{{ product.id }}">
+    [
+      {%- for v in product.variants -%}
+        {"id": {{ v.id }}, "available": {{ v.available }}, "title": {{ v.title | json }}}{%- unless forloop.last -%},{%- endunless -%}
+      {%- endfor -%}
+    ]
+  </script>
+{%- endif -%}
+{% schema %}
+{
+  "name": "t:encore.blocks.notify",
+  "target": "section",
+  "javascript": "encore.js",
+  "stylesheet": "encore.css",
+  "enabled_on": { "templates": ["product"] },
+  "settings": [
+    {
+      "type": "text",
+      "id": "button_label",
+      "label": "Button label",
+      "default": "Notify me when available",
+      "info": "Overridden by the label set in the Encore app / translations."
+    },
+    {
+      "type": "checkbox",
+      "id": "collect_phone",
+      "label": "Also collect a phone number (SMS)",
+      "default": false
+    },
+    { "type": "header", "content": "Appearance" },
+    { "type": "color", "id": "button_bg", "label": "Button accent", "default": "#1A1A1A" },
+    { "type": "color", "id": "button_fg", "label": "Button text", "default": "#FFFFFF" },
+    { "type": "range", "id": "radius", "label": "Corner radius", "min": 0, "max": 40, "step": 1, "unit": "px", "default": 6 }
+  ]
+}
+{% endschema %}

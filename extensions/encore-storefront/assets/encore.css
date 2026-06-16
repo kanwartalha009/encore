@@ -1,0 +1,202 @@
+/* Encore storefront styles. Scoped under .encore so they never leak into the
+   theme. Colours are driven by CSS variables set per block (theme editor) and
+   can be overridden by the merchant's custom CSS from the Encore app. */
+
+.encore {
+  --encore-accent: #1a1a1a;
+  --encore-on-accent: #ffffff;
+  --encore-radius: 6px;
+  --encore-bar: #e8a13a;
+  --encore-bar-bg: #f1f1f1;
+  --encore-lowstock-fg: #6b6b6b;
+  font-family: inherit;
+  margin: 12px 0;
+}
+
+/* ---------- Buttons ---------- */
+.encore-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 12px 20px;
+  border: 1px solid var(--encore-accent);
+  border-radius: var(--encore-radius);
+  background: var(--encore-accent);
+  color: var(--encore-on-accent);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.05s ease;
+}
+.encore-btn:hover { opacity: 0.9; }
+.encore-btn:active { transform: translateY(1px); }
+.encore-btn--outline {
+  background: transparent;
+  color: var(--encore-accent);
+}
+.encore-btn[disabled] { opacity: 0.5; cursor: default; }
+
+/* ---------- Preorder ---------- */
+.encore-preorder__ui { display: flex; flex-direction: column; gap: 8px; }
+.encore-preorder__note {
+  margin: 0;
+  font-size: 13px;
+  color: var(--encore-lowstock-fg);
+}
+/* CLS guard — reserves the button height (44px) while config loads. */
+.encore-preorder__skeleton {
+  height: 44px;
+  border-radius: var(--encore-radius);
+  background: var(--encore-bar-bg, #f1f1f1);
+  background-image: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0) 0,
+    rgba(0, 0, 0, 0.06) 40px,
+    rgba(0, 0, 0, 0) 80px
+  );
+  background-repeat: no-repeat;
+  background-size: 200px 100%;
+  animation: encore-shimmer 1.2s ease-in-out infinite;
+}
+@keyframes encore-shimmer {
+  0% { background-position: -120px 0; }
+  100% { background-position: calc(100% + 120px) 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .encore-preorder__skeleton { animation: none; }
+}
+.encore-badge {
+  align-self: flex-start;
+  display: inline-block;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--encore-on-accent);
+  background: var(--encore-accent);
+}
+.encore-badge--pill { border-radius: 999px; }
+.encore-badge--square { border-radius: 3px; }
+.encore-badge--underline {
+  background: transparent;
+  color: var(--encore-accent);
+  border-bottom: 2px solid var(--encore-accent);
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* ---------- Low stock ---------- */
+.encore-lowstock__ui { display: flex; flex-direction: column; gap: 6px; }
+.encore-lowstock__text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--encore-lowstock-fg);
+}
+.encore-bar {
+  position: relative;
+  height: 8px;
+  width: 100%;
+  border-radius: 999px;
+  background: var(--encore-bar-bg);
+  overflow: hidden;
+}
+.encore-bar__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--encore-bar);
+  transition: width 0.3s ease;
+}
+.encore-bar--pulse .encore-bar__fill { animation: encore-pulse 1.4s ease-in-out infinite; }
+@keyframes encore-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
+
+.encore-seg { display: flex; gap: 4px; }
+.encore-seg__cell {
+  flex: 1;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--encore-bar-bg);
+}
+.encore-seg__cell--on { background: var(--encore-bar); }
+
+.encore-pill {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--encore-bar);
+}
+.encore-pill__dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: currentColor; animation: encore-pulse 1.2s infinite;
+}
+
+.encore-lowstock--ok { --encore-bar: #3aa760; }
+.encore-lowstock--warn { --encore-bar: #e8a13a; }
+.encore-lowstock--crit { --encore-bar: #d64545; }
+
+@media (prefers-reduced-motion: reduce) {
+  .encore-bar--pulse .encore-bar__fill,
+  .encore-pill__dot { animation: none; }
+}
+
+/* ---------- Notify modal ---------- */
+.encore-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.encore-modal[hidden] { display: none; }
+.encore-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+}
+.encore-modal__card {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  background: #fff;
+  color: #1a1a1a;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+}
+.encore-modal__close {
+  position: absolute;
+  top: 12px; right: 12px;
+  width: 32px; height: 32px;
+  border: 0; background: transparent;
+  font-size: 22px; line-height: 1; cursor: pointer; color: #6b6b6b;
+}
+.encore-modal__title { margin: 0 0 4px; font-size: 18px; font-weight: 700; }
+.encore-modal__sub { margin: 0 0 16px; font-size: 14px; color: #6b6b6b; }
+.encore-field { margin-bottom: 12px; }
+.encore-field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.encore-field input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
+  font-size: 15px;
+  box-sizing: border-box;
+}
+.encore-consent { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; color: #6b6b6b; margin: 8px 0 16px; }
+.encore-consent input { margin-top: 2px; }
+.encore-modal__msg { margin: 10px 0 0; font-size: 13px; }
+.encore-modal__msg--ok { color: #2e7d4f; }
+.encore-modal__msg--err { color: #d64545; }

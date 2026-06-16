@@ -1,0 +1,19 @@
+# Customer Account UI extension — "My pre-orders / My waitlist".
+# Renders a block on the customer's Order index page. Data comes from the app's
+# token-authenticated /customer/portal endpoint (network_access = true).
+# GA surface only — no Checkout MCP. Return links are kept structured so the
+# future P2 MCP "rebuild my cart" flow can be added without reworking this.
+
+api_version = "2025-10"
+
+[[extensions]]
+name = "Encore — My pre-orders"
+handle = "encore-customer-account"
+type = "ui_extension"
+
+  [[extensions.targeting]]
+  target = "customer-account.order-index.block.render"
+  module = "./src/PreordersBlock.tsx"
+
+  [extensions.capabilities]
+  network_access = true

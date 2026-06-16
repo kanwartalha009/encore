@@ -1,0 +1,32 @@
+# Shopify Flow TRIGGER — "Restock detected".
+# Emitted via flowTriggerReceive from the products/update handler
+# (app/routes/webhooks.products.update.tsx) when a tracked variant goes
+# from 0 to in-stock and the back-in-stock dispatch runs.
+
+[[extensions]]
+name = "Encore — Restock detected"
+type = "flow_trigger"
+handle = "encore-restock-detected"
+description = "Fires when a variant a shopper waitlisted comes back in stock. Use it alongside Encore's built-in notifications to drive your own recovery automations."
+
+[settings]
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "product"
+  description = "Title of the restocked product."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "variant_id"
+  description = "The restocked variant's Admin GraphQL ID."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "available"
+  description = "Units now available for the restocked variant."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "waitlist_count"
+  description = "How many shoppers were waiting on this variant when it restocked."

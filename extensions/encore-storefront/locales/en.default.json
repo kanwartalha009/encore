@@ -1,0 +1,24 @@
+{
+  "encore": {
+    "preorder": {
+      "button": "Preorder",
+      "note": "Ships by {{ date }}",
+      "note_no_date": "Ships as soon as it's available.",
+      "badge": "Preorder"
+    },
+    "notify": {
+      "button": "Notify me when available",
+      "title": "Get notified",
+      "email": "Email address",
+      "phone": "Phone (optional)",
+      "submit": "Notify me",
+      "success": "You're on the list — we'll let you know when it's back.",
+      "error": "Something went wrong. Please try again.",
+      "consent": "I agree to be notified by email about this product."
+    },
+    "lowstock": {
+      "text": "Only {{ count }} left",
+      "selling_fast": "Selling fast"
+    }
+  }
+}

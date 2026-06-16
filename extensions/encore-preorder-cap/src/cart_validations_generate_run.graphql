@@ -1,0 +1,22 @@
+query Input {
+  cart {
+    lines {
+      id
+      quantity
+      merchandise {
+        __typename
+        ... on ProductVariant {
+          id
+          # Maintained by the app (preorder-cap.server.ts). Only capped preorder
+          # variants have this metafield, so its presence gates the check.
+          remaining: metafield(namespace: "encore", key: "preorder_remaining") {
+            value
+          }
+          product {
+            title
+          }
+        }
+      }
+    }
+  }
+}

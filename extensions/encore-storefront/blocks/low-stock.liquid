@@ -1,0 +1,70 @@
+{%- comment -%}
+  Encore — Low-stock meter (app block, product template).
+  Shows a progress bar / "Only N left" / urgency badge when the selected
+  variant's tracked inventory is at or below the threshold. Inventory per variant
+  is rendered inline so the meter updates instantly on variant change; the app
+  config can override the threshold and copy.
+{%- endcomment -%}
+{%- if product -%}
+  {%- assign ev = product.selected_or_first_available_variant -%}
+  <div
+    class="encore encore-lowstock"
+    data-encore-lowstock
+    data-product-id="{{ product.id }}"
+    data-variant-id="{{ ev.id }}"
+    data-threshold="{{ block.settings.threshold }}"
+    data-preset="{{ block.settings.preset }}"
+    data-locale="{{ localization.language.iso_code | default: request.locale.iso_code }}"
+    style="--encore-bar: {{ block.settings.bar_color }}; --encore-bar-bg: {{ block.settings.bg_color }}; --encore-lowstock-fg: {{ block.settings.text_color }};"
+    {{ block.shopify_attributes }}
+  >
+    <div class="encore-lowstock__ui" data-encore-low-ui hidden></div>
+  </div>
+  <script type="application/json" data-encore-inventory="{{ product.id }}">
+    {
+      {%- for v in product.variants -%}
+        "{{ v.id }}": {"qty": {{ v.inventory_quantity | default: 0 }}, "tracked": {% if v.inventory_management %}true{% else %}false{% endif %}, "policy": {{ v.inventory_policy | json }}}{%- unless forloop.last -%},{%- endunless -%}
+      {%- endfor -%}
+    }
+  </script>
+{%- endif -%}
+{% schema %}
+{
+  "name": "t:encore.blocks.lowstock",
+  "target": "section",
+  "javascript": "encore.js",
+  "stylesheet": "encore.css",
+  "enabled_on": { "templates": ["product"] },
+  "settings": [
+    {
+      "type": "range",
+      "id": "threshold",
+      "label": "Show when stock is at or below",
+      "min": 1,
+      "max": 100,
+      "step": 1,
+      "unit": "u",
+      "default": 10,
+      "info": "The Encore app's low-stock threshold overrides this when set."
+    },
+    {
+      "type": "select",
+      "id": "preset",
+      "label": "Style",
+      "options": [
+        { "value": "text", "label": "Text only" },
+        { "value": "bar_text", "label": "Progress bar + text" },
+        { "value": "segmented", "label": "Segmented bar" },
+        { "value": "pill", "label": "Urgency pill" },
+        { "value": "color", "label": "Colour threshold" },
+        { "value": "pulse", "label": "Animated bar" }
+      ],
+      "default": "bar_text"
+    },
+    { "type": "header", "content": "Appearance" },
+    { "type": "color", "id": "bar_color", "label": "Bar / accent", "default": "#E8A13A" },
+    { "type": "color", "id": "bg_color", "label": "Bar background", "default": "#F1F1F1" },
+    { "type": "color", "id": "text_color", "label": "Text", "default": "#6B6B6B" }
+  ]
+}
+{% endschema %}

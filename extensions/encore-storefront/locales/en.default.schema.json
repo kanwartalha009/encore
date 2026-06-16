@@ -1,0 +1,10 @@
+{
+  "encore": {
+    "blocks": {
+      "preorder": "Preorder button",
+      "notify": "Back-in-stock button",
+      "lowstock": "Low-stock meter",
+      "embed": "Storefront runtime"
+    }
+  }
+}

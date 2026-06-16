@@ -1,0 +1,37 @@
+# Shopify Flow TRIGGER — "Back-in-stock ready" (per customer).
+# Fires once per waitlisted shopper when their item restocks (emitted from
+# app/services/waitlist-notify.server.ts when the provider is Shopify Flow), so a
+# workflow can email each shopper via the "Encore — Send email" action.
+
+[[extensions]]
+name = "Encore — Back-in-stock ready"
+type = "flow_trigger"
+handle = "encore-back-in-stock-ready"
+description = "Fires per waitlisted shopper when their product is back in stock. Pair with 'Encore — Send email' (message type back_in_stock)."
+
+[settings]
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "email"
+  description = "The shopper's email address."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "product"
+  description = "Title of the restocked product."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "variant"
+  description = "Variant title, or blank."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "product_url"
+  description = "Storefront URL for the product, or blank."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "locale"
+  description = "Shopper locale for translation (en, de, …), or blank."

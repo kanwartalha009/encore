@@ -1,0 +1,27 @@
+# Shopify Flow ACTION — "Tag order".
+# Lets merchants extend Encore from Flow without code: any workflow can add a
+# tag to an order. Flow POSTs to runtime_url; app/routes/flow.tag-order.tsx
+# verifies the HMAC and calls tagsAdd (idempotent — safe for Flow retries).
+#
+# runtime_url must match application_url in shopify.app.toml. The CLI rewrites
+# it per environment on `shopify app dev` / `deploy`.
+
+[[extensions]]
+name = "Encore — Tag order"
+type = "flow_action"
+handle = "encore-tag-order"
+description = "Add a tag to an order — e.g. route a pre-order to a 3PL or mark deposit-paid orders for follow-up."
+runtime_url = "https://encore.nova-platform.localhost:3003/flow/tag-order"
+
+[settings]
+
+  [[settings.fields]]
+  type = "order_reference"
+  required = true
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "tag"
+  name = "Tag"
+  description = "The tag to add to the order."
+  required = true

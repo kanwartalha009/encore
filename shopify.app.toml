@@ -1,51 +1,86 @@
-# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+# Encore — Preorder Novafied (Polaris-React app on the Nova Apps Platform).
+# Keeps encore's Partner-app identity (client_id, app proxy) over the Novafied codebase.
+# api_version pinned to 2025-10 to match app/shopify.server.ts (ApiVersion.October25).
 
 client_id = "98895e8868ecb5c8555ab43039b554e1"
-application_url = "https://example.com"
-embedded = true
 name = "Encore"
+application_url = "https://encore.nova-platform.localhost:3003"
+embedded = true
 
 [access_scopes]
-# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "write_products,write_metaobjects,write_metaobject_definitions"
-
-[product.metafields.app.demo_info]
-type = "single_line_text_field"
-name = "Demo Source Info"
-description = "Tracks products created by the Shopify app template for development"
-
-  [product.metafields.app.demo_info.access]
-  admin = "merchant_read_write"
-
-[metaobjects.app.example]
-name = "Example"
-description = "An example metaobject definition created by this template"
-
-  [metaobjects.app.example.access]
-  admin = "merchant_read_write"
-
-[metaobjects.app.example.fields.title]
-name = "Title"
-type = "single_line_text_field"
-required = true
-
-[metaobjects.app.example.fields.description]
-name = "Description"
-type = "multi_line_text_field"
-
-[webhooks]
-api_version = "2026-07"
-
-  [[webhooks.subscriptions]]
-  uri = "/webhooks/app/uninstalled"
-  topics = [ "app/uninstalled" ]
-
-  [[webhooks.subscriptions]]
-  uri = "/webhooks/app/scopes_update"
-  topics = [ "app/scopes_update" ]
+# Products/selling-plans, orders tagging, customers, markets/inventory, theme embed,
+# plus metaobjects (Novafied stores per-variant pre-order config as metaobjects/metafields).
+scopes = "read_products,write_products,write_purchase_options,read_inventory,read_locations,read_orders,write_orders,read_markets,read_customers,read_themes,read_discounts,write_metaobjects,write_metaobject_definitions"
 
 [auth]
-redirect_urls = [ "https://example.com/api/auth" ]
+redirect_urls = [ "https://encore.nova-platform.localhost:3003/auth/callback" ]
+
+[webhooks]
+api_version = "2025-10"
+
+# Lifecycle — handled app-locally AND forwarded to the Nova ingress (billing source of truth, §5).
+[[webhooks.subscriptions]]
+topics = [ "app/uninstalled" ]
+uri = "/webhooks/app/uninstalled"
+
+[[webhooks.subscriptions]]
+topics = [ "app/scopes_update" ]
+uri = "/webhooks/app/scopes_update"
+
+# Restock signal for back-in-stock. products/update carries no PCD, so it runs
+# without Protected Customer Data approval (unlike orders/*).
+[[webhooks.subscriptions]]
+topics = [ "products/update" ]
+uri = "/webhooks/products/update"
+
+# Per-market reconciliation signal (non-PCD).
+[[webhooks.subscriptions]]
+topics = [ "inventory_levels/update" ]
+uri = "/webhooks/inventory_levels/update"
+
+# Billing lifecycle — forwarded to the Nova ingress (billing source of truth, §5.2):
+# this is how charges → commissions are derived in the platform ledger.
+[[webhooks.subscriptions]]
+topics = [ "app_subscriptions/update" ]
+uri = "/webhooks/app_subscriptions/update"
+
+# Mandatory GDPR / privacy-compliance webhooks (Phase 4). `authenticate.webhook`
+# verifies the HMAC and returns 401 on a bad signature; handlers purge/export by
+# shopId + email (app/services/gdpr.server.ts). Required before App Store submission.
+[[webhooks.subscriptions]]
+compliance_topics = [ "customers/data_request" ]
+uri = "/webhooks/customers/data_request"
+
+[[webhooks.subscriptions]]
+compliance_topics = [ "customers/redact" ]
+uri = "/webhooks/customers/redact"
+
+[[webhooks.subscriptions]]
+compliance_topics = [ "shop/redact" ]
+uri = "/webhooks/shop/redact"
+
+# orders/* TEMPORARILY DISABLED for local dev — orders carry Protected Customer Data (PCD access +
+# distribution method required). Handlers exist at app/routes/webhooks.orders.{create,paid,cancelled}.tsx.
+# orders/create now tags the order (`preorder` + configured tag) and writes the ship-date metafield
+# (encore.is_preorder / encore.ship_date), verified post-write. Uncomment + redeploy AFTER PCD is
+# approved (Partner Dashboard → API access → Protected customer data) and add the GDPR compliance topics.
+# [[webhooks.subscriptions]]
+# topics = [ "orders/create" ]
+# uri = "/webhooks/orders/create"
+
+# [[webhooks.subscriptions]]
+# topics = [ "orders/paid" ]
+# uri = "/webhooks/orders/paid"
+
+# [[webhooks.subscriptions]]
+# topics = [ "orders/cancelled" ]
+# uri = "/webhooks/orders/cancelled"
+
+# Storefront endpoints behind the app proxy (App-Embed-only architecture; PRD wedge 4).
+[app_proxy]
+url = "https://encore.nova-platform.localhost:3003/proxy"
+subpath = "encore"
+prefix = "apps"
 
 [build]
 include_config_on_deploy = true

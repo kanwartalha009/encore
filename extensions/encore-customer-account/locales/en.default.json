@@ -1,0 +1,15 @@
+{
+  "loading": "Loading your pre-orders",
+  "preorders": {
+    "title": "Your pre-orders",
+    "balanceDue": "Balance due {amount}",
+    "paid": "Paid",
+    "ships": "Ships {date}",
+    "shipTba": "Ship date to be announced"
+  },
+  "waitlist": {
+    "title": "Your waitlist",
+    "available": "Back in stock",
+    "waiting": "Waiting"
+  }
+}

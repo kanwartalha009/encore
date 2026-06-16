@@ -1,0 +1,34 @@
+{%- comment -%}
+  Encore storefront runtime (app embed).
+  Optional global include: sets the app-proxy base + accent theming and loads the
+  shared runtime/styles site-wide. The product-page app blocks (Preorder,
+  Back-in-stock, Low-stock) each load encore.js on their own, so this embed is
+  not required for them to work — it only adds site-wide theming and lets a
+  future cart preorder badge render on every page.
+{%- endcomment -%}
+<script>
+  window.EncoreProxyBase = window.EncoreProxyBase || "/apps/encore";
+  window.EncoreSettings = Object.assign(window.EncoreSettings || {}, {
+    accent: {{ block.settings.accent | json }}
+  });
+</script>
+{% schema %}
+{
+  "name": "t:encore.blocks.embed",
+  "target": "body",
+  "javascript": "encore.js",
+  "stylesheet": "encore.css",
+  "settings": [
+    {
+      "type": "paragraph",
+      "content": "Optional. The Preorder, Back-in-stock and Low-stock blocks work on their own — enable this only to apply Encore styling site-wide."
+    },
+    {
+      "type": "color",
+      "id": "accent",
+      "label": "Accent colour",
+      "default": "#1A1A1A"
+    }
+  ]
+}
+{% endschema %}

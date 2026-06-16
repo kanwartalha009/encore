@@ -1,18 +1,18 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// Preorder Novafied — Prisma schema
+// SQLite for dev. We use String columns for enums and JSON arrays since SQLite +
+// Prisma doesn't support native enums. The `app/models/campaign.server.ts`
+// helpers serialize/parse JSON so the rest of the app sees clean types.
 
 generator client {
   provider = "prisma-client-js"
 }
 
-// Note that some adapters may set a maximum length for the String type by default, please ensure your strings are long
-// enough when changing adapters.
-// See https://www.prisma.io/docs/orm/reference/prisma-schema-reference#string for more information
 datasource db {
   provider = "sqlite"
   url      = "file:dev.sqlite"
 }
 
+// ---------- Auth (existing) ----------
 model Session {
   id            String    @id
   shop          String
@@ -31,4 +31,380 @@ model Session {
   emailVerified Boolean?  @default(false)
   refreshToken        String?
   refreshTokenExpires DateTime?
+}
+
+// ---------- NovaReferral ----------
+// Captures the agency referral code (?ref=) from the install landing BEFORE OAuth, keyed by shop,
+// so afterAuth can attribute the install to the referring agency (Shopify drops query params/cookies
+// across the OAuth round-trip; a shop-keyed row survives it). Consumed + cleared on confirm.
+model NovaReferral {
+  shop      String   @id
+  ref       String
+  createdAt DateTime @default(now())
+}
+
+// ---------- NovaOutbox ----------
+// Durable outbox for Nova platform calls (install-confirm + webhook forward). The signed request is
+// persisted BEFORE the network hop so a blip can never silently lose attribution or a commission.
+// Retried with backoff by /cron/nova-outbox. Safe to retry: Nova dedupes (install-confirm idempotent
+// by app+store; ingress idempotent by X-Shopify-Webhook-Id).
+//   status: PENDING | SENT | DEAD   ·   kind: confirm | ingress
+model NovaOutbox {
+  id            String    @id @default(cuid())
+  kind          String
+  url           String
+  body          String
+  headers       String    @default("{}") // JSON map of request headers (incl. X-Nova-Signature)
+  status        String    @default("PENDING")
+  attempts      Int       @default(0)
+  lastError     String?
+  nextAttemptAt DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+  sentAt        DateTime?
+
+  @@index([status, nextAttemptAt])
+}
+
+// ---------- Campaign ----------
+// One row per merchant-configured pre-order rule.
+//
+// String-as-enum conventions (validated at the model layer):
+//   status:           DRAFT | SCHEDULED | LIVE | PAUSED | ENDED
+//   productMode:      SPECIFIC | COLLECTION | ALL
+//   triggerType:      STOCK | DATE | MANUAL
+//   paymentMode:      PAY_NOW | DEPOSIT | PAY_LATER
+//   depositKind:      PERCENT | FIXED
+//   cartMode:         SPLIT | WARNING
+//   discountKind:     PERCENT | FIXED
+//   ctaPlacement:     REPLACE | BESIDE | STACK
+//   balanceReminder:  7_DAYS_BEFORE | 3_DAYS_BEFORE | ON_SHIP | OFF
+//   alertChannel:     EMAIL | SLACK | BOTH
+//
+// JSON String fields:
+//   productIds, customerTags, restrictedCountries, orderTags  -> string[]
+//   zoneOverrides   -> Record<string, string>
+//   dunningSteps    -> Array<{ id, channel, offsetDays, label }>
+model Campaign {
+  id              String   @id @default(cuid())
+  shop            String
+  name            String
+  status          String   @default("DRAFT")
+  internalNotes   String?
+
+  // Products
+  productMode     String   @default("SPECIFIC")
+  productIds      String   @default("[]")
+  collectionId    String?
+  perVariantRules Boolean  @default(false)
+  markets         String   @default("[]") // JSON string[] of Shopify Market IDs; [] = all markets
+
+  // Trigger
+  triggerType     String   @default("STOCK")
+  stockThreshold  Int      @default(0)
+  startDate       DateTime?
+  endDate         DateTime?
+
+  // Cohort / ship
+  shipDate             DateTime?
+  cohortName           String?
+  shipBufferDays       Int      @default(0)
+  autoNotifyShipChange Boolean  @default(true)
+
+  // Payment
+  paymentMode        String  @default("PAY_NOW")
+  depositKind        String  @default("PERCENT")
+  depositAmount      Float   @default(20)
+  balanceCaptureDays Int     @default(7)
+  moqEnabled         Boolean @default(false)
+  moqUnits           Int?
+  moqDeadline        DateTime?
+
+  // Cart behavior
+  cartMode           String  @default("SPLIT")
+  mixedCartWarning   String  @default("Your cart includes pre-order items that will ship later.")
+  allowGuestCheckout Boolean @default(true)
+
+  // Discount
+  discountEnabled            Boolean @default(false)
+  discountKind               String  @default("PERCENT")
+  discountAmount             Float   @default(0)
+  stackWithShopifyDiscounts  Boolean @default(false)
+
+  // Storefront copy
+  ctaLabel       String  @default("Pre-order")
+  ctaPlacement   String  @default("REPLACE")
+  deliveryNote   String  @default("Ships in 4–6 weeks")
+  zoneOverrides  String  @default("{}")
+
+  // Notifications
+  confirmationEmail        Boolean @default(true)
+  restockAlert             Boolean @default(true)
+  balanceReminder          String  @default("7_DAYS_BEFORE")
+  merchantAlertMoq         Boolean @default(true)
+  merchantAlertBalanceFail Boolean @default(true)
+  merchantAlertCohortReady Boolean @default(true)
+  alertChannel             String  @default("EMAIL")
+
+  // Advanced — gating
+  gateByCustomerTag    Boolean @default(false)
+  customerTags         String  @default("[]")
+  vipEarlyAccessUntil  DateTime?
+  restrictedCountries  String  @default("[]")
+
+  // Advanced — limits
+  maxPerCustomer Int?
+  maxPerCampaign Int?
+
+  // Variant-level config (the simple-flow source of truth).
+  // JSON array of:
+  //   { productId, variantId, productTitle, variantTitle, unitsOffered }
+  variantConfigs String @default("[]")
+
+  // Advanced — order tags
+  orderTags    String @default("[]")
+
+  // Advanced — dunning
+  dunningSteps String @default("[]")
+
+  // Advanced — headless / API
+  webhookUrl         String?
+  metafieldNamespace String  @default("preorder_novafied")
+
+  // Selling-plan service (Shopify-native deferred purchase options).
+  // Populated when a LIVE/SCHEDULED, specific-product campaign is synced.
+  sellingPlanGroupId String?  // gid://shopify/SellingPlanGroup/...
+  sellingPlanId      String?  // gid://shopify/SellingPlan/...
+  // PENDING | DEFERRED | PAY_NOW | PAY_NOW_FALLBACK (deferred unsupported) | NONE
+  sellingPlanStatus  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cohorts   Cohort[]
+  preOrders PreOrder[]
+
+  @@index([shop])
+  @@index([shop, status])
+}
+
+// ---------- Cohort ----------
+// A group of pre-orders sharing a ship date. MVP: one Cohort per Campaign,
+// auto-derived from Campaign.shipDate. Schema supports many-to-one for v2.
+model Cohort {
+  id          String   @id @default(cuid())
+  shop        String
+  campaignId  String
+  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  shipDate    DateTime
+  name        String
+  status      String   @default("ON_TRACK") // ON_TRACK | AT_RISK | READY_TO_SHIP | SHIPPED
+  unitsTarget Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  preOrders PreOrder[]
+
+  @@index([shop])
+  @@index([campaignId])
+}
+
+// ---------- PreOrder ----------
+// One row per customer line item placed against a Campaign. Populated by the
+// orders/create webhook (not yet wired) or by the seed script. Read-only from
+// the UI for now.
+model PreOrder {
+  id             String   @id @default(cuid())
+  shop           String
+  campaignId     String
+  campaign       Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  cohortId       String
+  cohort         Cohort   @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+
+  customerEmail  String
+  customerName   String?
+  shopifyOrderId String?  // Shopify Order GID
+  orderRef       String?  // human-friendly order number, e.g. "#4821"
+  variantId      String?  // gid://shopify/ProductVariant/... — for per-variant cap counts
+  market         String?  // buyer's Shopify Market id (captured on order) — demand dimension
+
+  units          Int      @default(1)
+  amount         Float    @default(0)
+  depositAmount  Float?
+  balanceAmount  Float?
+
+  paymentStatus  String   @default("DEPOSIT_PAID") // DEPOSIT_PAID | BALANCE_PENDING | BALANCE_PAID | BALANCE_FAILED | REFUNDED
+  paidAt         DateTime?
+  failedAt       DateTime?
+  refundedAt     DateTime?
+
+  // §8 reliability bar: stamped true once orders/create confirms the order tag +
+  // ship-date metafield write. The untagged-order audit counts preorder rows that
+  // belong to a real order (shopifyOrderId set) but are still tagged=false.
+  tagged         Boolean  @default(false)
+  balanceRemindedAt DateTime? // N1b: balance-due reminder dispatched (idempotent guard for the charge-later job)
+  locale         String?   // buyer's checkout locale (order.customer_locale) - email translation
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([shop])
+  @@index([campaignId])
+  @@index([cohortId])
+  @@index([shop, paymentStatus])
+}
+
+// ---------- UninstalledShop ----------
+// GDPR purge-uninstalled job (§7.4): hard-delete all shop-scoped data 48h after
+// uninstall. A row is created on app/uninstalled; purgedAt is stamped when the
+// purge runs (so the job is idempotent and auditable).
+model UninstalledShop {
+  shop          String    @id
+  uninstalledAt DateTime  @default(now())
+  purgedAt      DateTime?
+}
+
+// ---------- KlaviyoConnection ----------
+// N4: per-shop Klaviyo OAuth token (preferred over the pasted private key).
+// Tokens are encrypted at rest (app/lib/crypto.server.ts, APP_ENCRYPTION_KEY).
+model KlaviyoConnection {
+  shop            String    @id
+  accessTokenEnc  String
+  refreshTokenEnc String?
+  expiresAt       DateTime?
+  scope           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// ---------- BillingState ----------
+// The shop's current Shopify app subscription, updated by app_subscriptions/update.
+// Plan definitions (price + limits) live in Nova (AppPlan); this only records which
+// plan/interval/status the shop is on so Encore can meter + enforce.
+model BillingState {
+  shop             String    @id
+  planCode         String?   // Nova plan code: basic | growth | scale
+  interval         String?   // EVERY_30_DAYS | ANNUAL
+  status           String?   // ACTIVE | PENDING | CANCELLED | FROZEN | DECLINED | EXPIRED
+  subscriptionId   String?   // gid://shopify/AppSubscription/...
+  currentPeriodEnd DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+// ---------- OrderBundle ----------
+// Wedge 1 (cart separation): when a checkout contains both in-stock and
+// pre-order items, we split it into two Shopify orders and link them via a
+// bundle so the customer sees a unified order history.
+model OrderBundle {
+  id                String   @id @default(cuid())
+  shop              String
+  customerId        String?
+  inStockOrderId    String?
+  preOrderOrderId   String?
+  preOrderRecordId  String?  // FK-by-string to PreOrder.id (loose link)
+  createdAt         DateTime @default(now())
+
+  @@index([shop])
+  @@index([customerId])
+}
+
+// ---------- WaitlistSubscription ----------
+// Back-in-stock notify-me signups. Variant-level granularity.
+model WaitlistSubscription {
+  id           String   @id @default(cuid())
+  shop         String
+  productId    String
+  variantId    String?
+  productTitle String?
+  variantTitle String?
+
+  email        String?
+  phone        String?
+  channel      String   @default("EMAIL") // EMAIL | SMS | BOTH
+  locale       String?  // buyer's storefront locale (captured at signup) - email translation
+  market       String?  // buyer's Shopify Market id (captured at signup) — demand dimension
+
+  subscribed   Boolean  @default(true)
+  notifiedAt   DateTime?
+  convertedAt  DateTime?
+
+  // Back-in-stock dispatch reliability (never silently fails).
+  notifyStatus   String?   // PENDING | SENT | FAILED
+  notifyAttempts Int       @default(0)
+  notifyError    String?
+  lastAttemptAt  DateTime?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([shop])
+  @@index([shop, productId])
+  @@index([shop, variantId])
+  @@index([shop, notifyStatus])
+}
+
+// ---------- AppSettings ----------
+// Per-shop store-wide settings. Each column is a JSON blob the model layer
+// serialises/parses (SQLite convention used across this schema).
+model AppSettings {
+  id          String   @id @default(cuid())
+  shop        String   @unique
+  general     String   @default("{}") // pre-order defaults, inventory, button, cart, payment, design
+  lowStock    String   @default("{}")
+  backInStock String   @default("{}")
+  benchmark   String   @default("{}") // Phase 5 pilot: incumbent baseline for the recovered-demand benchmark
+  notifications String @default("{}") // N1: provider choice + editable/translatable email templates
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ---------- MarketRule ----------
+// Store-level per-market preorder scoping (the flagship "in-stock here, preorder
+// there" rule). One row per shop. JSON String columns per the SQLite convention.
+model MarketRule {
+  id                 String    @id @default(cuid())
+  shop               String    @unique
+  scope              String    @default("ALL") // ALL | SPECIFIC
+  markets            String    @default("[]")  // JSON string[] of Market IDs (when SPECIFIC)
+  perMarketOverrides String    @default("{}")  // JSON { marketId: { shipDate?, badge?, forcePreorder?, locations? } }
+  marketSnapshot     String    @default("{}")  // JSON { marketId: { locations: [...], available: n, fulfillable: bool } } from reconcile
+  lastReconciledAt   DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+}
+
+// ---------- DemandSignal ----------
+// Derived (read-only) demand by product/variant/size/market — preorder intent +
+// waitlist. A signal to size reorders, never a forecast. Rebuilt by the
+// demand-rollup job (and on demand from the screen loader).
+model DemandSignal {
+  id            String   @id @default(cuid())
+  shop          String
+  productId     String
+  variantId     String?
+  productTitle  String?
+  variantTitle  String?
+  size          String?
+  market        String   @default("ALL")
+  preorderUnits Int      @default(0)
+  waitlistCount Int      @default(0)
+  total         Int      @default(0)
+  updatedAt     DateTime @updatedAt
+
+  @@unique([shop, productId, variantId, market])
+  @@index([shop])
+}
+
+// ---------- Translation ----------
+// Storefront string translations the merchant enters per locale.
+model Translation {
+  id        String   @id @default(cuid())
+  shop      String
+  locale    String
+  key       String
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@unique([shop, locale, key])
+  @@index([shop])
 }

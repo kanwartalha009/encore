@@ -1,0 +1,42 @@
+# Shopify Flow TRIGGER — "Ship date updated" (per customer).
+# Fires once per pre-order customer when a cohort's expected ship date changes
+# (emitted from the campaign update path). Pair with "Encore — Send email"
+# (message type ship_date_update).
+
+[[extensions]]
+name = "Encore — Ship date updated"
+type = "flow_trigger"
+handle = "encore-ship-date-updated"
+description = "Fires per pre-order customer when the expected ship date for their item changes."
+
+[settings]
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "email"
+  description = "The customer's email address."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "product"
+  description = "Title of the pre-ordered product / campaign."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "old_ship_date"
+  description = "Previous expected ship date."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "new_ship_date"
+  description = "New expected ship date."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "order_name"
+  description = "The customer's order name (e.g. #4821), or blank."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "locale"
+  description = "Customer locale for translation, or blank."

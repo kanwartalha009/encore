@@ -1,0 +1,48 @@
+# Shopify Flow TRIGGER — "Balance due" (per customer).
+# Fires once per pre-order customer when a charge-later balance window opens
+# (emitted from the future charge-later collection job — see
+# app/services/notifications.server.ts emit helper). Pair with "Encore — Send
+# email" (message type balance_due).
+
+[[extensions]]
+name = "Encore — Balance due"
+type = "flow_trigger"
+handle = "encore-balance-due"
+description = "Fires per pre-order customer when the remaining balance on a deposit / charge-later pre-order is due."
+
+[settings]
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "email"
+  description = "The customer's email address."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "product"
+  description = "Title of the pre-ordered product."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "balance"
+  description = "Remaining balance amount (formatted)."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "due_date"
+  description = "When the balance will be charged."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "pay_link"
+  description = "Optional payment link, or blank."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "order_name"
+  description = "The customer's order name, or blank."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "locale"
+  description = "Customer locale for translation, or blank."

@@ -1,0 +1,31 @@
+# Shopify Flow TRIGGER — "Waitlist signup".
+# Emitted via flowTriggerReceive from the storefront notify endpoint
+# (app/routes/proxy.notify.tsx) when a shopper joins a back-in-stock waitlist.
+
+[[extensions]]
+name = "Encore — Waitlist signup"
+type = "flow_trigger"
+handle = "encore-waitlist-signup"
+description = "Fires when a shopper joins an Encore back-in-stock waitlist. Use it to sync the contact to your ESP/CRM, tag interest, or trigger a welcome message."
+
+[settings]
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "email"
+  description = "The shopper's email address (waitlist contact)."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "product"
+  description = "Title of the product the shopper is waiting on."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "variant_id"
+  description = "The waitlisted variant's Admin GraphQL ID, or blank."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "market"
+  description = "The shopper's market id, or blank if unknown."

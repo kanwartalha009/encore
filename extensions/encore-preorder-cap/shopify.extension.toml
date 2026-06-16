@@ -1,0 +1,21 @@
+# Encore — preorder cap (Cart & Checkout Validation Function).
+# Hard no-oversell guard: blocks checkout when a preorder line's quantity exceeds
+# the variant's `encore.preorder_remaining` metafield (maintained by the app —
+# see app/models/preorder-cap.server.ts). Complements the offer-level hide in
+# capacity.server.ts. Built to Wasm by the Shopify CLI on deploy (javy).
+api_version = "2025-10"
+
+[[extensions]]
+name = "Encore preorder cap"
+handle = "encore-preorder-cap"
+type = "function"
+description = "Blocks checkout when a preorder line exceeds its remaining cap."
+
+  [[extensions.targeting]]
+  target = "cart.validations.generate.run"
+  input_query = "src/cart_validations_generate_run.graphql"
+  export = "cartValidationsGenerateRun"
+
+  [extensions.build]
+  path = "dist/function.wasm"
+  watch = [ "src/**/*.js" ]

@@ -1,0 +1,11 @@
+# Encore — storefront theme app extension.
+# App blocks (product page): Preorder button, Back-in-stock, Low-stock meter.
+# App embed (global): shared runtime + theming. Dynamic state comes from the app
+# over the /apps/encore app proxy (see app/routes/proxy.*).
+api_version = "2025-10"
+
+[[extensions]]
+name = "Encore storefront"
+handle = "encore-storefront"
+uid = "5e941c1b-5e76-1ab6-720c-102fa9952c8362b251c8"
+type = "theme"

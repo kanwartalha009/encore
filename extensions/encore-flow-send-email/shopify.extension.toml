@@ -1,0 +1,116 @@
+# Shopify Flow ACTION — "Send email" (the no-Klaviyo path).
+# Flow can't email a dynamic customer from its built-in action, so this action
+# lets a workflow send a customizable Encore notification email. The body comes
+# from the merchant's editable/translatable template (Settings → Notifications),
+# selected by message_type; optional overrides are available per step.
+# app/routes/flow.send-email.tsx renders + sends it (HMAC-verified).
+#
+# runtime_url must match application_url in shopify.app.toml; the CLI rewrites it
+# per environment.
+
+[[extensions]]
+name = "Encore — Send email"
+type = "flow_action"
+handle = "encore-send-email"
+description = "Send a customizable Encore email (pre-order confirmation, back-in-stock, ship-date update, or balance-due) to a customer."
+runtime_url = "https://encore.nova-platform.localhost:3003/flow/send-email"
+
+[settings]
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "message_type"
+  name = "Message type"
+  description = "preorder_confirmation, back_in_stock, ship_date_update, or balance_due"
+  required = true
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "recipient"
+  name = "Recipient email"
+  description = "The customer's email — map e.g. {{order.customer.email}} or the trigger's email."
+  required = true
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "locale"
+  name = "Locale"
+  description = "Buyer locale for translation (en, de, fr, …). Optional; defaults to en."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "customer_name"
+  name = "Customer name"
+  description = "Optional. e.g. {{order.customer.firstName}}"
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "product"
+  name = "Product"
+  description = "Optional product title."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "variant"
+  name = "Variant"
+  description = "Optional variant title."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "ship_date"
+  name = "Ship date"
+  description = "Optional expected ship date."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "new_ship_date"
+  name = "New ship date"
+  description = "Optional — for ship_date_update."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "old_ship_date"
+  name = "Old ship date"
+  description = "Optional — for ship_date_update."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "balance"
+  name = "Balance"
+  description = "Optional balance amount — for balance_due."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "due_date"
+  name = "Due date"
+  description = "Optional — for balance_due."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "pay_link"
+  name = "Pay link"
+  description = "Optional payment link — for balance_due."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "product_url"
+  name = "Product URL"
+  description = "Optional — for back_in_stock."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "order_name"
+  name = "Order name"
+  description = "Optional order name, e.g. {{order.name}}."
+
+  [[settings.fields]]
+  type = "multi_line_text_field"
+  key = "subject_override"
+  name = "Subject override"
+  description = "Optional — overrides the Encore template subject for this step."
+
+  [[settings.fields]]
+  type = "multi_line_text_field"
+  key = "body_override"
+  name = "Body override"
+  description = "Optional — overrides the Encore template body for this step."

@@ -1,0 +1,37 @@
+# Shopify Flow TRIGGER — "Preorder placed".
+# Encore emits this via flowTriggerReceive when a customer places a pre-order
+# (app/services/flow.server.ts, fired from the orders/create handler).
+# Payload field keys below MUST match the keys passed in the emit payload.
+
+[[extensions]]
+name = "Encore — Preorder placed"
+type = "flow_trigger"
+handle = "encore-preorder-placed"
+description = "Fires when a customer places a pre-order through Encore. Use it to route fulfillment, notify a 3PL, tag the customer, or start a deposit-reminder workflow."
+
+[settings]
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "order_id"
+  description = "The order's Admin GraphQL ID (gid://shopify/Order/…)."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "product"
+  description = "Title of the pre-ordered product."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "variant_id"
+  description = "The pre-ordered variant's Admin GraphQL ID."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "market"
+  description = "The buyer's market id, or blank if unknown."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "ship_date"
+  description = "Expected ship date (ISO yyyy-mm-dd), or blank if not set."

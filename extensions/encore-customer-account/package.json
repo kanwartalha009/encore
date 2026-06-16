@@ -1,0 +1,12 @@
+{
+  "name": "encore-customer-account",
+  "private": true,
+  "version": "1.0.0",
+  "license": "UNLICENSED",
+  "description": "Encore Customer Account UI extension — My pre-orders / My waitlist.",
+  "dependencies": {
+    "react": "^18.2.0",
+    "@shopify/ui-extensions": "2025.10.x",
+    "@shopify/ui-extensions-react": "2025.10.x"
+  }
+}

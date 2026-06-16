@@ -1,0 +1,77 @@
+{%- comment -%}
+  Encore — Preorder button (app block, product template).
+  Renders a hidden shell that encore.js fills once the app (via the
+  /apps/encore/config app proxy) confirms this product is on preorder. When
+  active it shows the button + ship-date note, optionally hides the theme's buy
+  buttons, and writes preorder line-item properties into the product form so the
+  flag + ship date follow the item into the cart and checkout.
+{%- endcomment -%}
+{%- if product -%}
+  {%- assign ev = product.selected_or_first_available_variant -%}
+  <div
+    class="encore encore-preorder"
+    data-encore-preorder
+    data-product-id="{{ product.id }}"
+    data-variant-id="{{ ev.id }}"
+    data-available="{% if ev.available %}true{% else %}false{% endif %}"
+    data-in-stock="{% if ev.inventory_quantity > 0 %}true{% else %}false{% endif %}"
+    data-market="{{ localization.market.id }}"
+    data-locale="{{ localization.language.iso_code | default: request.locale.iso_code }}"
+    data-label="{{ block.settings.label | escape }}"
+    data-show-badge="{{ block.settings.show_badge }}"
+    data-placement="{{ block.settings.placement }}"
+    style="--encore-accent: {{ block.settings.button_bg }}; --encore-on-accent: {{ block.settings.button_fg }}; --encore-radius: {{ block.settings.radius }}px;"
+    {{ block.shopify_attributes }}
+  >
+    {%- comment -%}
+      CLS guard: reserve the button's space up front (same height) for products
+      that already carry a preorder selling plan, so the real button swaps in
+      without shifting the page. Products with no plan render nothing.
+    {%- endcomment -%}
+    {%- if product.selling_plan_groups.size > 0 -%}
+      <div class="encore-preorder__skeleton" data-encore-pre-skeleton aria-hidden="true"></div>
+    {%- endif -%}
+    <div class="encore-preorder__ui" data-encore-pre-ui hidden>
+      <button type="button" class="encore-btn" data-encore-pre-btn>{{ block.settings.label | escape }}</button>
+      <p class="encore-preorder__note" data-encore-pre-note></p>
+    </div>
+  </div>
+{%- endif -%}
+{% schema %}
+{
+  "name": "t:encore.blocks.preorder",
+  "target": "section",
+  "javascript": "encore.js",
+  "stylesheet": "encore.css",
+  "enabled_on": { "templates": ["product"] },
+  "settings": [
+    {
+      "type": "text",
+      "id": "label",
+      "label": "Button label",
+      "default": "Preorder",
+      "info": "Used as a fallback. The label and ship-date message set in the Encore app (and translations) take priority."
+    },
+    {
+      "type": "checkbox",
+      "id": "show_badge",
+      "label": "Show preorder badge",
+      "default": true
+    },
+    {
+      "type": "select",
+      "id": "placement",
+      "label": "Placement",
+      "options": [
+        { "value": "stack", "label": "Below the buy buttons" },
+        { "value": "replace", "label": "Replace the buy buttons" }
+      ],
+      "default": "stack"
+    },
+    { "type": "header", "content": "Appearance" },
+    { "type": "color", "id": "button_bg", "label": "Button background", "default": "#1A1A1A" },
+    { "type": "color", "id": "button_fg", "label": "Button text", "default": "#FFFFFF" },
+    { "type": "range", "id": "radius", "label": "Corner radius", "min": 0, "max": 40, "step": 1, "unit": "px", "default": 6 }
+  ]
+}
+{% endschema %}
