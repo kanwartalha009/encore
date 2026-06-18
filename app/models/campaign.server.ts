@@ -206,16 +206,9 @@ export type CampaignWithStats = Campaign & {
   cohortName: string | null;
 };
 
-function moneyFmt(cents: number) {
-  return `$${(cents / 100).toLocaleString("en-US", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  })}`;
-}
-
-export function formatGmv(cents: number) {
-  return moneyFmt(cents);
-}
+// `formatGmv` is a client-safe formatter (route components render it too), so it
+// lives in ../lib/format. Re-exported here for the many server-side callers.
+export { formatGmv } from "../lib/format";
 
 // ---------- Queries ----------
 export async function listCampaigns(shop: string): Promise<CampaignWithStats[]> {

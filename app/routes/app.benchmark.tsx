@@ -27,7 +27,7 @@ import { authenticate } from "../shopify.server";
 import { useLocale } from "../lib/i18n";
 import { getBenchmark } from "../services/benchmark.server";
 import { saveSettingsSection } from "../models/settings.server";
-import { formatGmv } from "../models/campaign.server";
+import { formatGmv } from "../lib/format";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
