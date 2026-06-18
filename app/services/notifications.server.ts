@@ -21,32 +21,9 @@ export type MessageType =
 
 export type MessageTemplate = { subject: string; body: string };
 
-export const MESSAGE_TYPES: {
-  type: MessageType;
-  label: string;
-  vars: string[];
-}[] = [
-  {
-    type: "preorder_confirmation",
-    label: "Preorder confirmation",
-    vars: ["customer_name", "product", "ship_date", "deposit", "balance", "order_name"],
-  },
-  {
-    type: "back_in_stock",
-    label: "Back in stock",
-    vars: ["customer_name", "product", "variant", "product_url"],
-  },
-  {
-    type: "ship_date_update",
-    label: "Ship-date update",
-    vars: ["customer_name", "product", "old_ship_date", "new_ship_date"],
-  },
-  {
-    type: "balance_due",
-    label: "Balance due",
-    vars: ["customer_name", "product", "balance", "due_date", "pay_link"],
-  },
-];
+// MESSAGE_TYPES is rendered by the Notifications route component, so it lives in
+// the client-safe ../lib/notifications-shared and is re-exported here.
+export { MESSAGE_TYPES } from "../lib/notifications-shared";
 
 const DEFAULTS: Record<MessageType, MessageTemplate> = {
   preorder_confirmation: {

@@ -26,13 +26,13 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import {
   getMarketRule,
-  marketExperience,
   reconcileMarkets,
   saveMarketRule,
   type MarketRow,
   type MarketRuleData,
   type PerMarketOverride,
 } from "../models/markets.server";
+import { marketExperience } from "../lib/markets-shared";
 import { useLocale } from "../lib/i18n";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {

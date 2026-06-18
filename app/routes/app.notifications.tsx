@@ -31,11 +31,11 @@ import {
   getNotificationSettings,
   saveNotificationSettings,
   defaultTemplate,
-  MESSAGE_TYPES,
   type MessageType,
   type NotificationProvider,
   type NotificationSettings,
 } from "../services/notifications.server";
+import { MESSAGE_TYPES } from "../lib/notifications-shared";
 import { isConnected, klaviyoConfigured } from "../services/klaviyo-oauth.server";
 
 const LOCALES = ["en", "es", "fr", "de", "it", "pt", "nl", "pl"];
