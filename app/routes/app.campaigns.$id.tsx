@@ -47,6 +47,7 @@ import {
 
 import { authenticate } from "../shopify.server";
 import { useLocale } from "../lib/i18n";
+import { getShopCurrency } from "../models/shop.server";
 
 const TRIGGER_LABEL: Record<string, string> = {
   STOCK: "Stock = 0",
@@ -74,10 +75,11 @@ const PAYMENT_STATUS_LABEL: Record<
 };
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const id = params.id;
   if (!id) throw new Response("Not found", { status: 404 });
 
+  const currency = await getShopCurrency(admin, session.shop);
   const campaign = await getCampaign(session.shop, id);
   if (!campaign) throw new Response("Not found", { status: 404 });
 
@@ -101,9 +103,9 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       cartMode: CART_LABEL[campaign.cartMode] ?? "Hard split",
       unitsSold: campaign.unitsSold,
       unitsTarget,
-      gmv: formatGmv(campaign.gmvCents),
-      depositCollected: formatGmv(campaign.depositCollectedCents),
-      balancePending: formatGmv(campaign.balancePendingCents),
+      gmv: formatGmv(campaign.gmvCents, currency),
+      depositCollected: formatGmv(campaign.depositCollectedCents, currency),
+      balancePending: formatGmv(campaign.balancePendingCents, currency),
       shipDate: cohort?.shipDate
         ? cohort.shipDate.toISOString().slice(0, 10)
         : "TBD",
@@ -133,7 +135,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       name: p.customerName ?? p.customerEmail,
       email: p.customerEmail,
       units: p.units,
-      amount: formatGmv(Math.round(p.amount * 100)),
+      amount: formatGmv(Math.round(p.amount * 100), currency),
       paymentStatus:
         PAYMENT_STATUS_LABEL[p.paymentStatus] ?? "Deposit paid",
       orderId: p.orderRef ?? "—",

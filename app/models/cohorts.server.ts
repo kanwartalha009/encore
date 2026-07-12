@@ -15,7 +15,7 @@ export type CohortListRow = {
   status: "ON_TRACK" | "AT_RISK" | "READY_TO_SHIP" | "SHIPPED";
 };
 
-export async function listCohorts(shop: string): Promise<CohortListRow[]> {
+export async function listCohorts(shop: string, currency = "USD", locale = "en"): Promise<CohortListRow[]> {
   const cohorts = await prisma.cohort.findMany({
     where: { shop },
     orderBy: { shipDate: "asc" },
@@ -42,7 +42,7 @@ export async function listCohorts(shop: string): Promise<CohortListRow[]> {
       daysToShip,
       unitsSold,
       unitsTarget: c.unitsTarget,
-      gmv: formatGmv(gmv),
+      gmv: formatGmv(gmv, currency, locale),
       status: c.status as CohortListRow["status"],
     };
   });
@@ -70,7 +70,7 @@ const PAYMENT_LABEL: Record<string, string> = {
   REFUNDED: "Refunded",
 };
 
-export async function listPreOrders(shop: string): Promise<PreOrderRow[]> {
+export async function listPreOrders(shop: string, currency = "USD", locale = "en"): Promise<PreOrderRow[]> {
   const rows = await prisma.preOrder.findMany({
     where: { shop },
     orderBy: { createdAt: "desc" },
@@ -90,7 +90,7 @@ export async function listPreOrders(shop: string): Promise<PreOrderRow[]> {
       ? p.cohort.shipDate.toISOString().slice(0, 10)
       : "—",
     units: p.units,
-    amount: formatGmv(Math.round(p.amount * 100)),
+    amount: formatGmv(Math.round(p.amount * 100), currency, locale),
     paymentStatus: PAYMENT_LABEL[p.paymentStatus] ?? p.paymentStatus,
     createdAt: p.createdAt.toISOString().slice(0, 10),
   }));

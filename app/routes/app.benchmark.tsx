@@ -28,10 +28,15 @@ import { useLocale } from "../lib/i18n";
 import { getBenchmark } from "../services/benchmark.server";
 import { saveSettingsSection } from "../models/settings.server";
 import { formatGmv } from "../lib/format";
+import { getShopCurrency } from "../models/shop.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  return getBenchmark(session.shop);
+  const { admin, session } = await authenticate.admin(request);
+  const [benchmark, currency] = await Promise.all([
+    getBenchmark(session.shop),
+    getShopCurrency(admin, session.shop),
+  ]);
+  return { ...benchmark, currency };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -65,7 +70,7 @@ function Metric({ label, value, sub }: { label: string; value: string; sub?: str
 }
 
 export default function BenchmarkPage() {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const data = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const [name, setName] = useState(data.incumbent.name);
@@ -89,7 +94,7 @@ export default function BenchmarkPage() {
       ["incumbent_conversion_rate", pctText(data.incumbent.conversionRate)],
       ["lift_points", lift == null ? "—" : String(lift)],
       ["preorder_units", String(data.preorder.units)],
-      ["preorder_gmv", formatGmv(Math.round(data.preorder.gmv * 100))],
+      ["preorder_gmv", formatGmv(Math.round(data.preorder.gmv * 100), data.currency, locale)],
       ["oversell_incidents", String(data.reliability.oversellIncidents)],
       ["untagged_orders", String(data.reliability.untaggedOrders)],
     ];
@@ -116,7 +121,7 @@ export default function BenchmarkPage() {
             sub={`${data.waitlist.converted} / ${data.waitlist.sent} ${t("notified")}`}
           />
           <Metric label="Units captured" value={data.preorder.units.toLocaleString()} sub={t("pre-orders")} />
-          <Metric label="GMV captured" value={formatGmv(Math.round(data.preorder.gmv * 100))} sub={t("pre-order value")} />
+          <Metric label="GMV captured" value={formatGmv(Math.round(data.preorder.gmv * 100), data.currency, locale)} sub={t("pre-order value")} />
         </InlineGrid>
 
         <Layout>

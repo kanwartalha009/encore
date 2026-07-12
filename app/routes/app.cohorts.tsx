@@ -25,12 +25,14 @@ import {
   type CohortListRow,
 } from "../models/cohorts.server";
 import { useLocale } from "../lib/i18n";
+import { getShopCurrency } from "../models/shop.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
+  const currency = await getShopCurrency(admin, session.shop);
   const [orders, cohorts] = await Promise.all([
-    listPreOrders(session.shop),
-    listCohorts(session.shop),
+    listPreOrders(session.shop, currency),
+    listCohorts(session.shop, currency),
   ]);
   return { orders, cohorts };
 };

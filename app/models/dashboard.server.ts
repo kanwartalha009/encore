@@ -64,7 +64,11 @@ const COHORT_STATUS_LABEL: Record<string, DashboardData["cohorts"][number]["stat
     SHIPPED: "Ready to ship",
   };
 
-export async function getDashboard(shop: string): Promise<DashboardData> {
+export async function getDashboard(
+  shop: string,
+  currency = "USD",
+  locale = "en",
+): Promise<DashboardData> {
   const [campaigns, cohorts, preOrders, waitlistCount, reliability] = await Promise.all([
     prisma.campaign.findMany({
       where: { shop },
@@ -103,7 +107,7 @@ export async function getDashboard(shop: string): Promise<DashboardData> {
   const kpis: DashboardData["kpis"] = [
     {
       label: "Preorder GMV (this month)",
-      value: formatGmv(totalGmvCents),
+      value: formatGmv(totalGmvCents, currency, locale),
       delta: "+18.4%",
       deltaTone: "success",
       sub: "vs. last 30 days",
@@ -142,7 +146,7 @@ export async function getDashboard(shop: string): Promise<DashboardData> {
         shipDate: `Ships ${c.shipDate.toISOString().slice(0, 10)}`,
         unitsSold: sold,
         unitsTarget: c.unitsTarget ?? Math.max(sold, 1),
-        gmv: formatGmv(gmv),
+        gmv: formatGmv(gmv, currency, locale),
         status: COHORT_STATUS_LABEL[c.status] ?? "On track",
       };
     }),
