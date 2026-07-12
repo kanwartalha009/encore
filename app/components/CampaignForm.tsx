@@ -99,8 +99,10 @@ export type CampaignFormValues = {
   discountKind: "percent" | "fixed";
   discountAmount: string;
 
-  // Store-wide (moved to Settings; preserved here for serialization).
+  // Store-wide (configured in Settings; INHERITED into every new rule, and
+  // overridable per rule — see campaignDefaultsFromSettings).
   ctaLabel: string;
+  ctaPlacement: "replace" | "beside" | "stack";
   cartMode: "split" | "warning";
   mixedCartWarning: string;
   confirmationEmail: boolean;
@@ -148,6 +150,7 @@ export const CAMPAIGN_FORM_DEFAULTS: CampaignFormValues = {
   discountAmount: "10",
 
   ctaLabel: "Preorder",
+  ctaPlacement: "replace",
   cartMode: "split",
   mixedCartWarning: "Your cart includes preorder items that will ship later.",
   confirmationEmail: true,
@@ -164,6 +167,61 @@ export const CAMPAIGN_FORM_DEFAULTS: CampaignFormValues = {
   webhookUrl: "",
   metafieldNamespace: "preorder_novafied",
 };
+
+/**
+ * INHERIT STORE DEFAULTS (F0.4 / audit A4).
+ *
+ * Settings is the single place a merchant configures payment, cart, button, delivery
+ * copy and order tagging. Every NEW rule is seeded from those values here, and each
+ * group is overridable per rule ("Override for this preorder"). That kills the
+ * store-vs-rule duplication the merchant complained about.
+ *
+ * SCOPE (deliberate, see PHASE-F0-AUDIT.md "F0.4 decision"): inheritance happens at
+ * CREATE time — the rule is written with the store's values. Changing a Setting does
+ * NOT retroactively rewrite rules that are already live; that would need nullable
+ * override columns + resolver fallback across the deposit/selling-plan money path,
+ * which we are not doing days before submission. Editing a rule shows its own values.
+ *
+ * Pure function (no `.server` import) so the loader and the component can both use it.
+ */
+export function campaignDefaultsFromSettings(
+  general: Record<string, unknown>,
+): CampaignFormValues {
+  const str = (k: string, d: string): string =>
+    typeof general[k] === "string" && (general[k] as string).trim()
+      ? (general[k] as string)
+      : d;
+  const one = <T extends string>(k: string, allowed: readonly T[], d: T): T =>
+    allowed.includes(general[k] as T) ? (general[k] as T) : d;
+
+  return {
+    ...CAMPAIGN_FORM_DEFAULTS,
+    paymentMode: one(
+      "defaultPaymentMode",
+      ["pay_now", "deposit", "pay_later"] as const,
+      CAMPAIGN_FORM_DEFAULTS.paymentMode,
+    ),
+    depositAmount: str("defaultDepositPct", CAMPAIGN_FORM_DEFAULTS.depositAmount),
+    balanceCaptureDays: str(
+      "balanceChargeDays",
+      CAMPAIGN_FORM_DEFAULTS.balanceCaptureDays,
+    ),
+    deliveryNote: str("defaultDeliveryNote", CAMPAIGN_FORM_DEFAULTS.deliveryNote),
+    ctaLabel: str("defaultButtonLabel", CAMPAIGN_FORM_DEFAULTS.ctaLabel),
+    ctaPlacement: one(
+      "ctaPlacement",
+      ["replace", "beside", "stack"] as const,
+      CAMPAIGN_FORM_DEFAULTS.ctaPlacement,
+    ),
+    // Settings stores "show a mixed-cart warning?" as a boolean + its message.
+    cartMode: general.mixedCartWarning === true ? "warning" : "split",
+    mixedCartWarning: str(
+      "mixedCartMessage",
+      CAMPAIGN_FORM_DEFAULTS.mixedCartWarning,
+    ),
+    orderTags: [str("orderTagName", "preorder")],
+  };
+}
 
 const AVAIL_OPTIONS: { label: string; value: VariantAvailabilityUI }[] = [
   { label: "Available now", value: "now" },
@@ -312,6 +370,10 @@ export default function CampaignForm({
   const [discountKind, setDiscountKind] = useState(initialValues.discountKind);
   const [discountAmount, setDiscountAmount] = useState(initialValues.discountAmount);
 
+  // ---------- Button (inherited from Settings; override per rule — F0.4) ----------
+  const [ctaLabel, setCtaLabel] = useState(initialValues.ctaLabel);
+  const [ctaPlacement, setCtaPlacement] = useState(initialValues.ctaPlacement);
+
   // ---------- Product picker (App Bridge resourcePicker — real store catalog) ----------
   // Opens Shopify's native product picker so the merchant selects THEIR products
   // and variants (not demo data). Each selected product returns its selected
@@ -447,14 +509,17 @@ export default function CampaignForm({
     fd.set("stackWithShopifyDiscounts", "");
     fd.set("deliveryNote", deliveryNote);
 
-    // Store-wide defaults (configured in Settings) — preserved on save.
-    fd.set("ctaLabel", initialValues.ctaLabel || "Preorder");
-    fd.set("ctaPlacement", "REPLACE");
+    // Inherited from Settings unless this rule overrode them (F0.4 / A4). These come
+    // from `initialValues`, which the loader seeds via campaignDefaultsFromSettings —
+    // so a store that sets its button text / cart mode / order tag once gets it on
+    // every new rule, instead of re-typing it here.
+    fd.set("ctaLabel", ctaLabel || initialValues.ctaLabel || "Preorder");
+    fd.set("ctaPlacement", ctaPlacement.toUpperCase());
     fd.set("cartMode", initialValues.cartMode === "warning" ? "WARNING" : "SPLIT");
     fd.set("mixedCartWarning", initialValues.mixedCartWarning);
     fd.set("allowGuestCheckout", "on");
     fd.set("confirmationEmail", initialValues.confirmationEmail ? "on" : "");
-    fd.set("restockAlert", "on");
+    fd.set("restockAlert", initialValues.restockAlert ? "on" : "");
     fd.set("balanceReminder", dbBalanceReminder);
     fd.set("merchantAlertMoq", "on");
     fd.set("merchantAlertBalanceFail", "on");
@@ -464,10 +529,10 @@ export default function CampaignForm({
     fd.set("gateByCustomerTag", "");
     fd.set("customerTags", "[]");
     fd.set("restrictedCountries", "[]");
-    fd.set("orderTags", JSON.stringify(["preorder"]));
+    fd.set("orderTags", JSON.stringify(initialValues.orderTags));
     fd.set("dunningSteps", JSON.stringify(initialValues.dunningSteps));
-    fd.set("webhookUrl", "");
-    fd.set("metafieldNamespace", "preorder_novafied");
+    fd.set("webhookUrl", initialValues.webhookUrl);
+    fd.set("metafieldNamespace", initialValues.metafieldNamespace);
     return fd;
   };
 
@@ -578,22 +643,39 @@ export default function CampaignForm({
                     <BlockStack gap="050">
                       <Text as="h2" variant="headingMd">{t("Payment")}</Text>
                       <Text as="p" variant="bodySm" tone="subdued">
-                        {customizePayment
-                          ? paymentMode === "deposit"
-                            ? `Deposit ${depositAmount}${depositKind === "percent" ? "%" : " USD"} at checkout, balance ${balanceCaptureDays} days before ship.`
-                            : paymentMode === "pay_later"
-                              ? "Card vaulted at checkout, charged when the cohort ships."
-                              : "Customer pays in full at checkout."
-                          : "Customer pays in full at checkout."}
+                        {(() => {
+                          // When not overridden, describe the STORE DEFAULT this rule
+                          // inherits from Settings (F0.4) — not a hardcoded "pay now".
+                          const mode = customizePayment ? paymentMode : initialValues.paymentMode;
+                          const dep = customizePayment ? depositAmount : initialValues.depositAmount;
+                          const kind = customizePayment ? depositKind : initialValues.depositKind;
+                          const days = customizePayment
+                            ? balanceCaptureDays
+                            : initialValues.balanceCaptureDays;
+                          const desc =
+                            mode === "deposit"
+                              ? `Deposit ${dep}${kind === "percent" ? "%" : ""} at checkout, balance ${days} days before ship.`
+                              : mode === "pay_later"
+                                ? t("Card vaulted at checkout, charged when the cohort ships.")
+                                : t("Customer pays in full at checkout.");
+                          return customizePayment
+                            ? desc
+                            : `${desc} ${t("(from Settings)")}`;
+                        })()}
                       </Text>
                     </BlockStack>
                     <Checkbox
-                      label={t("Customize payment")}
+                      label={t("Override for this preorder")}
                       checked={customizePayment}
                       onChange={(v) => {
                         setCustomizePayment(v);
+                        // Un-checking returns this rule to the store default from
+                        // Settings (F0.4) rather than a hardcoded "pay now".
                         if (!v) {
-                          setPaymentMode("pay_now");
+                          setPaymentMode(initialValues.paymentMode);
+                          setDepositKind(initialValues.depositKind);
+                          setDepositAmount(initialValues.depositAmount);
+                          setBalanceCaptureDays(initialValues.balanceCaptureDays);
                         }
                       }}
                     />
@@ -724,6 +806,33 @@ export default function CampaignForm({
                       </BlockStack>
                       <Divider />
                       <BlockStack gap="200">
+                        <Text as="h3" variant="headingSm">{t("Button")}</Text>
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          {t("Inherited from Settings. Change it here to override just this preorder.")}
+                        </Text>
+                        <FormLayout>
+                          <TextField
+                            label={t("Button text")}
+                            value={ctaLabel}
+                            onChange={setCtaLabel}
+                            autoComplete="off"
+                          />
+                          <Select
+                            label={t("Where it appears")}
+                            options={[
+                              { label: t("Instead of Add to cart"), value: "replace" },
+                              { label: t("Next to Add to cart"), value: "beside" },
+                              { label: t("Below Add to cart"), value: "stack" },
+                            ]}
+                            value={ctaPlacement}
+                            onChange={(v) =>
+                              setCtaPlacement(v as "replace" | "beside" | "stack")
+                            }
+                          />
+                        </FormLayout>
+                      </BlockStack>
+                      <Divider />
+                      <BlockStack gap="200">
                         <Text as="h3" variant="headingSm">{t("Copy & reporting")}</Text>
                         <FormLayout>
                           <TextField
@@ -732,7 +841,7 @@ export default function CampaignForm({
                             onChange={setDeliveryNote}
                             autoComplete="off"
                             multiline={2}
-                            helpText="Defaults from Settings; override for this drop. Use {{shipping_date}} to insert the ship date."
+                            helpText={t("Inherited from Settings; change it to override just this preorder. Use {{shipping_date}} to insert the ship date.")}
                           />
                           <TextField
                             label={t("Cohort name")}

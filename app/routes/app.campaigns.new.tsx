@@ -18,8 +18,9 @@ import { useLocale } from "../lib/i18n";
 import { syncCampaignSellingPlan } from "../models/selling-plan.server";
 import { listCollections } from "../models/collections.server";
 import { fetchMarkets } from "../models/markets.server";
+import { getSettings } from "../models/settings.server";
 import CampaignForm, {
-  CAMPAIGN_FORM_DEFAULTS,
+  campaignDefaultsFromSettings,
 } from "../components/CampaignForm";
 
 const STATUS_BY_INTENT: Record<string, CampaignStatus> = {
@@ -29,15 +30,21 @@ const STATUS_BY_INTENT: Record<string, CampaignStatus> = {
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { admin } = await authenticate.admin(request);
-  const [collections, markets] = await Promise.all([
+  const { admin, session } = await authenticate.admin(request);
+  const [collections, markets, settings] = await Promise.all([
     listCollections(admin),
     fetchMarkets(admin),
+    getSettings(session.shop),
   ]);
   return {
     collections,
     marketsList:
       markets?.map((m) => ({ id: m.id, title: m.name, subtitle: m.handle })) ?? null,
+    // F0.4 / A4: a new rule INHERITS the store's defaults (payment, deposit, button,
+    // cart, delivery note, order tag) instead of re-asking for them.
+    initialValues: campaignDefaultsFromSettings(
+      settings.general as Record<string, unknown>,
+    ),
   };
 };
 
@@ -74,11 +81,11 @@ export const headers: HeadersFunction = (headersArgs) => {
 
 export default function CampaignsNew() {
   const { t } = useLocale();
-  const { collections, marketsList } = useLoaderData<typeof loader>();
+  const { collections, marketsList, initialValues } = useLoaderData<typeof loader>();
   return (
     <CampaignForm
       mode="create"
-      initialValues={CAMPAIGN_FORM_DEFAULTS}
+      initialValues={initialValues}
       pageTitle={t("New preorder")}
       pageSubtitle={t("Three quick fields and you're live: name, variants, ship date.")}
       backTo="/app/campaigns"
