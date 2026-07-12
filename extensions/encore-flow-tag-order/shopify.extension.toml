@@ -3,8 +3,9 @@
 # tag to an order. Flow POSTs to runtime_url; app/routes/flow.tag-order.tsx
 # verifies the HMAC and calls tagsAdd (idempotent — safe for Flow retries).
 #
-# runtime_url must match application_url in shopify.app.toml. The CLI rewrites
-# it per environment on `shopify app dev` / `deploy`.
+# runtime_url must match application_url in shopify.app.toml. The CLI does NOT
+# auto-rewrite this — ⇒ DEPLOY STEP: set it to the production URL before `deploy`.
+# See DEPLOY-CHECKLIST.md ("Production URLs"). Dev default below.
 
 [[extensions]]
 name = "Encore — Tag order"

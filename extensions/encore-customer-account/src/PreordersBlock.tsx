@@ -20,7 +20,10 @@ import {
 } from "@shopify/ui-extensions-react/customer-account";
 import { useEffect, useState } from "react";
 
-// Matches application_url in shopify.app.toml; the CLI rewrites it per env.
+// The app's public URL. NOTE: the Shopify CLI does NOT rewrite this constant on
+// deploy (it only updates application_url/redirect_urls in shopify.app.toml).
+// ⇒ DEPLOY STEP: set this to the production application_url before `deploy`.
+// See DEPLOY-CHECKLIST.md ("Production URLs"). Dev default below.
 const APP_URL = "https://encore.nova-platform.localhost:3003";
 
 export default reactExtension("customer-account.order-index.block.render", () => (

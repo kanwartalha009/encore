@@ -5,7 +5,9 @@
 # selected by message_type; optional overrides are available per step.
 # app/routes/flow.send-email.tsx renders + sends it (HMAC-verified).
 #
-# runtime_url must match application_url in shopify.app.toml; the CLI rewrites it
+# runtime_url must match application_url in shopify.app.toml. The CLI does NOT
+# auto-rewrite this — ⇒ DEPLOY STEP: set it to the production URL before `deploy`.
+# See DEPLOY-CHECKLIST.md ("Production URLs"). (Old note wrongly said the CLI rewrites it.)
 # per environment.
 
 [[extensions]]
