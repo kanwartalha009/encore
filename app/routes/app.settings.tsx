@@ -259,6 +259,7 @@ export default function SettingsPage() {
     ["sec-discounts", t("Discounts")],
     ["sec-design", t("settings.sec.design")],
     ["sec-advanced", t("settings.sec.advanced")],
+    ["sec-more", t("More settings")],
   ];
   const [activeSec, setActiveSec] = useState("sec-language");
   const jumpTo = (id: string) => {
@@ -1023,6 +1024,33 @@ export default function SettingsPage() {
                 </BlockStack>
               </BlockStack>
             </Collapsible>
+          </BlockStack>
+        </Card>
+
+        <div id="sec-more" />
+        <Card>
+          <BlockStack gap="400">
+            <BlockStack gap="100">
+              <Text as="h2" variant="headingMd">{t("More settings")}</Text>
+              <Text as="p" variant="bodySm" tone="subdued">{t("Less-common areas, kept out of the way until you need them.")}</Text>
+            </BlockStack>
+            <Divider />
+            {(
+              [
+                ["/app/markets", t("nav.markets"), t("Per-region preorder rules and availability.")],
+                ["/app/translations", t("nav.translations"), t("Translate storefront and email text for your buyers.")],
+                ["/app/notifications", t("nav.notifications"), t("Customer emails via Shopify Flow or Klaviyo — no added cost.")],
+                ["/app/help", t("Get help"), t("Send us a message — we usually reply within a day.")],
+              ] as [string, string, string][]
+            ).map(([url, label, desc]) => (
+              <InlineStack key={url} align="space-between" blockAlign="center" wrap={false}>
+                <BlockStack gap="050">
+                  <Text as="p" variant="bodyMd" fontWeight="semibold">{label}</Text>
+                  <Text as="p" variant="bodySm" tone="subdued">{desc}</Text>
+                </BlockStack>
+                <Button url={url}>{t("Open")}</Button>
+              </InlineStack>
+            ))}
           </BlockStack>
         </Card>
 

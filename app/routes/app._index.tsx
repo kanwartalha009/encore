@@ -3,6 +3,7 @@ import { useLoaderData, useNavigate } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
 import { getDashboard } from "../models/dashboard.server";
+import { getShopCurrency } from "../models/shop.server";
 import {
   Page,
   Layout,
@@ -80,8 +81,10 @@ const FALLBACK_ACTIVITY = [
 
 // ---------- Loader / headers ----------
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const data = await getDashboard(session.shop);
+  const { admin, session } = await authenticate.admin(request);
+  // A6: money renders in the SHOP's currency, not a hardcoded USD.
+  const currency = await getShopCurrency(admin, session.shop);
+  const data = await getDashboard(session.shop, currency);
   return data;
 };
 
@@ -421,7 +424,7 @@ export default function DashboardIndex() {
           onDismiss={() => {}}
           action={{
             content: t("Set up your first preorder"),
-            onAction: () => navigate("/app/campaigns/new"),
+            onAction: () => navigate("/app/onboarding"),
           }}
           secondaryAction={{
             content: t("Read the docs"),

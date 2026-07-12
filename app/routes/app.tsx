@@ -19,18 +19,14 @@ function AppNav() {
   const { t } = useLocale();
   return (
     <s-app-nav>
+      {/* E1: 6 nav items. Cohorts/Demand/Benchmark/Low-stock → Insights tabs;
+          Markets/Translations/Notifications → Settings tabs (all still reachable). */}
       <s-link href="/app">{t("nav.dashboard")}</s-link>
       <s-link href="/app/campaigns">{t("nav.preorders")}</s-link>
-      <s-link href="/app/cohorts">{t("nav.orders")}</s-link>
-      <s-link href="/app/demand">{t("Demand")}</s-link>
-      <s-link href="/app/markets">{t("Markets")}</s-link>
-      <s-link href="/app/benchmark">{t("Benchmark")}</s-link>
       <s-link href="/app/waitlist">{t("nav.backinstock")}</s-link>
-      <s-link href="/app/low-stock">{t("nav.lowstock")}</s-link>
-      <s-link href="/app/translations">{t("nav.translations")}</s-link>
-      <s-link href="/app/notifications">{t("Notifications")}</s-link>
+      <s-link href="/app/insights">{t("nav.insights")}</s-link>
       <s-link href="/app/settings">{t("nav.settings")}</s-link>
-      <s-link href="/app/plans">{t("Plans")}</s-link>
+      <s-link href="/app/plans">{t("nav.plans")}</s-link>
     </s-app-nav>
   );
 }
