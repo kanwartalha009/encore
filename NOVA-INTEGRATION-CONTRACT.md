@@ -46,9 +46,19 @@ webhook secret." This contract **supersedes** that: the forward is **Nova-signed
 app's Shopify secret to verify forwards. Update `webhooks.md` + `installations.md` to state the
 `X-Nova-Signature` scheme and the two secrets.
 
-## Status
+## Status (updated E0, 2026-07-11 — verified from code)
 
-App **sending** side: implemented (this repo). Platform **receiving** side: NOT built yet —
-`installations.controller.ts` / `webhooks.controller.ts` are `_status` placeholders. End-to-end
-Phase-0 verification (Installation shows ACTIVE; event lands in the ingress log) is **deferred**
-until these endpoints exist.
+App **sending** side: **implemented** — all calls go through the durable `NovaOutbox`
+(`app/lib/nova.server.ts` enqueue → `/cron/nova-outbox` flush with retry/backoff), never
+fire-and-forget. `app_subscriptions/update` forwards with `_nova` price/status/period enrichment.
+
+Platform **receiving** side: **built + live** (not placeholders) —
+`apps/api/.../installations/installations.internal.controller.ts` exposes `@Public POST
+/v1/internal/installations/confirm` (HMAC via `verifyNovaSignature`), setting the Installation
+`ACTIVE` + locking the immutable `agencyId`; `apps/api/.../webhooks/webhooks.controller.ts`
+exposes the `@Public POST /v1/webhooks/shopify/:appSlug` ingress → `billing.recordFromWebhook`
+creates the `Charge` (idempotent on `X-Shopify-Webhook-Id`) → agency `Commission`.
+
+**Remaining verification:** the single end-to-end money-path test (referral install → charge →
+1 Charge + 1 Commission in Nova admin → redact → uninstall stops accrual) runs at **E3 ⇄ N2** on
+a live dev store — not "deferred until endpoints exist" (they exist).

@@ -1,21 +1,25 @@
-# Change Control
+# Encore — Change Control
 
-This document is the contract for how changes are requested and applied. Its purpose: **a change to one module must never silently alter the architecture or other modules.**
+The contract for how changes to the **Encore Shopify app** (this standalone repo,
+`github.com/kanwartalha009/encore`) are requested and applied. Purpose: a change to one
+surface must never silently break a frozen contract or an existing install.
 
-## Invariants (architecture-level, frozen)
+> The Nova **platform's** architecture invariants (I‑1…I‑14 — monorepo layout, single API,
+> single schema, money ledger, attribution, RBAC) live in the *platform* repo's own change
+> control. They are **not** Encore's — Encore is a standalone app. Encore's frozen contracts
+> are below. (D6 fix, E0: this preamble previously mis-copied the platform invariants.)
 
-Changing any of these is an **architecture change**, never a module change:
+## Encore frozen contracts (do not weaken)
 
-1. **I-1 Monorepo layout** — `apps/{api,web,admin,agency}` + `packages/{database,shared,tsconfig}`. Turborepo + pnpm.
-2. **I-2 Single API** — all business logic lives in `apps/api` (NestJS). Next.js apps never talk to the database directly; they call the API.
-3. **I-3 Single schema package** — all Prisma models live in `packages/database`. No app defines its own tables.
-4. **I-4 Module boundaries** — backend modules (see `02-modules/`) communicate through service interfaces, never by reaching into another module's repository/tables.
-5. **I-5 Money is a ledger** — `Charge`, `Commission`, `Payout` rows are append-only. Corrections are new reversal entries, never updates/deletes.
-6. **I-6 Billing source of truth** — revenue enters the system only via Shopify Billing webhooks (verified HMAC). Commissions are derived, never manually inserted (manual adjustments use a typed `ADJUSTMENT` ledger entry).
-7. **I-7 Payout providers are pluggable** — payouts go through the `PayoutProvider` interface (`manual`, `stripe-connect`, `paypal`). Adding a provider never touches commission logic.
-8. **I-8 Attribution** — agency referral is captured at install time (`Installation.agencyId`) and is immutable for the life of the installation.
-9. **I-9 Multi-tenancy** — agency-scoped data is always filtered by `agencyId` at the API layer; the agency app resolves its tenant from the subdomain.
-10. **I-10 AuthN/AuthZ** — JWT (access+refresh) issued by the API; RBAC permissions enforced by guards in the API only. UI hiding is cosmetic, not security.
+Changing any of these is a **C3** event → **STOP and ask Kanwar**:
+
+1. **No feature loss** — UX changes relocate / default / rename; never delete a capability or drop a schema column.
+2. **GDPR + privacy** — the 3 compliance handlers, the 48h purge job, encrypted Klaviyo tokens (AES‑256‑GCM).
+3. **Nova integration** — `afterAuth → confirmInstall`, webhook forwarding with `_nova` enrichment, everything through the durable `NovaOutbox` (never fire‑and‑forget). Shared HMAC secrets match the platform; scheme per `NOVA-INTEGRATION-CONTRACT.md`.
+4. **No‑oversell** — offer cap + the Cart/Checkout Validation Function; never advertise past the limit.
+5. **Billing** — `appSubscriptionCreate` with test charges outside prod; pricing from Nova with a hardcoded fallback (keep both paths).
+6. **PCD gate** — `orders/*` webhook topics stay commented in `shopify.app.toml` until Kanwar confirms PCD approval.
+7. **Embedded conventions** — session‑token auth, App Bridge / `s-app-nav`, API version pinned 2025‑10.
 
 ## Change classification
 
@@ -46,7 +50,7 @@ Frozen at Phase 0: 9 OAuth scopes, app-proxy base `/apps/encore`, webhook topics
 
 - **What:** `shopify.app.toml` access scopes 9 → 10 — added `write_purchase_options`.
 - **Why:** `sellingPlanGroupCreate/Update/AddProducts/RemoveProducts/Delete` (deposit / pay-later preorders, task #17) require `write_products` **+** `write_purchase_options`.
-- **Classification:** C2 — additive and backward-compatible. Touches no architecture invariant (I-1…I-10); alters no existing scope, endpoint, or model.
+- **Classification:** C2 — additive and backward-compatible. Touches no Encore frozen contract (see the preamble above); alters no existing scope, endpoint, or model.
 - **Consumers:** `app/models/selling-plan.server.ts` only. No other module depends on it.
 - **Migration:** merchants re-grant on next load via the existing `app/scopes_update` webhook (`webhooks.app.scopes_update.tsx`); `shopify app deploy` pushes the new scope set.
 - **Rollback:** drop the scope + the selling-plan service calls; preorders fall back to the pay-now line-item-property flow.

@@ -1,7 +1,7 @@
 # Encore — Delivery Plan & Guardrails (operational runbook)
 
 > Companion to `encore-BUILD-PACK.md` (the phased spec) and `encore-PREREQUISITES.md` (the pre-build gate).
-> This doc is **how the build is run**: phase gating, copy-paste Cowork prompts, production-safety guardrails, and the per-phase audit. Grounded in the platform's `docs/CHANGE-CONTROL.md` (invariants I-1…I-10, change classes C1/C2/C3) and `docs/04-plan/phased-plan.md` ("phases never reopen earlier phases' contracts").
+> This doc is **how the build is run**: phase gating, copy-paste Cowork prompts, production-safety guardrails, and the per-phase audit. Grounded in this repo's `CHANGE-CONTROL.md` (Encore frozen contracts, change classes C1/C2/C3) and the phase-gating rule that phases never reopen earlier phases' contracts.
 
 ---
 
@@ -20,12 +20,14 @@
 
 Check a box only when that phase's gate (build pack §3.N) **and** the §4 audit are green.
 
-- [ ] **Phase 0** — Foundation & feasibility
-- [ ] **Phase 1** — Core preorder (P0 mechanics)
-- [ ] **Phase 2** — The wedge (P0 differentiators)
-- [ ] **Phase 3** — Waitlist + ARRS
-- [ ] **Phase 4** — Reliability hardening & BFS
-- [ ] **Phase 5** — Pilot & validation gate
+- [x] **Phase 0** — Foundation & feasibility — `PHASE-0-AUDIT.md` PASS
+- [x] **Phase 1** — Core preorder (P0 mechanics) — `PHASE-1-AUDIT.md` PASS
+- [x] **Phase 2** — The wedge (P0 differentiators) — `PHASE-2-AUDIT.md` PASS
+- [x] **Phase 3** — Waitlist (ARRS deliberately excluded — Encore stays independent) — `PHASE-3-AUDIT.md` PASS
+- [x] **Phase 4** — Reliability hardening & BFS — `PHASE-4-AUDIT.md` PASS
+- [x] **Phase 5** — Pilot & validation gate — INSTRUMENTED (`PHASE-5-AUDIT.md`); live field pilot pending
+- [x] **Billing + notifications** — Nova-priced 3 plans, billing + GDPR forwarding, Klaviyo + Shopify-Flow (`CC-2026-06-15-04..07`)
+- [ ] **Workstream E (App Store launch, E0–E4)** — **E0 current** (see `OPUS-HANDOVER-ENCORE.md`; gates in `../../docs/06-plan/MASTER-PLAN-2026-07-11.md` §Workstream E)
 
 ---
 
@@ -47,7 +49,7 @@ When a phase passes, its contracts are **frozen** and may change **only additive
 |---|---|---|
 | **C1** module-internal | no frozen contract touched | implement |
 | **C2** contract | touches a frozen surface above or the Nova platform | update specs, list consumers, migrate together, **additive + backward-compatible** |
-| **C3** architecture | violates an invariant (I-1…I-10) or breaks a frozen contract / active installs | **STOP.** Impact report + rollback plan + approval + ADR **before any code** |
+| **C3** architecture | breaks an Encore frozen contract (GDPR, billing, Nova outbox, no-oversell, PCD gate) or active installs | **STOP.** Impact report + rollback plan + approval + ADR **before any code** |
 
 ### 2.3 The production rule (blocking)
 **Anything that could affect a previously-completed phase or existing installs is BLOCKED until proven safe.** Before touching a frozen surface, answer:
