@@ -69,7 +69,7 @@ async function deliver(row: OutboxRow): Promise<boolean> {
 }
 
 async function enqueue(
-  kind: "confirm" | "ingress",
+  kind: "confirm" | "ingress" | "support",
   url: string,
   body: string,
   signature: string,
@@ -147,6 +147,31 @@ export async function forwardToIngress(input: {
     "X-Nova-Shop-Domain": input.shopDomain,
     ...(input.webhookId ? { "X-Shopify-Webhook-Id": input.webhookId } : {}),
   });
+}
+
+/** Get-help ticket → platform support ingress (⇄ platform N4). Queued via the outbox so it
+ *  ships even if the platform endpoint lands later. Idempotency/dedupe is Nova's concern. */
+export async function sendSupportTicket(input: {
+  shopDomain: string;
+  subject: string;
+  message: string;
+  email?: string;
+}): Promise<void> {
+  const secret = process.env.NOVA_INGRESS_HMAC_SECRET ?? "";
+  // Field names must match Nova's internalTicketSchema: `shop` + `body`. Sending shopDomain/message
+  // (and `email: null`, which zod's .optional() rejects) 422'd every ticket into a dead outbox while
+  // the merchant saw "message sent" — audit 2026-07-12, A1. Nova now accepts both spellings; this
+  // sends the canonical one. Omit email entirely rather than sending null.
+  const body = JSON.stringify({
+    appSlug: APP_SLUG,
+    shop: input.shopDomain,
+    subject: input.subject,
+    body: input.message,
+    ...(input.email ? { email: input.email } : {}),
+    source: "APP",
+    createdAt: new Date().toISOString(),
+  });
+  await enqueue("support", `${NOVA_API}/v1/internal/support/tickets`, body, sign(secret, body));
 }
 
 const ACTIVE_SUBS_QUERY = `#graphql
