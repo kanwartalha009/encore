@@ -10,8 +10,45 @@
 import prisma from "../db.server";
 import { getSettings, getTranslations } from "./settings.server";
 import { getCampaignCapacity } from "./capacity.server";
-import { getMarketRule } from "./markets.server";
+import { getMarketRule, type AdminGraphqlClient } from "./markets.server";
 import { isOverPreorderLimit } from "../services/usage.server";
+
+// COLLECTION-mode preorders match a product by its membership in the campaign's
+// collection. `Collection.hasProduct` is a cheap boolean check; results are memoized
+// per request so multiple candidate campaigns on the same collection cost one call.
+const COLLECTION_HAS_PRODUCT = `#graphql
+  query EncoreHasProduct($id: ID!, $pid: ID!) {
+    collection(id: $id) { hasProduct(id: $pid) }
+  }`;
+
+async function productInCollection(
+  admin: AdminGraphqlClient,
+  collectionId: string,
+  productIdOrGid: string,
+  cache: Map<string, boolean>,
+): Promise<boolean> {
+  const productGid = productIdOrGid.startsWith("gid://")
+    ? productIdOrGid
+    : `gid://shopify/Product/${productIdOrGid.split("/").pop() ?? productIdOrGid}`;
+  const key = `${collectionId}::${productGid}`;
+  const cached = cache.get(key);
+  if (cached !== undefined) return cached;
+  try {
+    const res = await admin.graphql(COLLECTION_HAS_PRODUCT, {
+      variables: { id: collectionId, pid: productGid },
+    });
+    const body = (await res.json()) as {
+      data?: { collection?: { hasProduct?: boolean } };
+    };
+    const has = body.data?.collection?.hasProduct === true;
+    cache.set(key, has);
+    return has;
+  } catch (err) {
+    console.error("[encore] collection membership check failed", err);
+    cache.set(key, false);
+    return false;
+  }
+}
 
 type G = Record<string, unknown>;
 
@@ -109,7 +146,9 @@ export async function getStorefrontConfig(
   variantId: string,
   locale: string,
   marketId = "",
+  admin: AdminGraphqlClient | null = null,
 ): Promise<StorefrontConfig> {
+  const collectionMembership = new Map<string, boolean>();
   const { general, lowStock, backInStock } = await getSettings(shop);
   const g = general as G;
   const ls = lowStock as G;
@@ -162,7 +201,18 @@ export async function getStorefrontConfig(
         break;
       }
     }
-    // COLLECTION mode needs Admin API collection membership — resolved when wired.
+    if (c.productMode === "COLLECTION") {
+      const collId = (c as unknown as { collectionId?: string | null }).collectionId;
+      if (
+        collId &&
+        admin &&
+        pid &&
+        (await productInCollection(admin, collId, pid, collectionMembership))
+      ) {
+        match = c;
+        break;
+      }
+    }
   }
 
   let preorder: StorefrontConfig["preorder"] = null;

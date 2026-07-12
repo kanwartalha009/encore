@@ -523,15 +523,19 @@ function datetimeLocalToInput(d: Date | null | undefined): string {
  * Convert a DB Campaign into the shape the React form expects.
  * Returns an object that can be assigned directly to CampaignFormValues.
  *
- * Imports demoProducts only for title/variant-count lookup, so edit pages
- * show real product names. When the real Shopify ResourcePicker is wired,
- * this import should become a dynamic Admin GraphQL fetch instead.
+ * Product/variant titles come from the persisted `variantConfigs` — which store
+ * the REAL product/variant names captured from the Shopify product picker at save
+ * time. No demo data: the product-level summary is derived from those same rows.
  */
 export function dbToFormValues(c: Campaign) {
-  // Lazy-loaded to avoid pulling demo data into bundles that don't need it.
-  // (At runtime in the loader this is a no-op cost.)
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { lookupDemoProduct } = require("../lib/demoProducts") as typeof import("../lib/demoProducts");
+  // Product-level summary (title + variant count) rolled up from the real variant
+  // configs, so edit pages show the store's own product names.
+  const byProduct = new Map<string, { title: string; variants: number }>();
+  for (const vc of c.variantConfigs) {
+    const cur = byProduct.get(vc.productId);
+    if (cur) cur.variants += 1;
+    else byProduct.set(vc.productId, { title: vc.productTitle, variants: 1 });
+  }
 
   return {
     name: c.name,
@@ -542,11 +546,11 @@ export function dbToFormValues(c: Campaign) {
       c.productMode as keyof typeof PRODUCT_MODE_FROM_DB
     ] ?? "specific",
     selectedProducts: c.productIds.map((id) => {
-      const demo = lookupDemoProduct(id);
+      const p = byProduct.get(id);
       return {
         id,
-        title: demo?.title ?? id.split("/").pop() ?? id,
-        variants: demo?.variants?.length ?? 1,
+        title: p?.title ?? id.split("/").pop() ?? id,
+        variants: p?.variants ?? 1,
       };
     }),
     selectedVariants: c.variantConfigs.map((vc) => ({

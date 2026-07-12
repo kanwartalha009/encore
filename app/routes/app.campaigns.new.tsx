@@ -6,6 +6,8 @@ import type {
 import { redirect } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
+import { useLoaderData } from "react-router";
+
 import { authenticate } from "../shopify.server";
 import {
   createCampaign,
@@ -14,6 +16,8 @@ import {
 } from "../models/campaign.server";
 import { useLocale } from "../lib/i18n";
 import { syncCampaignSellingPlan } from "../models/selling-plan.server";
+import { listCollections } from "../models/collections.server";
+import { fetchMarkets } from "../models/markets.server";
 import CampaignForm, {
   CAMPAIGN_FORM_DEFAULTS,
 } from "../components/CampaignForm";
@@ -25,8 +29,16 @@ const STATUS_BY_INTENT: Record<string, CampaignStatus> = {
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
-  return null;
+  const { admin } = await authenticate.admin(request);
+  const [collections, markets] = await Promise.all([
+    listCollections(admin),
+    fetchMarkets(admin),
+  ]);
+  return {
+    collections,
+    marketsList:
+      markets?.map((m) => ({ id: m.id, title: m.name, subtitle: m.handle })) ?? null,
+  };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -62,6 +74,7 @@ export const headers: HeadersFunction = (headersArgs) => {
 
 export default function CampaignsNew() {
   const { t } = useLocale();
+  const { collections, marketsList } = useLoaderData<typeof loader>();
   return (
     <CampaignForm
       mode="create"
@@ -69,6 +82,8 @@ export default function CampaignsNew() {
       pageTitle={t("New preorder")}
       pageSubtitle={t("Three quick fields and you're live: name, variants, ship date.")}
       backTo="/app/campaigns"
+      collections={collections}
+      marketsList={marketsList}
     />
   );
 }

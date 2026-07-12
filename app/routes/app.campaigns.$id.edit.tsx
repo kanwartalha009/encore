@@ -22,6 +22,8 @@ import {
 } from "../models/selling-plan.server";
 import prisma from "../db.server";
 import { notifyShipDateChanged } from "../services/notify-events.server";
+import { listCollections } from "../models/collections.server";
+import { fetchMarkets } from "../models/markets.server";
 import CampaignForm, {
   type CampaignFormValues,
 } from "../components/CampaignForm";
@@ -34,17 +36,25 @@ const STATUS_BY_INTENT: Record<string, CampaignStatus | undefined> = {
 };
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const id = params.id;
   if (!id) throw new Response("Not found", { status: 404 });
 
   const campaign = await getCampaign(session.shop, id);
   if (!campaign) throw new Response("Not found", { status: 404 });
 
+  const [collections, markets] = await Promise.all([
+    listCollections(admin),
+    fetchMarkets(admin),
+  ]);
+
   return {
     id: campaign.id,
     name: campaign.name,
     initialValues: dbToFormValues(campaign) as CampaignFormValues,
+    collections,
+    marketsList:
+      markets?.map((m) => ({ id: m.id, title: m.name, subtitle: m.handle })) ?? null,
   };
 };
 
@@ -119,7 +129,8 @@ export const headers: HeadersFunction = (headersArgs) => {
 };
 
 export default function CampaignsEdit() {
-  const { id, name, initialValues } = useLoaderData<typeof loader>();
+  const { id, name, initialValues, collections, marketsList } =
+    useLoaderData<typeof loader>();
   const { t } = useLocale();
 
   return (
@@ -129,6 +140,8 @@ export default function CampaignsEdit() {
       pageTitle={name}
       pageSubtitle={t("Edit preorder — changes go live the moment you save.")}
       backTo={`/app/campaigns/${id}`}
+      collections={collections}
+      marketsList={marketsList}
     />
   );
 }

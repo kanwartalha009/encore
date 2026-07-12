@@ -29,6 +29,7 @@ import { PlusIcon } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import { listCampaigns, formatGmv } from "../models/campaign.server";
 import { useLocale } from "../lib/i18n";
+import { getShopCurrency } from "../models/shop.server";
 
 // ---------- View-model types ----------
 type CampaignStatus = "Live" | "Scheduled" | "Paused" | "Draft" | "Ended";
@@ -91,7 +92,8 @@ function relativeTime(d: Date) {
 
 // ---------- Loader / headers ----------
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
+  const currency = await getShopCurrency(admin, session.shop);
   const rows = await listCampaigns(session.shop);
 
   const campaigns: Campaign[] = rows.map((r) => {
@@ -115,7 +117,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       cartMode: CART_LABEL[r.cartMode] ?? "Hard split",
       unitsSold: r.unitsSold,
       unitsTarget: r.unitsTarget,
-      gmv: formatGmv(r.gmvCents),
+      gmv: formatGmv(r.gmvCents, currency),
       shipDate: r.shipDate ? r.shipDate.toISOString().slice(0, 10) : "TBD",
       status: STATUS_LABEL[r.status] ?? "Draft",
       updatedAt: relativeTime(r.updatedAt),
@@ -239,7 +241,7 @@ export default function CampaignsIndex() {
             { label: t("Pay now"), value: "Pay now" },
             { label: t("Deposit + balance"), value: "Deposit + balance" },
             { label: t("Pay later"), value: "Pay later" },
-            { label: t("MOQ gated"), value: "MOQ gated" },
+            { label: t("Minimum to confirm"), value: "MOQ gated" },
           ]}
           selected={paymentFilter}
           onChange={setPaymentFilter}

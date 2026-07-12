@@ -32,17 +32,19 @@ import { listWaitlistGroups } from "../models/waitlist.server";
 import { notifyGroup, retryFailed } from "../services/waitlist-notify.server";
 import { NOTIFY_POSITIONS } from "../lib/demoStorefront";
 import { DEMO_COLLECTIONS } from "../lib/demoProducts";
+import { listCollections } from "../models/collections.server";
 import { CollectionPicker } from "../lib/storefrontKit";
 import { useLocale } from "../lib/i18n";
 import { getSettings, saveSettingsSection } from "../models/settings.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const [groups, settings] = await Promise.all([
+  const { admin, session } = await authenticate.admin(request);
+  const [groups, settings, collections] = await Promise.all([
     listWaitlistGroups(session.shop),
     getSettings(session.shop),
+    listCollections(admin),
   ]);
-  return { groups, saved: settings.backInStock };
+  return { groups, saved: settings.backInStock, collections };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -77,7 +79,8 @@ export const headers: HeadersFunction = (headersArgs) =>
   boundary.headers(headersArgs);
 
 export default function BackInStockPage() {
-  const { groups, saved } = useLoaderData<typeof loader>();
+  const { groups, saved, collections } = useLoaderData<typeof loader>();
+  const collectionChoices = collections.length ? collections : DEMO_COLLECTIONS;
   const shopify = useAppBridge();
   const { t } = useLocale();
   const submit = useSubmit();
@@ -368,7 +371,7 @@ export default function BackInStockPage() {
                   helpText={t("Comma-separated, e.g. archived, discontinued.")}
                 />
                 <CollectionPicker
-                  collections={DEMO_COLLECTIONS}
+                  collections={collectionChoices}
                   selected={excludeCollections}
                   onChange={setExcludeCollections}
                   label={t("Exclude collections")}

@@ -11,7 +11,7 @@ import { authenticate } from "../shopify.server";
 import { getStorefrontConfig } from "../models/storefront.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.public.appProxy(request);
+  const { session, admin } = await authenticate.public.appProxy(request);
   if (!session) {
     return Response.json({ error: "app_not_installed" }, { status: 401 });
   }
@@ -28,6 +28,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     variantId,
     locale,
     marketId,
+    admin ?? null,
   );
 
   return Response.json(config, {

@@ -24,14 +24,18 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import { LOW_STOCK_PRESETS, type LowStockPreset } from "../lib/demoStorefront";
 import { DEMO_COLLECTIONS } from "../lib/demoProducts";
+import { listCollections } from "../models/collections.server";
 import { CollectionPicker } from "../lib/storefrontKit";
 import { useLocale } from "../lib/i18n";
 import { getSettings, saveSettingsSection } from "../models/settings.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const { lowStock } = await getSettings(session.shop);
-  return { saved: lowStock };
+  const { admin, session } = await authenticate.admin(request);
+  const [{ lowStock }, collections] = await Promise.all([
+    getSettings(session.shop),
+    listCollections(admin),
+  ]);
+  return { saved: lowStock, collections };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -193,7 +197,8 @@ function PresetCard({
 export default function LowStockPage() {
   const shopify = useAppBridge();
   const { t } = useLocale();
-  const { saved } = useLoaderData<typeof loader>();
+  const { saved, collections } = useLoaderData<typeof loader>();
+  const collectionChoices = collections.length ? collections : DEMO_COLLECTIONS;
   const submit = useSubmit();
   const v = saved as {
     enabled?: boolean;
@@ -372,7 +377,7 @@ export default function LowStockPage() {
                 helpText={t("Comma-separated, e.g. archived, clearance.")}
               />
               <CollectionPicker
-                collections={DEMO_COLLECTIONS}
+                collections={collectionChoices}
                 selected={excludeCollections}
                 onChange={setExcludeCollections}
                 label={t("Exclude collections")}

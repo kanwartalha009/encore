@@ -12,7 +12,7 @@
  * with sensible defaults so existing preorders keep working.
  */
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useLocale } from "../lib/i18n";
 import { useNavigate, useNavigation, useSubmit } from "react-router";
 import {
@@ -35,10 +35,6 @@ import {
   Icon,
   Tooltip,
   FormLayout,
-  Modal,
-  ResourceList,
-  ResourceItem,
-  Filters,
   IndexTable,
 } from "@shopify/polaris";
 import {
@@ -50,7 +46,7 @@ import {
   XIcon,
 } from "@shopify/polaris-icons";
 
-import { DEMO_VARIANT_LIST, DEMO_MARKETS, DEMO_COLLECTIONS } from "../lib/demoProducts";
+import { DEMO_MARKETS, DEMO_COLLECTIONS } from "../lib/demoProducts";
 
 // ---------- View-state shape ----------
 export type VariantAvailabilityUI =
@@ -251,6 +247,10 @@ export type CampaignFormProps = {
   pageTitle: string;
   pageSubtitle: string;
   backTo: string;
+  /** Real store data from the loader. When absent (or null on fetch failure),
+   *  the form falls back to demo data so it still renders in isolation. */
+  collections?: { id: string; title: string; count: number }[] | null;
+  marketsList?: { id: string; title: string; subtitle: string }[] | null;
 };
 
 // ---------- Component ----------
@@ -260,7 +260,13 @@ export default function CampaignForm({
   pageTitle,
   pageSubtitle,
   backTo,
+  collections,
+  marketsList,
 }: CampaignFormProps) {
+  // Real catalog data (loader) with demo fallback — never an empty picker by accident.
+  const collectionChoices =
+    collections && collections.length ? collections : DEMO_COLLECTIONS;
+  const marketChoices = marketsList && marketsList.length ? marketsList : DEMO_MARKETS;
   const { t } = useLocale();
   const navigate = useNavigate();
   const submit = useSubmit();
@@ -306,45 +312,51 @@ export default function CampaignForm({
   const [discountKind, setDiscountKind] = useState(initialValues.discountKind);
   const [discountAmount, setDiscountAmount] = useState(initialValues.discountAmount);
 
-  // ---------- Variant picker modal ----------
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [pickerQuery, setPickerQuery] = useState("");
-  const [pickerSelected, setPickerSelected] = useState<string[]>([]);
-
-  const visibleVariants = useMemo(() => {
-    const q = pickerQuery.trim().toLowerCase();
-    if (!q) return DEMO_VARIANT_LIST;
-    return DEMO_VARIANT_LIST.filter((v) =>
-      `${v.productTitle} ${v.variantTitle} ${v.vendor}`.toLowerCase().includes(q),
-    );
-  }, [pickerQuery]);
-
-  const openPicker = () => {
-    setPickerSelected(selectedVariants.map((sv) => sv.variantId));
-    setPickerOpen(true);
-  };
-
-  const confirmPicker = () => {
+  // ---------- Product picker (App Bridge resourcePicker — real store catalog) ----------
+  // Opens Shopify's native product picker so the merchant selects THEIR products
+  // and variants (not demo data). Each selected product returns its selected
+  // variants; whole-product selection returns all variants. Per-variant config
+  // (units offered, availability window) is preserved for variants already chosen.
+  const openPicker = async () => {
+    const shopify = (
+      window as unknown as {
+        shopify?: { resourcePicker?: (o: unknown) => Promise<unknown> };
+      }
+    ).shopify;
+    if (!shopify?.resourcePicker) return;
+    const selection = (await shopify.resourcePicker({
+      type: "product",
+      multiple: true,
+      selectionIds: Array.from(
+        new Map(
+          selectedVariants.map((v) => [v.productId, { id: v.productId }]),
+        ).values(),
+      ),
+    })) as
+      | { id: string; title: string; variants?: { id: string; title?: string }[] }[]
+      | undefined;
+    if (!selection) return;
     const existingById = new Map(selectedVariants.map((s) => [s.variantId, s]));
-    const next: SelectedVariant[] = pickerSelected.map((variantId) => {
-      const existing = existingById.get(variantId);
-      if (existing) return existing;
-      const v = DEMO_VARIANT_LIST.find((x) => x.variantId === variantId);
-      if (!v) return null as never;
-      return {
-        productId: v.productId,
-        variantId: v.variantId,
-        productTitle: v.productTitle,
-        variantTitle: v.variantTitle,
-        unitsOffered: "100",
-        endQty: "",
-        availability: "now",
-        availStart: "",
-        availEnd: "",
-      };
-    });
-    setSelectedVariants(next.filter(Boolean));
-    setPickerOpen(false);
+    const next: SelectedVariant[] = [];
+    for (const p of selection) {
+      for (const v of p.variants ?? []) {
+        const existing = existingById.get(v.id);
+        next.push(
+          existing ?? {
+            productId: p.id,
+            variantId: v.id,
+            productTitle: p.title,
+            variantTitle: v.title ?? "",
+            unitsOffered: "100",
+            endQty: "",
+            availability: "now",
+            availStart: "",
+            availEnd: "",
+          },
+        );
+      }
+    }
+    setSelectedVariants(next);
   };
 
   const updateVariant = (
@@ -812,7 +824,7 @@ export default function CampaignForm({
                   {marketScope === "specific" && (
                     <Box paddingInlineStart="200">
                       <BlockStack gap="150">
-                        {DEMO_MARKETS.map((m) => (
+                        {marketChoices.map((m) => (
                           <Checkbox
                             key={m.id}
                             label={m.title}
@@ -925,7 +937,7 @@ export default function CampaignForm({
                 label={t("Collection")}
                 options={[
                   { label: t("Choose a collection…"), value: "" },
-                  ...DEMO_COLLECTIONS.map((c) => ({
+                  ...collectionChoices.map((c) => ({
                     label: `${c.title} (${c.count})`,
                     value: c.id,
                   })),
@@ -1086,65 +1098,6 @@ export default function CampaignForm({
           </InlineStack>
         </Card>
       </BlockStack>
-
-      {/* Variant picker modal */}
-      <Modal
-        open={pickerOpen}
-        onClose={() => setPickerOpen(false)}
-        title={t("Add products to this preorder")}
-        primaryAction={{
-          content: `Use ${pickerSelected.length} variant${pickerSelected.length === 1 ? "" : "s"}`,
-          onAction: confirmPicker,
-          disabled: pickerSelected.length === 0,
-        }}
-        secondaryActions={[{ content: t("Cancel"), onAction: () => setPickerOpen(false) }]}
-      >
-        <Modal.Section>
-          <Filters
-            queryValue={pickerQuery}
-            queryPlaceholder="Search by product, variant, or vendor"
-            onQueryChange={setPickerQuery}
-            onQueryClear={() => setPickerQuery("")}
-            filters={[]}
-            onClearAll={() => setPickerQuery("")}
-          />
-        </Modal.Section>
-        <ResourceList
-          resourceName={{ singular: "variant", plural: "variants" }}
-          items={visibleVariants}
-          selectable
-          selectedItems={pickerSelected}
-          onSelectionChange={(s) => setPickerSelected(Array.isArray(s) ? s : [])}
-          idForItem={(v) => v.variantId}
-          renderItem={(v) => (
-            <ResourceItem
-              id={v.variantId}
-              accessibilityLabel={`${v.productTitle} ${v.variantTitle}`}
-              onClick={() =>
-                setPickerSelected((prev) =>
-                  prev.includes(v.variantId)
-                    ? prev.filter((x) => x !== v.variantId)
-                    : [...prev, v.variantId],
-                )
-              }
-            >
-              <InlineStack align="space-between" blockAlign="center">
-                <BlockStack gap="050">
-                  <Text as="span" variant="bodyMd" fontWeight="semibold">
-                    {v.productTitle}
-                  </Text>
-                  <Text as="span" variant="bodySm" tone="subdued">
-                    {v.variantTitle} · {v.vendor}
-                  </Text>
-                </BlockStack>
-                <Text as="span" variant="bodyMd">
-                  ${(v.priceCents / 100).toFixed(2)}
-                </Text>
-              </InlineStack>
-            </ResourceItem>
-          )}
-        />
-      </Modal>
     </Page>
   );
 }
