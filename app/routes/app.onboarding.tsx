@@ -88,22 +88,34 @@ export default function OnboardingWizard() {
   const [startDate, setStartDate] = useState("");
   const [ctaLabel, setCtaLabel] = useState(defaultCtaLabel);
   const [pickerHint, setPickerHint] = useState(false);
+  const [pickerBroken, setPickerBroken] = useState(false);
 
   const publishing = fetcher.state !== "idle";
 
   const pickProducts = async () => {
-    const shopify = (window as unknown as { shopify?: { resourcePicker?: (o: unknown) => Promise<unknown> } }).shopify;
-    if (!shopify?.resourcePicker) return;
-    const sel = (await shopify.resourcePicker({ type: "product", multiple: true })) as
-      | { id: string; title: string }[]
-      | undefined;
-    if (sel === undefined) return; // shopper closed the picker — keep current selection
-    if (sel.length) {
-      setProducts(sel.map((p) => ({ id: p.id, title: p.title })));
-      setPickerHint(false);
-    } else {
-      // Empty selection — most often a brand-new store with no products yet.
-      setPickerHint(true);
+    // Never dead-end the wizard: if the App Bridge picker is unavailable or
+    // throws, surface it and offer the full form (which has its own picker).
+    try {
+      const shopify = (window as unknown as { shopify?: { resourcePicker?: (o: unknown) => Promise<unknown> } }).shopify;
+      if (!shopify?.resourcePicker) {
+        setPickerBroken(true);
+        return;
+      }
+      const sel = (await shopify.resourcePicker({ type: "product", multiple: true })) as
+        | { id: string; title: string }[]
+        | undefined;
+      if (sel === undefined) return; // shopper closed the picker — keep current selection
+      if (sel.length) {
+        setProducts(sel.map((p) => ({ id: p.id, title: p.title })));
+        setPickerHint(false);
+        setPickerBroken(false);
+      } else {
+        // Empty selection — most often a brand-new store with no products yet.
+        setPickerHint(true);
+      }
+    } catch (err) {
+      console.error("[encore/onboarding] resourcePicker failed", err);
+      setPickerBroken(true);
     }
   };
 
@@ -145,6 +157,18 @@ export default function OnboardingWizard() {
                     {products.map((p) => p.title).slice(0, 5).join(", ")}
                     {products.length > 5 ? "…" : ""}
                   </Text>
+                )}
+                {pickerBroken && (
+                  <Banner
+                    tone="warning"
+                    action={{ content: t("Open the full preorder form"), url: "/app/campaigns/new" }}
+                  >
+                    <Text as="p">
+                      {t(
+                        "The product picker didn't open. You can create your first preorder with the full form instead — it does the same thing with a few more options.",
+                      )}
+                    </Text>
+                  </Banner>
                 )}
                 {pickerHint && products.length === 0 && (
                   <Banner tone="info">

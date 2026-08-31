@@ -117,21 +117,32 @@ export async function getDashboard(
     outboxAlert = null; // table absent in a fresh dev DB — never break the dashboard
   }
 
-  const totalGmvCents = Math.round(
-    preOrders.reduce((a, p) => a + p.amount, 0) * 100,
-  );
   const unitsSold = preOrders.reduce((a, p) => a + p.units, 0);
   const activeCampaigns = campaigns.filter(
     (c) => c.status === "LIVE" || c.status === "SCHEDULED",
   ).length;
 
+  // Real 30-day deltas (R1 truth fix — these were hardcoded demo values).
+  const DAY = 24 * 60 * 60 * 1000;
+  const d30 = new Date(Date.now() - 30 * DAY);
+  const d60 = new Date(Date.now() - 60 * DAY);
+  const cur30 = preOrders.filter((p) => p.createdAt >= d30);
+  const prev30 = preOrders.filter((p) => p.createdAt >= d60 && p.createdAt < d30);
+  const cur30Gmv = cur30.reduce((a, p) => a + p.amount, 0);
+  const prev30Gmv = prev30.reduce((a, p) => a + p.amount, 0);
+  const gmvDelta =
+    prev30Gmv > 0
+      ? `${cur30Gmv >= prev30Gmv ? "+" : ""}${Math.round(((cur30Gmv - prev30Gmv) / prev30Gmv) * 100)}%`
+      : "—";
+  const cur30Units = cur30.reduce((a, p) => a + p.units, 0);
+
   const kpis: DashboardData["kpis"] = [
     {
-      label: "Preorder GMV (this month)",
-      value: formatGmv(totalGmvCents, currency, locale),
-      delta: "+18.4%",
-      deltaTone: "success",
-      sub: "vs. last 30 days",
+      label: "Preorder GMV (last 30 days)",
+      value: formatGmv(Math.round(cur30Gmv * 100), currency, locale),
+      delta: gmvDelta,
+      deltaTone: gmvDelta === "—" || cur30Gmv >= prev30Gmv ? "success" : "critical",
+      sub: "vs. previous 30 days",
     },
     {
       label: "Active preorders",
@@ -143,9 +154,9 @@ export async function getDashboard(
     {
       label: "Units pre-sold",
       value: unitsSold.toLocaleString(),
-      delta: "+312",
-      deltaTone: "success",
-      sub: "this cohort window",
+      delta: cur30Units > 0 ? `+${cur30Units.toLocaleString()}` : "—",
+      deltaTone: cur30Units > 0 ? "success" : "subdued",
+      sub: "last 30 days",
     },
     {
       label: "Waitlist subscribers",

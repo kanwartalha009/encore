@@ -493,9 +493,22 @@ export default function BackInStockPage() {
           <Layout.Section variant="oneThird">
             <Card>
               <BlockStack gap="100">
-                <Text as="p" variant="bodySm" tone="subdued">{t("High-intent (24h)")}</Text>
-                <Text as="p" variant="heading2xl">{Math.round(totalSubs * 0.12).toLocaleString()}</Text>
-                <Text as="p" variant="bodySm" tone="subdued">{t("~12% of total")}</Text>
+                <Text as="p" variant="bodySm" tone="subdued">{t("Products with waitlists")}</Text>
+                <Text as="p" variant="heading2xl">{productCount.toLocaleString()}</Text>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  {t("newest signup")}{" "}
+                  {groups.length && groups.some((g) => g.newestSignupAt)
+                    ? new Date(
+                        Math.max(
+                          ...groups
+                            .filter((g) => g.newestSignupAt)
+                            .map((g) => new Date(g.newestSignupAt as string).getTime()),
+                        ),
+                      )
+                        .toISOString()
+                        .slice(0, 10)
+                    : "—"}
+                </Text>
               </BlockStack>
             </Card>
           </Layout.Section>

@@ -74,8 +74,8 @@ const KPI_ICONS = [
 const FALLBACK_ACTIVITY = [
   {
     icon: CheckIcon,
-    text: "Welcome to Preorder Novafied",
-    detail: "Create your first campaign to start capturing preorders.",
+    text: "Welcome to Encore",
+    detail: "Create your first preorder to start capturing revenue.",
     time: "now",
   },
 ];
@@ -426,15 +426,16 @@ export default function DashboardIndex() {
       ]}
     >
       <BlockStack gap="500">
-        {/* R0.2 — outbox health: delivery to Nova (support tickets, billing sync)
-            is stuck or dead; almost always the outbox cron isn't scheduled. */}
+        {/* R0.2 — outbox health: delivery to the support/billing backend is
+            stuck or dead. Retries continue automatically (built-in scheduler);
+            the banner tells the merchant what to do, in their words. */}
         {data.outboxAlert && (
           <Banner title={t("Background delivery needs attention")} tone="warning">
             <p>
               {t("Some messages (support requests, billing sync) haven't been delivered.")}{" "}
               {data.outboxAlert.stuck > 0 && `${data.outboxAlert.stuck} pending. `}
               {data.outboxAlert.dead > 0 && `${data.outboxAlert.dead} failed permanently. `}
-              {t("Check that the delivery cron is scheduled (see DEPLOY-CHECKLIST).")}
+              {t("We're retrying automatically — if this doesn't clear within an hour, contact support from the Get help page.")}
             </p>
           </Banner>
         )}
