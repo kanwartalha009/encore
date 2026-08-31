@@ -61,7 +61,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const shop = str(body.shopify_domain);
   const p = body.properties ?? {};
-  const type = str(p.message_type) as MessageType;
+  // Flow action field keys must be alphabetic+spaces (CLI schema), so the
+  // payload arrives keyed like "Message type". Accept those first, with the
+  // legacy snake_case keys as fallback for any older workflow definitions.
+  const prop = (flowKey: string, legacyKey: string) =>
+    str(p[flowKey] ?? p[legacyKey]);
+  const type = prop("Message type", "message_type") as MessageType;
   const to = str(p.recipient) || str(p.email);
 
   // Nothing actionable — ack so Flow doesn't retry a malformed step.
@@ -71,23 +76,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const locale = str(p.locale) || "en";
   const vars: Record<string, string> = {
-    customer_name: str(p.customer_name) || "there",
+    customer_name: prop("Customer name", "customer_name") || "there",
     product: str(p.product),
     variant: str(p.variant),
-    ship_date: str(p.ship_date),
-    new_ship_date: str(p.new_ship_date),
-    old_ship_date: str(p.old_ship_date),
+    ship_date: prop("Ship date", "ship_date"),
+    new_ship_date: prop("New ship date", "new_ship_date"),
+    old_ship_date: prop("Old ship date", "old_ship_date"),
     deposit: str(p.deposit),
     balance: str(p.balance),
-    due_date: str(p.due_date),
-    pay_link: str(p.pay_link),
-    product_url: str(p.product_url),
-    order_name: str(p.order_name),
+    due_date: prop("Due date", "due_date"),
+    pay_link: prop("Payment link", "pay_link"),
+    product_url: prop("Product URL", "product_url"),
+    order_name: prop("Order name", "order_name"),
   };
 
   const tpl = await resolveTemplate(shop, type, locale, vars);
-  const subjectOverride = str(p.subject_override);
-  const bodyOverride = str(p.body_override);
+  const subjectOverride = prop("Subject override", "subject_override");
+  const bodyOverride = prop("Body override", "body_override");
   const subject = subjectOverride ? applyVars(subjectOverride, vars) : tpl.subject;
   const text = bodyOverride ? applyVars(bodyOverride, vars) : tpl.body;
 

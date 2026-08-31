@@ -22,7 +22,7 @@ description = "Fires when a shopper joins an Encore back-in-stock waitlist. Use 
 
   [[settings.fields]]
   type = "single_line_text_field"
-  key = "variant_id"
+  key = "Variant ID"
   description = "The waitlisted variant's Admin GraphQL ID, or blank."
 
   [[settings.fields]]

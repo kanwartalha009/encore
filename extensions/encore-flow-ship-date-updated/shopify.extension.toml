@@ -23,17 +23,17 @@ description = "Fires per pre-order customer when the expected ship date for thei
 
   [[settings.fields]]
   type = "single_line_text_field"
-  key = "old_ship_date"
+  key = "Old ship date"
   description = "Previous expected ship date."
 
   [[settings.fields]]
   type = "single_line_text_field"
-  key = "new_ship_date"
+  key = "New ship date"
   description = "New expected ship date."
 
   [[settings.fields]]
   type = "single_line_text_field"
-  key = "order_name"
+  key = "Order name"
   description = "The customer's order name (e.g. #4821), or blank."
 
   [[settings.fields]]

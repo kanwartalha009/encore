@@ -21,7 +21,7 @@ runtime_url = "https://encore-production-7c8f.up.railway.app/flow/send-email"
 
   [[settings.fields]]
   type = "single_line_text_field"
-  key = "message_type"
+  key = "Message type"
   name = "Message type"
   description = "preorder_confirmation, back_in_stock, ship_date_update, or balance_due"
   required = true
@@ -41,7 +41,7 @@ runtime_url = "https://encore-production-7c8f.up.railway.app/flow/send-email"
 
   [[settings.fields]]
   type = "single_line_text_field"
-  key = "customer_name"
+  key = "Customer name"
   name = "Customer name"
   description = "Optional. e.g. {{order.customer.firstName}}"
 
@@ -59,19 +59,19 @@ runtime_url = "https://encore-production-7c8f.up.railway.app/flow/send-email"
 
   [[settings.fields]]
   type = "single_line_text_field"
-  key = "ship_date"
+  key = "Ship date"
   name = "Ship date"
   description = "Optional expected ship date."
 
   [[settings.fields]]
   type = "single_line_text_field"
-  key = "new_ship_date"
+  key = "New ship date"
   name = "New ship date"
   description = "Optional — for ship_date_update."
 
   [[settings.fields]]
   type = "single_line_text_field"
-  key = "old_ship_date"
+  key = "Old ship date"
   name = "Old ship date"
   description = "Optional — for ship_date_update."
 
@@ -83,36 +83,36 @@ runtime_url = "https://encore-production-7c8f.up.railway.app/flow/send-email"
 
   [[settings.fields]]
   type = "single_line_text_field"
-  key = "due_date"
+  key = "Due date"
   name = "Due date"
   description = "Optional — for balance_due."
 
   [[settings.fields]]
   type = "single_line_text_field"
-  key = "pay_link"
+  key = "Payment link"
   name = "Pay link"
   description = "Optional payment link — for balance_due."
 
   [[settings.fields]]
   type = "single_line_text_field"
-  key = "product_url"
+  key = "Product URL"
   name = "Product URL"
   description = "Optional — for back_in_stock."
 
   [[settings.fields]]
   type = "single_line_text_field"
-  key = "order_name"
+  key = "Order name"
   name = "Order name"
   description = "Optional order name, e.g. {{order.name}}."
 
   [[settings.fields]]
   type = "multi_line_text_field"
-  key = "subject_override"
+  key = "Subject override"
   name = "Subject override"
   description = "Optional — overrides the Encore template subject for this step."
 
   [[settings.fields]]
   type = "multi_line_text_field"
-  key = "body_override"
+  key = "Body override"
   name = "Body override"
   description = "Optional — overrides the Encore template body for this step."
