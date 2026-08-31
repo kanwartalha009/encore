@@ -54,6 +54,11 @@ export default function App() {
             returns.
           </li>
         </ul>
+        <p style={{ marginTop: 24, fontSize: 13, opacity: 0.7 }}>
+          <a href="/privacy">Privacy Policy</a>
+          {" · "}
+          <a href="/terms">Terms of Service</a>
+        </p>
       </div>
     </div>
   );

@@ -7,6 +7,7 @@
 name = "Encore — Back-in-stock ready"
 type = "flow_trigger"
 handle = "encore-back-in-stock-ready"
+uid = "08f030d6-d212-f60e-ac18-f3e88c4db97712c94fb0"
 description = "Fires per waitlisted shopper when their product is back in stock. Pair with 'Encore — Send email' (message type back_in_stock)."
 
 [settings]

@@ -8,6 +8,7 @@
 name = "Encore — Balance due"
 type = "flow_trigger"
 handle = "encore-balance-due"
+uid = "3283ee1a-2177-d9f8-4704-d421fa028a9ac4eb8ae4"
 description = "Fires per pre-order customer when the remaining balance on a deposit / charge-later pre-order is due."
 
 [settings]

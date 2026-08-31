@@ -7,6 +7,7 @@
 name = "Encore — Restock detected"
 type = "flow_trigger"
 handle = "encore-restock-detected"
+uid = "311be771-ccd8-11ef-e698-b41fbe782d0c3706c9a8"
 description = "Fires when a variant a shopper waitlisted comes back in stock. Use it alongside Encore's built-in notifications to drive your own recovery automations."
 
 [settings]

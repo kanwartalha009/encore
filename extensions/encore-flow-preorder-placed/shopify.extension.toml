@@ -7,6 +7,7 @@
 name = "Encore — Preorder placed"
 type = "flow_trigger"
 handle = "encore-preorder-placed"
+uid = "6979d749-5684-65ca-0c4c-bcc2cf65fee3aa44fa37"
 description = "Fires when a customer places a pre-order through Encore. Use it to route fulfillment, notify a 3PL, tag the customer, or start a deposit-reminder workflow."
 
 [settings]

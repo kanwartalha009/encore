@@ -7,6 +7,7 @@
 name = "Encore — Ship date updated"
 type = "flow_trigger"
 handle = "encore-ship-date-updated"
+uid = "bfda642e-484c-ea1d-0f57-7b66033104ed1f1e7225"
 description = "Fires per pre-order customer when the expected ship date for their item changes."
 
 [settings]

@@ -17,5 +17,6 @@ description = "Blocks checkout when a preorder line exceeds its remaining cap."
   export = "cartValidationsGenerateRun"
 
   [extensions.build]
-  path = "dist/function.wasm"
+  # No command: the Shopify CLI builds JavaScript functions itself (Javy),
+  # bundling src/index.js and writing the default dist/index.wasm.
   watch = [ "src/**/*.js" ]

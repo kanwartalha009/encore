@@ -11,6 +11,7 @@
 name = "Encore — Tag order"
 type = "flow_action"
 handle = "encore-tag-order"
+uid = "300ae3bc-6a8e-f395-1d1c-f0143b0a59d5d5fe4fc0"
 description = "Add a tag to an order — e.g. route a pre-order to a 3PL or mark deposit-paid orders for follow-up."
 runtime_url = "https://encore-production-7c8f.up.railway.app/flow/tag-order"
 

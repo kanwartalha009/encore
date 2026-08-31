@@ -9,6 +9,7 @@ api_version = "2025-10"
 [[extensions]]
 name = "Encore — My pre-orders"
 handle = "encore-customer-account"
+uid = "c239d489-e2e5-be74-0d47-1dfb46a0d8fc45dbb23c"
 type = "ui_extension"
 
   [[extensions.targeting]]
