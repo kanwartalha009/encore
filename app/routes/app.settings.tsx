@@ -437,31 +437,7 @@ export default function SettingsPage() {
               <Text as="p" variant="bodySm" tone="subdued">{t("When preorder is available and how stock is handled. Applies to every preorder.")}</Text>
             </BlockStack>
             <Divider />
-            <ChoiceList
-              title={t("When should preorder be available?")}
-              choices={[
-                {
-                  label: t("Always allow preorder (recommended)"),
-                  value: "always",
-                  helpText: "Customers can preorder regardless of stock level.",
-                },
-                {
-                  label: t("When product is out of stock"),
-                  value: "oos",
-                  helpText: "Preorder appears only when inventory reaches 0.",
-                },
-                {
-                  label: t("When product is in stock"),
-                  value: "in_stock",
-                  helpText:
-                    "Use available inventory as preorder units until it reaches 0.",
-                },
-              ]}
-              selected={[availabilityRule]}
-              onChange={(v) =>
-                setAvailabilityRule(v[0] as "always" | "oos" | "in_stock")
-              }
-            />
+            <Text as="p" variant="bodySm" tone="subdued">{t('When shoppers see each preorder ("Always" for presales, or "Only when sold out") is set on the preorder itself — open any preorder and choose under "When shoppers see it".')}</Text>
             <Checkbox
               label={t("Automatically stop preorders when stock reaches 0")}
               checked={autoStopAtZero}
@@ -986,12 +962,12 @@ export default function SettingsPage() {
                     type="email"
                     helpText={t("Verify SPF/DKIM in your email host before going live.")}
                   />
-                  <Checkbox
+                  {/* SMS delivery ships in R3 — hidden until real (audit O4). <Checkbox
                     label={t("Enable SMS for back-in-stock alerts")}
                     helpText={t("Requires Twilio (or compatible) credentials in v1.1.")}
                     checked={smsEnabled}
                     onChange={setSmsEnabled}
-                  />
+                  /> */}
                 </BlockStack>
 
                 <Divider />
@@ -1037,9 +1013,9 @@ export default function SettingsPage() {
             <Divider />
             {(
               [
-                ["/app/markets", t("nav.markets"), t("Per-region preorder rules and availability.")],
+                ["/app/markets", t("Markets"), t("Per-region preorder rules and availability.")],
                 ["/app/translations", t("nav.translations"), t("Translate storefront and email text for your buyers.")],
-                ["/app/notifications", t("nav.notifications"), t("Customer emails via Shopify Flow or Klaviyo — no added cost.")],
+                ["/app/notifications", t("Notifications"), t("Customer emails via Shopify Flow or Klaviyo — no added cost.")],
                 ["/app/help", t("Get help"), t("Send us a message — we usually reply within a day.")],
               ] as [string, string, string][]
             ).map(([url, label, desc]) => (
@@ -1057,11 +1033,11 @@ export default function SettingsPage() {
         <Box paddingBlockEnd="400">
           <Text as="p" variant="bodySm" tone="subdued" alignment="center">
             Need help?{" "}
-            <Link url="https://docs.preordernovafied.app" external>
+            <Link url="/app/help" external>
               Read the docs
             </Link>{" "}
             or contact{" "}
-            <Link url="mailto:support@preordernovafied.app">support</Link>.
+            <Link url="/app/help">support</Link>.
           </Text>
         </Box>
       </BlockStack>

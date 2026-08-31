@@ -4,6 +4,7 @@
       "preorder": "Preorder button",
       "notify": "Back-in-stock button",
       "lowstock": "Low-stock meter",
+      "countdown": "Preorder countdown",
       "embed": "Storefront runtime"
     }
   }

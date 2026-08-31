@@ -4,15 +4,52 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 import { AppProvider as PolarisAppProvider } from "@shopify/polaris";
 import enTranslations from "@shopify/polaris/locales/en.json";
+import esTranslations from "@shopify/polaris/locales/es.json";
+import frTranslations from "@shopify/polaris/locales/fr.json";
+import deTranslations from "@shopify/polaris/locales/de.json";
+import itTranslations from "@shopify/polaris/locales/it.json";
+import ptTranslations from "@shopify/polaris/locales/pt-BR.json";
+import nlTranslations from "@shopify/polaris/locales/nl.json";
+import plTranslations from "@shopify/polaris/locales/pl.json";
+import type { ReactNode } from "react";
 
 import { authenticate } from "../shopify.server";
-import { LocaleProvider, useLocale } from "../lib/i18n";
+import {
+  LocaleProvider,
+  toSupportedLocale,
+  useLocale,
+  type Locale,
+} from "../lib/i18n";
+
+// Polaris chrome (modals, pickers, pagination…) follows the active app locale.
+const POLARIS_TRANSLATIONS: Record<Locale, typeof enTranslations> = {
+  en: enTranslations,
+  es: esTranslations,
+  fr: frTranslations,
+  de: deTranslations,
+  it: itTranslations,
+  pt: ptTranslations,
+  nl: nlTranslations,
+  pl: plTranslations,
+};
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
+  const { admin } = await authenticate.admin(request);
+
+  // Store's primary locale → default admin language (manual choice still wins).
+  let storeLocale: Locale = "en";
+  try {
+    const res = await admin.graphql(`query { shop { primaryLocale } }`);
+    const body = (await res.json()) as {
+      data?: { shop?: { primaryLocale?: string | null } | null };
+    };
+    storeLocale = toSupportedLocale(body?.data?.shop?.primaryLocale);
+  } catch {
+    // Locale detection must never block the admin — fall back to English.
+  }
 
   // eslint-disable-next-line no-undef
-  return { apiKey: process.env.SHOPIFY_API_KEY || "" };
+  return { apiKey: process.env.SHOPIFY_API_KEY || "", storeLocale };
 };
 
 function AppNav() {
@@ -31,17 +68,27 @@ function AppNav() {
   );
 }
 
+/** Inside LocaleProvider so Polaris re-renders with the active locale's strings. */
+function LocalizedPolarisProvider({ children }: { children: ReactNode }) {
+  const { locale } = useLocale();
+  return (
+    <PolarisAppProvider i18n={POLARIS_TRANSLATIONS[locale] ?? enTranslations}>
+      {children}
+    </PolarisAppProvider>
+  );
+}
+
 export default function App() {
-  const { apiKey } = useLoaderData<typeof loader>();
+  const { apiKey, storeLocale } = useLoaderData<typeof loader>();
 
   return (
     <AppProvider embedded apiKey={apiKey}>
-      <PolarisAppProvider i18n={enTranslations}>
-        <LocaleProvider>
+      <LocaleProvider defaultLocale={storeLocale}>
+        <LocalizedPolarisProvider>
           <AppNav />
           <Outlet />
-        </LocaleProvider>
-      </PolarisAppProvider>
+        </LocalizedPolarisProvider>
+      </LocaleProvider>
     </AppProvider>
   );
 }

@@ -83,6 +83,11 @@ export default function BenchmarkPage() {
     lift == null || lift === 0 ? undefined : lift > 0 ? "success" : "critical";
   const liftText = lift == null ? "—" : `${lift > 0 ? "+" : ""}${lift} pts`;
   const clean = data.reliability.oversellIncidents === 0 && data.reliability.untaggedOrders === 0;
+  const noData =
+    data.waitlist.sent === 0 &&
+    data.waitlist.converted === 0 &&
+    data.preorder.units === 0 &&
+    data.preorder.gmv === 0;
 
   const exportCsv = () => {
     const rows = [
@@ -114,15 +119,27 @@ export default function BenchmarkPage() {
       secondaryActions={[{ content: t("Export CSV"), onAction: exportCsv }]}
     >
       <BlockStack gap="500">
-        <InlineGrid columns={{ xs: 1, sm: 3 }} gap="400">
-          <Metric
-            label="Waitlist conversion"
-            value={pctText(data.waitlist.conversionRate)}
-            sub={`${data.waitlist.converted} / ${data.waitlist.sent} ${t("notified")}`}
-          />
-          <Metric label="Units captured" value={data.preorder.units.toLocaleString()} sub={t("pre-orders")} />
-          <Metric label="GMV captured" value={formatGmv(Math.round(data.preorder.gmv * 100), data.currency, locale)} sub={t("pre-order value")} />
-        </InlineGrid>
+        {noData ? (
+          <Card>
+            <BlockStack gap="200">
+              <Text as="h2" variant="headingMd">{t("Nothing to score yet")}</Text>
+              <Text as="p" tone="subdued">{t("Your recovered-demand scorecard fills in after your first back-in-stock alerts convert to orders — set up the waitlist to start capturing demand.")}</Text>
+              <InlineStack>
+                <Button variant="primary" url="/app/waitlist">{t("Set up back-in-stock")}</Button>
+              </InlineStack>
+            </BlockStack>
+          </Card>
+        ) : (
+          <InlineGrid columns={{ xs: 1, sm: 3 }} gap="400">
+            <Metric
+              label="Waitlist conversion"
+              value={pctText(data.waitlist.conversionRate)}
+              sub={`${data.waitlist.converted} / ${data.waitlist.sent} ${t("notified")}`}
+            />
+            <Metric label="Units captured" value={data.preorder.units.toLocaleString()} sub={t("pre-orders")} />
+            <Metric label="GMV captured" value={formatGmv(Math.round(data.preorder.gmv * 100), data.currency, locale)} sub={t("pre-order value")} />
+          </InlineGrid>
+        )}
 
         <Layout>
           <Layout.Section>

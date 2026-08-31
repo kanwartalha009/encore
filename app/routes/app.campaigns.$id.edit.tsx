@@ -16,6 +16,7 @@ import {
   type CampaignStatus,
 } from "../models/campaign.server";
 import { useLocale } from "../lib/i18n";
+import { getShopCurrency } from "../models/shop.server";
 import {
   deleteCampaignSellingPlan,
   syncCampaignSellingPlan,
@@ -43,12 +44,14 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const campaign = await getCampaign(session.shop, id);
   if (!campaign) throw new Response("Not found", { status: 404 });
 
-  const [collections, markets] = await Promise.all([
+  const [collections, markets, currency] = await Promise.all([
     listCollections(admin),
     fetchMarkets(admin),
+    getShopCurrency(admin, session.shop),
   ]);
 
   return {
+    currency,
     id: campaign.id,
     name: campaign.name,
     initialValues: dbToFormValues(campaign) as CampaignFormValues,
@@ -129,7 +132,7 @@ export const headers: HeadersFunction = (headersArgs) => {
 };
 
 export default function CampaignsEdit() {
-  const { id, name, initialValues, collections, marketsList } =
+  const { id, name, initialValues, collections, marketsList, currency } =
     useLoaderData<typeof loader>();
   const { t } = useLocale();
 
@@ -137,6 +140,7 @@ export default function CampaignsEdit() {
     <CampaignForm
       mode="edit"
       initialValues={initialValues}
+      currency={currency}
       pageTitle={name}
       pageSubtitle={t("Edit preorder — changes go live the moment you save.")}
       backTo={`/app/campaigns/${id}`}

@@ -48,7 +48,8 @@ const FLOW_KEY_RENAMES: Record<string, string> = {
   customer_name: "Customer name",
 };
 
-function toFlowKeys(payload: Record<string, unknown>): Record<string, unknown> {
+// Exported for tests — the key translation is what past deploy failures hinged on.
+export function toFlowKeys(payload: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(payload)) {
     out[FLOW_KEY_RENAMES[k] ?? k] = v;

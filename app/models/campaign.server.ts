@@ -123,6 +123,8 @@ export type CampaignInput = {
 
   shipDate?: Date | null;
   cohortName?: string | null;
+  /** Admin UI locale — used only for the auto-generated cohort name (not stored). */
+  locale?: string | null;
   shipBufferDays?: number;
   autoNotifyShipChange?: boolean;
 
@@ -320,8 +322,10 @@ export async function listCustomersForCampaign(shop: string, campaignId: string)
 
 // ---------- Mutations ----------
 export async function createCampaign(shop: string, input: CampaignInput) {
+  // `locale` is presentation-only (cohort naming) — never a Campaign column.
+  const { locale, ...stored } = input;
   const data = toStorage({
-    ...input,
+    ...stored,
     // Sensible defaults for fields that have unioned enums
     status: input.status ?? "DRAFT",
   });
@@ -341,7 +345,7 @@ export async function createCampaign(shop: string, input: CampaignInput) {
         shop,
         campaignId: created.id,
         shipDate: input.shipDate,
-        name: input.cohortName?.trim() || autoCohortName(input.shipDate, input.name),
+        name: input.cohortName?.trim() || autoCohortName(input.shipDate, input.name, locale ?? undefined),
         unitsTarget: input.moqEnabled ? input.moqUnits ?? null : null,
         status: "ON_TRACK",
       },
@@ -356,9 +360,12 @@ export async function updateCampaign(
   id: string,
   input: Partial<CampaignInput>,
 ) {
+  // `locale` is presentation-only (see createCampaign) — never a Campaign column.
+  const { locale: _locale, ...stored } = input;
+  void _locale;
   return prisma.campaign.update({
     where: { id, shop },
-    data: toStorage(input),
+    data: toStorage(stored),
   });
 }
 
@@ -444,8 +451,15 @@ export async function duplicateCampaign(shop: string, id: string) {
 }
 
 // ---------- Helpers ----------
-function autoCohortName(shipDate: Date, campaignName: string) {
-  const month = shipDate.toLocaleString("en-US", { month: "long" });
+// Exported for tests. R1: month name follows the merchant's admin locale
+// instead of hardcoded en-US.
+export function autoCohortName(shipDate: Date, campaignName: string, locale = "en") {
+  let month: string;
+  try {
+    month = shipDate.toLocaleString(locale || "en", { month: "long" });
+  } catch {
+    month = shipDate.toLocaleString("en", { month: "long" });
+  }
   const year = shipDate.getFullYear();
   return `${month} ${year} — ${campaignName}`;
 }
@@ -686,6 +700,7 @@ export function parseCampaignFormData(
 
   const input: CampaignInput = {
     name,
+    locale: asNullableStr(form.get("locale")),
     internalNotes: asNullableStr(form.get("internalNotes")),
 
     productMode: asStr(form.get("productMode")) as ProductMode,

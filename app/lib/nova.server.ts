@@ -26,7 +26,7 @@ function sign(secret: string, body: string): string {
 }
 
 // Exponential backoff: 1m, 2m, 4m … capped at 6h.
-function backoffMs(attempts: number): number {
+export function backoffMs(attempts: number): number { // exported for tests
   return Math.min(6 * 60 * 60 * 1000, 60 * 1000 * 2 ** Math.max(0, attempts - 1));
 }
 

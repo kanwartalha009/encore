@@ -7,7 +7,7 @@
  */
 import { useState } from "react";
 import type { HeadersFunction, LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
-import { redirect, useFetcher } from "react-router";
+import { redirect, useFetcher, useLoaderData } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import {
   Page,
@@ -27,10 +27,19 @@ import {
 import { authenticate } from "../shopify.server";
 import { useLocale } from "../lib/i18n";
 import { createCampaign } from "../models/campaign.server";
+import { getSettings } from "../models/settings.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
-  return null;
+  const { session } = await authenticate.admin(request);
+  // Inherit the merchant's store-wide defaults so the wizard starts from what
+  // they already configured (Settings → default button label), not our hardcode.
+  const { general } = await getSettings(session.shop);
+  const g = general as { defaultButtonLabel?: unknown };
+  const defaultCtaLabel =
+    typeof g.defaultButtonLabel === "string" && g.defaultButtonLabel.trim()
+      ? g.defaultButtonLabel.trim()
+      : "Preorder";
+  return { defaultCtaLabel };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -71,12 +80,14 @@ type PickedProduct = { id: string; title: string };
 
 export default function OnboardingWizard() {
   const { t } = useLocale();
+  const { defaultCtaLabel } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const [step, setStep] = useState(0);
   const [products, setProducts] = useState<PickedProduct[]>([]);
   const [mode, setMode] = useState("now");
   const [startDate, setStartDate] = useState("");
-  const [ctaLabel, setCtaLabel] = useState("Preorder");
+  const [ctaLabel, setCtaLabel] = useState(defaultCtaLabel);
+  const [pickerHint, setPickerHint] = useState(false);
 
   const publishing = fetcher.state !== "idle";
 
@@ -86,7 +97,14 @@ export default function OnboardingWizard() {
     const sel = (await shopify.resourcePicker({ type: "product", multiple: true })) as
       | { id: string; title: string }[]
       | undefined;
-    if (sel && sel.length) setProducts(sel.map((p) => ({ id: p.id, title: p.title })));
+    if (sel === undefined) return; // shopper closed the picker — keep current selection
+    if (sel.length) {
+      setProducts(sel.map((p) => ({ id: p.id, title: p.title })));
+      setPickerHint(false);
+    } else {
+      // Empty selection — most often a brand-new store with no products yet.
+      setPickerHint(true);
+    }
   };
 
   const publish = () => {
@@ -127,6 +145,15 @@ export default function OnboardingWizard() {
                     {products.map((p) => p.title).slice(0, 5).join(", ")}
                     {products.length > 5 ? "…" : ""}
                   </Text>
+                )}
+                {pickerHint && products.length === 0 && (
+                  <Banner tone="info">
+                    <Text as="p">
+                      {t(
+                        "No products selected. If your store doesn't have any products yet, add one in Shopify admin under Products, then come back here.",
+                      )}
+                    </Text>
+                  </Banner>
                 )}
               </>
             )}

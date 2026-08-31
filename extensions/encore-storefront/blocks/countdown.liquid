@@ -1,0 +1,59 @@
+{%- comment -%}
+  Encore — Preorder countdown (app block, product template).
+  Renders nothing until encore.js confirms (via the /apps/encore/config app
+  proxy) that this product is on a live preorder with an end date. Then it
+  ticks down to the campaign's end ("Preorder ends in 2d 4h 10m 33s") and
+  removes itself when the window closes. Campaigns without an end date render
+  nothing — the block is safe to add everywhere.
+{%- endcomment -%}
+{%- if product -%}
+  {%- assign ev = product.selected_or_first_available_variant -%}
+  <div
+    class="encore encore-countdown"
+    data-encore-countdown
+    data-product-id="{{ product.id }}"
+    data-variant-id="{{ ev.id }}"
+    data-in-stock="{% if ev.inventory_quantity > 0 %}true{% else %}false{% endif %}"
+    data-market="{{ localization.market.id }}"
+    data-locale="{{ localization.language.iso_code | default: request.locale.iso_code }}"
+    data-label="{{ block.settings.label | escape }}"
+    data-align="{{ block.settings.align }}"
+    style="--encore-accent: {{ block.settings.accent }}; text-align: {{ block.settings.align }};"
+    {{ block.shopify_attributes }}
+  >
+    <div class="encore-countdown__ui" data-encore-count-ui hidden>
+      <span class="encore-countdown__label" data-encore-count-label></span>
+      <span class="encore-countdown__time" data-encore-count-time></span>
+    </div>
+  </div>
+{%- endif -%}
+{% schema %}
+{
+  "name": "t:encore.blocks.countdown",
+  "target": "section",
+  "javascript": "encore.js",
+  "stylesheet": "encore.css",
+  "enabled_on": { "templates": ["product"] },
+  "settings": [
+    {
+      "type": "text",
+      "id": "label",
+      "label": "Label",
+      "default": "Preorder ends in",
+      "info": "Shown before the timer. Only appears while the product is on a preorder that has an end date."
+    },
+    {
+      "type": "select",
+      "id": "align",
+      "label": "Alignment",
+      "options": [
+        { "value": "left", "label": "Left" },
+        { "value": "center", "label": "Center" },
+        { "value": "right", "label": "Right" }
+      ],
+      "default": "left"
+    },
+    { "type": "color", "id": "accent", "label": "Timer colour", "default": "#1A1A1A" }
+  ]
+}
+{% endschema %}

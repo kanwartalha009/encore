@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import type {
   ActionFunctionArgs,
   HeadersFunction,
@@ -24,11 +24,11 @@ import {
   IndexTable,
   Banner,
 } from "@shopify/polaris";
-import { EmailIcon, NotificationIcon, ExportIcon } from "@shopify/polaris-icons";
+import { EmailIcon, NotificationIcon, ExportIcon, ImportIcon } from "@shopify/polaris-icons";
 import { useAppBridge } from "@shopify/app-bridge-react";
 
 import { authenticate } from "../shopify.server";
-import { listWaitlistGroups } from "../models/waitlist.server";
+import { listWaitlistGroups, importWaitlist } from "../models/waitlist.server";
 import { notifyGroup, retryFailed } from "../services/waitlist-notify.server";
 import { NOTIFY_POSITIONS } from "../lib/demoStorefront";
 import { DEMO_COLLECTIONS } from "../lib/demoProducts";
@@ -48,9 +48,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const fd = await request.formData();
   const intent = String(fd.get("intent") ?? "save");
+
+  if (intent === "import") {
+    const csv = String(fd.get("csv") ?? "");
+    if (csv.length > 2_000_000) {
+      return Response.json({ ok: false, intent, error: "file_too_large" });
+    }
+    const r = await importWaitlist(session.shop, admin, csv);
+    return Response.json({ ok: !r.error, intent, ...r });
+  }
 
   if (intent === "notify_group") {
     const r = await notifyGroup(
@@ -187,6 +196,47 @@ export default function BackInStockPage() {
     }
   }, [notifyFetcher.data, shopify]);
 
+  // ---- CSV import (R1 — switching from another app) ----
+  const importFetcher = useFetcher<{
+    ok?: boolean;
+    intent?: string;
+    imported?: number;
+    skipped?: number;
+    duplicates?: number;
+    error?: string | null;
+  }>();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importResult, setImportResult] = useState<typeof importFetcher.data>(undefined);
+  useEffect(() => {
+    if (importFetcher.data && importFetcher.data.intent === "import") {
+      setImportResult(importFetcher.data);
+    }
+  }, [importFetcher.data]);
+  const onImportFile = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      importFetcher.submit(
+        { intent: "import", csv: String(reader.result ?? "") },
+        { method: "post" },
+      );
+    };
+    reader.readAsText(file);
+  };
+  const importBusy = importFetcher.state !== "idle";
+  const importErrorText = (code?: string | null) =>
+    code === "missing_email_column"
+      ? t("The file needs an “email” column.")
+      : code === "missing_product_column"
+        ? t("The file needs a “product_id” or “product_handle” column.")
+        : code === "empty_file"
+          ? t("That file looks empty.")
+          : code === "file_too_large"
+            ? t("That file is too large — split it and import in parts.")
+            : t("Import failed. Check the file and try again.");
+
   const notify = (productId: string, variantTitle: string | null) => {
     notifyFetcher.submit(
       { intent: "notify_group", productId, variantTitle: variantTitle ?? "" },
@@ -249,12 +299,44 @@ export default function BackInStockPage() {
       }
       secondaryActions={[
         { content: t("common.export"), icon: ExportIcon, onAction: exportCsv, disabled: groups.length === 0 },
+        { content: t("Import CSV"), icon: ImportIcon, onAction: () => fileInputRef.current?.click(), loading: importBusy },
         ...(totalFailed > 0
           ? [{ content: `Retry ${totalFailed} failed`, onAction: retryAllFailed }]
           : []),
       ]}
     >
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".csv,text/csv"
+        style={{ display: "none" }}
+        onChange={onImportFile}
+      />
       <BlockStack gap="500">
+        {importResult && (
+          <Banner
+            tone={importResult.ok ? "success" : "critical"}
+            title={
+              importResult.ok
+                ? t("Import finished")
+                : t("Import failed")
+            }
+            onDismiss={() => setImportResult(undefined)}
+          >
+            <Text as="p">
+              {importResult.ok
+                ? `${importResult.imported ?? 0} ${t("subscribers imported")}` +
+                  ((importResult.duplicates ?? 0) > 0 ? ` · ${importResult.duplicates} ${t("already existed")}` : "") +
+                  ((importResult.skipped ?? 0) > 0 ? ` · ${importResult.skipped} ${t("rows skipped")}` : "")
+                : importErrorText(importResult.error)}
+            </Text>
+            {importResult.ok === false && (
+              <Text as="p" tone="subdued">
+                {t("Expected columns: email, product_id or product_handle, and optionally variant_id, locale.")}
+              </Text>
+            )}
+          </Banner>
+        )}
         {/* ---- Storefront customization (opens on demand) ---- */}
         {showSettings && (
           <BlockStack gap="500">

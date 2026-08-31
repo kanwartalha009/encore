@@ -200,3 +200,27 @@
 .encore-modal__msg { margin: 10px 0 0; font-size: 13px; }
 .encore-modal__msg--ok { color: #2e7d4f; }
 .encore-modal__msg--err { color: #d64545; }
+
+/* ---- Countdown (preorder ends in …) ---- */
+.encore-countdown__ui { display: inline-flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
+.encore-countdown__label { font-size: 13px; color: #6b6b6b; }
+.encore-countdown__time {
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--encore-accent, #1a1a1a);
+}
+
+/* ---- Collection-page preorder badge (embed-injected) ---- */
+.encore-card-badge {
+  display: inline-block;
+  margin: 4px 6px 0 0;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.6;
+  border-radius: 999px;
+  background: var(--encore-accent, #1a1a1a);
+  color: var(--encore-on-accent, #fff);
+  letter-spacing: 0.02em;
+}

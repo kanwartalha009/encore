@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { useFetcher, useLoaderData, useNavigate } from "react-router";
+import { useFetcher, useLoaderData, useNavigate, useSearchParams } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
@@ -269,6 +269,14 @@ export default function CampaignDetail() {
   const navigate = useNavigate();
   const shopify = useAppBridge();
   const fetcher = useFetcher();
+  // Onboarding hand-off: /app/onboarding redirects here with ?welcome=1.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [showWelcome, setShowWelcome] = useState(searchParams.get("welcome") === "1");
+  const dismissWelcome = () => {
+    setShowWelcome(false);
+    searchParams.delete("welcome");
+    setSearchParams(searchParams, { replace: true });
+  };
   const { campaign: c, customers: CUSTOMERS } =
     useLoaderData<typeof loader>();
   const id = c.id;
@@ -359,6 +367,19 @@ export default function CampaignDetail() {
       ]}
     >
       <BlockStack gap="500">
+        {showWelcome && (
+          <Banner
+            tone="success"
+            title={t("Your first preorder is live!")}
+            onDismiss={dismissWelcome}
+          >
+            <Text as="p">
+              {t(
+                "Shoppers on the selected products can now preorder. Add the Encore blocks in your theme editor if you haven't yet, then place a test order to see it end to end.",
+              )}
+            </Text>
+          </Banner>
+        )}
         {c.status === "Paused" && (
           <Banner tone="warning" title={t("Preorder is paused")}>
             <Text as="span">{t("No new preorders are being accepted. Existing preorders are not affected.")}</Text>

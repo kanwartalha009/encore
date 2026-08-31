@@ -320,12 +320,13 @@ export default function CampaignForm({
   backTo,
   collections,
   marketsList,
-}: CampaignFormProps) {
+  currency = "USD",
+}: CampaignFormProps & { currency?: string }) {
   // Real catalog data (loader) with demo fallback — never an empty picker by accident.
   const collectionChoices =
     collections && collections.length ? collections : DEMO_COLLECTIONS;
   const marketChoices = marketsList && marketsList.length ? marketsList : DEMO_MARKETS;
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const navigate = useNavigate();
   const submit = useSubmit();
   const navigation = useNavigation();
@@ -373,6 +374,16 @@ export default function CampaignForm({
   // ---------- Button (inherited from Settings; override per rule — F0.4) ----------
   const [ctaLabel, setCtaLabel] = useState(initialValues.ctaLabel);
   const [ctaPlacement, setCtaPlacement] = useState(initialValues.ctaPlacement);
+
+  // ---------- Trigger (R0.1 — when shoppers see the preorder) ----------
+  // Seeded from the saved campaign; "date" campaigns keep their DATE trigger
+  // (timing lives in startDate) and present as "always" here.
+  const initialTrigger = String(
+    (initialValues as unknown as { triggerType?: string }).triggerType ?? "manual",
+  );
+  const [trigger, setTrigger] = useState<"always" | "stock">(
+    initialTrigger === "stock" ? "stock" : "always",
+  );
 
   // ---------- Product picker (App Bridge resourcePicker — real store catalog) ----------
   // Opens Shopify's native product picker so the merchant selects THEIR products
@@ -465,6 +476,7 @@ export default function CampaignForm({
     if (intent === "delete") return fd;
 
     fd.set("name", name);
+    fd.set("locale", locale); // for locale-aware auto cohort naming
     fd.set("internalNotes", internalNotes);
     fd.set("productMode", dbProductMode);
     fd.set("collectionId", collectionId);
@@ -489,8 +501,16 @@ export default function CampaignForm({
     // Markets — [] = all.
     fd.set("markets", JSON.stringify(marketsAll ? [] : markets));
 
-    // Trigger handled by store-wide Inventory rules (Settings).
-    fd.set("triggerType", "MANUAL");
+    // R0.1 — the trigger is a real, per-campaign setting (previously this
+    // hardcoded MANUAL and silently downgraded STOCK campaigns on every edit).
+    fd.set(
+      "triggerType",
+      trigger === "stock"
+        ? "STOCK"
+        : initialTrigger === "date"
+          ? "DATE"
+          : "MANUAL",
+    );
     fd.set("stockThreshold", "0");
 
     fd.set("shipDate", shipDate);
@@ -718,7 +738,7 @@ export default function CampaignForm({
                                 value={depositAmount}
                                 onChange={setDepositAmount}
                                 autoComplete="off"
-                                suffix={depositKind === "percent" ? "%" : "USD"}
+                                suffix={depositKind === "percent" ? "%" : currency}
                               />
                             </FormLayout.Group>
                             <TextField
@@ -797,7 +817,7 @@ export default function CampaignForm({
                                   value={discountAmount}
                                   onChange={setDiscountAmount}
                                   autoComplete="off"
-                                  suffix={discountKind === "percent" ? "%" : "USD"}
+                                  suffix={discountKind === "percent" ? "%" : currency}
                                 />
                               </FormLayout.Group>
                             </FormLayout>
@@ -828,6 +848,16 @@ export default function CampaignForm({
                             onChange={(v) =>
                               setCtaPlacement(v as "replace" | "beside" | "stack")
                             }
+                          />
+                          <Select
+                            label={t("When shoppers see it")}
+                            options={[
+                              { label: t("Always (presale — even while in stock)"), value: "always" },
+                              { label: t("Only when sold out"), value: "stock" },
+                            ]}
+                            value={trigger}
+                            onChange={(v) => setTrigger(v as "always" | "stock")}
+                            helpText={t("Only when sold out: the preorder button appears once the selected variant runs out.")}
                           />
                         </FormLayout>
                       </BlockStack>
@@ -900,7 +930,7 @@ export default function CampaignForm({
                       {paymentMode !== "pay_now" && (
                         <Text as="span" variant="bodySm" tone="subdued">
                           {paymentMode === "deposit"
-                            ? `Deposit ${depositAmount}${depositKind === "percent" ? "%" : " USD"} today`
+                            ? `Deposit ${depositAmount}${depositKind === "percent" ? "%" : ` ${currency}`} today`
                             : "Pay later — charged when it ships"}
                         </Text>
                       )}
@@ -981,7 +1011,7 @@ export default function CampaignForm({
                       paymentMode === "pay_now"
                         ? "Full at checkout"
                         : paymentMode === "deposit"
-                          ? `Deposit ${depositAmount}${depositKind === "percent" ? "%" : " USD"}`
+                          ? `Deposit ${depositAmount}${depositKind === "percent" ? "%" : ` ${currency}`}`
                           : "Pay later (on ship)"
                     }
                   />

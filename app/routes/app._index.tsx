@@ -1,4 +1,5 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
+import { useEffect, useState } from "react";
 import { useLoaderData, useNavigate } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
@@ -369,6 +370,14 @@ export default function DashboardIndex() {
   const navigate = useNavigate();
   const { t } = useLocale();
   const data = useLoaderData<typeof loader>();
+  const [welcomeDismissed, setWelcomeDismissed] = useState(true); // avoid SSR flash
+  useEffect(() => {
+    try {
+      setWelcomeDismissed(localStorage.getItem("encore_welcome_dismissed") === "1");
+    } catch {
+      setWelcomeDismissed(false);
+    }
+  }, []);
   const KPIS = data.kpis.map((k, i) => ({
     ...k,
     icon: KPI_ICONS[i] ?? CashDollarIcon,
@@ -394,7 +403,7 @@ export default function DashboardIndex() {
 
   return (
     <Page
-      title="Preorder Novafied"
+      title="Encore"
       subtitle={t("Preorders, cohorts, and back-in-stock at a glance.")}
       primaryAction={{
         content: t("New preorder"),
@@ -417,23 +426,39 @@ export default function DashboardIndex() {
       ]}
     >
       <BlockStack gap="500">
-        {/* Onboarding banner — shown only on fresh installs in real impl */}
+        {/* R0.2 — outbox health: delivery to Nova (support tickets, billing sync)
+            is stuck or dead; almost always the outbox cron isn't scheduled. */}
+        {data.outboxAlert && (
+          <Banner title={t("Background delivery needs attention")} tone="warning">
+            <p>
+              {t("Some messages (support requests, billing sync) haven't been delivered.")}{" "}
+              {data.outboxAlert.stuck > 0 && `${data.outboxAlert.stuck} pending. `}
+              {data.outboxAlert.dead > 0 && `${data.outboxAlert.dead} failed permanently. `}
+              {t("Check that the delivery cron is scheduled (see DEPLOY-CHECKLIST).")}
+            </p>
+          </Banner>
+        )}
+        {/* Onboarding banner — dismissible, persisted per browser (R0.3). */}
+        {!welcomeDismissed && (
         <Banner
-          title={t("Welcome to Preorder Novafied")}
+          title={t("Welcome to Encore")}
           tone="info"
-          onDismiss={() => {}}
+          onDismiss={() => {
+            setWelcomeDismissed(true);
+            try { localStorage.setItem("encore_welcome_dismissed", "1"); } catch { /* private mode */ }
+          }}
           action={{
             content: t("Set up your first preorder"),
             onAction: () => navigate("/app/onboarding"),
           }}
           secondaryAction={{
-            content: t("Read the docs"),
-            url: "https://docs.preordernovafied.app",
-            external: true,
+            content: t("Get help"),
+            onAction: () => navigate("/app/help"),
           }}
         >
           <p>{t("Preorders are set up at the variant level. Pick variants, set units, set a ship date — that's it. Customers pay full at checkout by default; toggle deposit or pay-later inside any preorder.")}</p>
         </Banner>
+        )}
 
         {/* KPI tiles */}
         <Layout>
@@ -463,14 +488,27 @@ export default function DashboardIndex() {
                     icon={ArrowRightIcon}>{t("View all")}</Button>
                 </InlineStack>
                 <Divider />
-                <BlockStack gap="500">
-                  {COHORTS.map((c, i) => (
-                    <BlockStack key={c.id} gap="500">
-                      <CohortRow cohort={c} />
-                      {i < COHORTS.length - 1 && <Divider />}
-                    </BlockStack>
-                  ))}
-                </BlockStack>
+                {COHORTS.length === 0 ? (
+                  <BlockStack gap="200">
+                    <Text as="p" tone="subdued">
+                      {t("Cohorts group preorders by ship date — your first one appears when a preorder goes live.")}
+                    </Text>
+                    <InlineStack>
+                      <Button size="slim" onClick={() => navigate("/app/onboarding")}>
+                        {t("Start setup")}
+                      </Button>
+                    </InlineStack>
+                  </BlockStack>
+                ) : (
+                  <BlockStack gap="500">
+                    {COHORTS.map((c, i) => (
+                      <BlockStack key={c.id} gap="500">
+                        <CohortRow cohort={c} />
+                        {i < COHORTS.length - 1 && <Divider />}
+                      </BlockStack>
+                    ))}
+                  </BlockStack>
+                )}
               </BlockStack>
             </Card>
           </Layout.Section>

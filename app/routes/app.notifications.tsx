@@ -129,6 +129,9 @@ export default function NotificationsPage() {
       subtitle={t("Choose how customer emails are sent, and edit the copy per language.")}
     >
       <BlockStack gap="500">
+        <Text as="p" tone="subdued">
+          {t("Encore delivers customer emails through Klaviyo or Shopify Flow — pick whichever your store already uses, then tailor the copy for each message and language below.")}
+        </Text>
         {fetcher.data?.ok && (
           <Banner tone="success" onDismiss={() => {}}>
             {t("Saved.")}

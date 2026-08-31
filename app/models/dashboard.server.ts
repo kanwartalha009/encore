@@ -33,6 +33,8 @@ export type DashboardData = {
   }[];
   activity: { kind: string; text: string; detail: string; time: string }[];
   reliability: ReliabilityReport;
+  /** R0.2 — Nova outbox health: stuck PENDING (>15 min) or DEAD deliveries. */
+  outboxAlert: { stuck: number; dead: number } | null;
 };
 
 const TRIGGER_LABEL: Record<string, string> = {
@@ -96,6 +98,25 @@ export async function getDashboard(
     getReliability(shop),
   ]);
 
+  // Outbox health — surfaces silently-failing delivery (unscheduled cron or
+  // exhausted retries). prisma cast: NovaOutbox is post-template (db push).
+  const ob = prisma as unknown as {
+    novaOutbox: {
+      count(a: { where: Record<string, unknown> }): Promise<number>;
+    };
+  };
+  let outboxAlert: { stuck: number; dead: number } | null = null;
+  try {
+    const cutoff = new Date(Date.now() - 15 * 60 * 1000);
+    const [stuck, dead] = await Promise.all([
+      ob.novaOutbox.count({ where: { status: "PENDING", createdAt: { lt: cutoff } } }),
+      ob.novaOutbox.count({ where: { status: "DEAD" } }),
+    ]);
+    outboxAlert = stuck > 0 || dead > 0 ? { stuck, dead } : null;
+  } catch {
+    outboxAlert = null; // table absent in a fresh dev DB — never break the dashboard
+  }
+
   const totalGmvCents = Math.round(
     preOrders.reduce((a, p) => a + p.amount, 0) * 100,
   );
@@ -137,6 +158,7 @@ export async function getDashboard(
 
   return {
     kpis,
+    outboxAlert,
     cohorts: cohorts.map((c) => {
       const sold = c.preOrders.reduce((a, p) => a + p.units, 0);
       const gmv = Math.round(c.preOrders.reduce((a, p) => a + p.amount, 0) * 100);

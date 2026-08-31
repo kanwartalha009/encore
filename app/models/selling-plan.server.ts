@@ -79,8 +79,8 @@ function isoMinusDays(date: Date, days: number): string {
   return d.toISOString();
 }
 
-// Build the SellingPlanInput fragment from the campaign config.
-function buildPlan(
+// Build the SellingPlanInput fragment from the campaign config. Exported for tests.
+export function buildPlan(
   c: RawCampaign,
   opts: { forcePayNow?: boolean; planId?: string },
 ): { plan: Record<string, unknown>; mode: "DEFERRED" | "PAY_NOW" } {

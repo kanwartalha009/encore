@@ -434,7 +434,7 @@ export default function CampaignsIndex() {
                   }}
                   secondaryAction={{
                     content: t("Read the docs"),
-                    url: "https://docs.preordernovafied.app",
+                    url: "/app/help",
                     external: true,
                   }}
                   image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"

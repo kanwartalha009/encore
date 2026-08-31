@@ -132,6 +132,15 @@ export default function TranslationsPage() {
           </BlockStack>
         </Card>
 
+        {done === 0 && (
+          <Card>
+            <BlockStack gap="200">
+              <Text as="h2" variant="headingMd">{`${t("No translations yet for")} ${localeMeta?.name ?? locale}`}</Text>
+              <Text as="p" tone="subdued">{t("Every storefront string Encore adds can be customised per language — fill in any field below and save to override the English default for shoppers browsing in this language.")}</Text>
+            </BlockStack>
+          </Card>
+        )}
+
         {GROUPS.map((group) => {
           const items = STOREFRONT_STRINGS.filter((s) => s.group === group);
           if (items.length === 0) return null;

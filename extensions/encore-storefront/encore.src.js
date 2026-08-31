@@ -161,16 +161,15 @@
       var skel = root.querySelector("[data-encore-pre-skeleton]");
       if (skel && skel.parentNode) skel.parentNode.removeChild(skel);
 
-      // Per-market: never show preorder where this market has sellable stock —
-      // unless the merchant flagged this market as having no local stock.
-      if (
-        root.getAttribute("data-in-stock") === "true" &&
-        !(cfg && cfg.preorder && cfg.preorder.forcePreorder)
-      )
-        return;
-
       if (!cfg || !cfg.preorder || !cfg.preorder.active) return;
       var p = cfg.preorder;
+
+      // R0.1 — honor the campaign's trigger:
+      //   "stock"  → preorder only when the product/variant is NOT in stock
+      //   "always" → presale mode: show even while in stock
+      // forcePreorder (market flagged no-local-stock) overrides either way.
+      var inStock = root.getAttribute("data-in-stock") === "true";
+      if (inStock && p.trigger !== "always" && !p.forcePreorder) return;
       var form = closestForm(root);
 
       if (p.label) btn.textContent = p.label;
@@ -185,6 +184,15 @@
       note.textContent = p.shipText
         ? interpolate(p.message, { date: p.shipText })
         : p.fallback || "";
+
+      // R0.5 — mixed-cart notice: merchants configure this message in admin;
+      // render it so shoppers actually see it (previously configured-but-unused).
+      if (p.mixedCartMessage && note.parentNode) {
+        var mixed = document.createElement("div");
+        mixed.textContent = p.mixedCartMessage;
+        mixed.style.cssText = "font-size:.85em;opacity:.75;margin-top:4px;";
+        note.parentNode.insertBefore(mixed, note.nextSibling);
+      }
 
       // Line-item properties → follow the item into cart + checkout.
       if (form && p.lineItem && p.lineItem.enabled) {
@@ -218,6 +226,129 @@
 
       ui.hidden = false;
     });
+  }
+
+  // ---------- Countdown (R1) ----------
+  // Ticks down to the matched campaign's endDate. Renders nothing for
+  // campaigns without an end date, and follows the same stock/trigger gating
+  // as the preorder button so the two never disagree.
+  function initCountdown(root) {
+    if (root.__encoreInit) return;
+    root.__encoreInit = true;
+
+    var productId = root.getAttribute("data-product-id");
+    var locale = root.getAttribute("data-locale") || "en";
+    var market = root.getAttribute("data-market") || pageMarket();
+    var ui = root.querySelector("[data-encore-count-ui]");
+    var labelEl = root.querySelector("[data-encore-count-label]");
+    var timeEl = root.querySelector("[data-encore-count-time]");
+
+    fetchConfig(productId, locale, market).then(function (cfg) {
+      if (!cfg || !cfg.preorder || !cfg.preorder.active) return;
+      var p = cfg.preorder;
+      if (!p.endDate) return;
+      var inStock = root.getAttribute("data-in-stock") === "true";
+      if (inStock && p.trigger !== "always" && !p.forcePreorder) return;
+
+      var end = Date.parse(p.endDate);
+      if (!end || end <= Date.now()) return;
+
+      labelEl.textContent = root.getAttribute("data-label") || "Preorder ends in";
+
+      function pad(n) {
+        return n < 10 ? "0" + n : "" + n;
+      }
+      var timer = null;
+      function tick() {
+        var left = end - Date.now();
+        if (left <= 0) {
+          if (timer) window.clearInterval(timer);
+          ui.hidden = true;
+          return;
+        }
+        var s = Math.floor(left / 1000);
+        var d = Math.floor(s / 86400);
+        var h = Math.floor((s % 86400) / 3600);
+        var m = Math.floor((s % 3600) / 60);
+        var sec = s % 60;
+        timeEl.textContent =
+          (d > 0 ? d + "d " : "") + pad(h) + "h " + pad(m) + "m " + pad(sec) + "s";
+      }
+      tick();
+      timer = window.setInterval(tick, 1000);
+      ui.hidden = false;
+    });
+  }
+
+  // ---------- Collection-page preorder badges (R1) ----------
+  // Enabled via the app embed's "collection badges" setting. Scans product-card
+  // links on the page, asks the app which handles are on a live preorder
+  // (/apps/encore/badges) and drops a small badge into each matching card.
+  function productHandleFromHref(href) {
+    var m = /\/products\/([a-z0-9-]+)/i.exec(href || "");
+    return m ? m[1].toLowerCase() : "";
+  }
+
+  function initCollectionBadges() {
+    var settings = window.EncoreSettings || {};
+    if (!settings.collectionBadges) return;
+
+    var links = document.querySelectorAll('a[href*="/products/"]');
+    if (!links.length) return;
+
+    // handle → [best anchor per card]
+    var byHandle = {};
+    var handles = [];
+    for (var i = 0; i < links.length; i++) {
+      var a = links[i];
+      // Skip links inside an Encore product-page block (that page has its own UI).
+      if (a.closest && a.closest("[data-encore-preorder]")) continue;
+      var h = productHandleFromHref(a.getAttribute("href"));
+      if (!h) continue;
+      if (!byHandle[h]) {
+        byHandle[h] = [];
+        handles.push(h);
+      }
+      byHandle[h].push(a);
+    }
+    if (!handles.length) return;
+    handles = handles.slice(0, 24);
+
+    var locale = settings.locale || (document.documentElement.lang || "en").slice(0, 2);
+    var url =
+      PROXY +
+      "/badges?handles=" +
+      encodeURIComponent(handles.join(",")) +
+      "&locale=" +
+      encodeURIComponent(locale) +
+      "&market_id=" +
+      encodeURIComponent(pageMarket());
+    fetch(url, { headers: { Accept: "application/json" }, credentials: "same-origin" })
+      .then(function (r) {
+        return r && r.ok ? r.json() : null;
+      })
+      .then(function (res) {
+        if (!res || !res.handles || !res.handles.length) return;
+        var label = res.label || "Preorder";
+        for (var i = 0; i < res.handles.length; i++) {
+          var anchors = byHandle[res.handles[i]] || [];
+          for (var j = 0; j < anchors.length; j++) {
+            // One badge per card: mark the closest card container.
+            var card =
+              (anchors[j].closest &&
+                anchors[j].closest("li, article, .card, .grid__item, .product-card")) ||
+              anchors[j];
+            if (card.getAttribute("data-encore-badged")) continue;
+            card.setAttribute("data-encore-badged", "1");
+            var badge = document.createElement("span");
+            badge.className = "encore encore-card-badge";
+            badge.textContent = label;
+            anchors[j].parentNode.insertBefore(badge, anchors[j]);
+            break;
+          }
+        }
+      })
+      .catch(function () {});
   }
 
   // ---------- Low stock ----------
@@ -496,14 +627,18 @@
     for (var j = 0; j < low.length; j++) initLowstock(low[j]);
     var not = s.querySelectorAll("[data-encore-notify]");
     for (var k = 0; k < not.length; k++) initNotify(not[k]);
+    var cnt = s.querySelectorAll("[data-encore-countdown]");
+    for (var l = 0; l < cnt.length; l++) initCountdown(cnt[l]);
   }
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", function () {
       initAll();
+      initCollectionBadges();
     });
   } else {
     initAll();
+    initCollectionBadges();
   }
 
   // Theme editor: re-init when a section is re-rendered.

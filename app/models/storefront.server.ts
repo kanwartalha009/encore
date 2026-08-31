@@ -113,6 +113,11 @@ export type StorefrontConfig = {
         customCss: string;
         lineItem: { enabled: boolean; preorderLabel: string; shipLabel: string };
         mixedCartMessage: string;
+        /** "stock" = only when variant unavailable; "always" = presale mode. */
+        trigger: "stock" | "always";
+        /** Campaign window (ISO) — powers the optional countdown block. */
+        startDate: string | null;
+        endDate: string | null;
         campaignId: string;
         sellingPlanId: string | null;
         /** This market is flagged no-local-stock → offer preorder even if in stock. */
@@ -139,6 +144,101 @@ export type StorefrontConfig = {
     syncTarget: string;
   };
 };
+
+/**
+ * R1 — collection-page badges: which of these product handles are on a live
+ * preorder right now? Powers GET /apps/encore/badges (embed-injected badges on
+ * collection/search/home cards).
+ *
+ * v1 scope: ALL and SPECIFIC campaigns only. COLLECTION-mode campaigns are
+ * intentionally skipped here — checking membership for up to 24 products would
+ * cost up to 24 Admin API calls per page view. (The product page itself still
+ * resolves COLLECTION campaigns exactly.)
+ */
+export async function getPreorderBadgeHandles(
+  shop: string,
+  handles: string[],
+  locale: string,
+  marketId = "",
+  admin: AdminGraphqlClient | null = null,
+): Promise<{ label: string; handles: string[] }> {
+  const clean = Array.from(
+    new Set(
+      handles
+        .map((h) => h.trim().toLowerCase())
+        .filter((h) => /^[a-z0-9-]+$/.test(h)),
+    ),
+  ).slice(0, 24);
+
+  const tAll = await getTranslations(shop);
+  const tr: Record<string, string> = tAll[locale] || {};
+  const label = (tr.preorder_badge && tr.preorder_badge.trim()) || "Preorder";
+
+  if (!clean.length || !admin) return { label, handles: [] };
+  if (await isOverPreorderLimit(shop)) return { label, handles: [] };
+
+  const now = new Date();
+  const campaigns = (
+    await prisma.campaign.findMany({
+      where: { shop, status: "LIVE" },
+      orderBy: { updatedAt: "desc" },
+    })
+  ).filter((c) => {
+    if (c.startDate && c.startDate > now) return false;
+    if (c.endDate && c.endDate < now) return false;
+    const cm = jsonArr((c as unknown as { markets?: string }).markets);
+    if (
+      cm.length &&
+      marketId &&
+      !cm.includes(marketId) &&
+      !cm.map(gidNum).includes(gidNum(marketId))
+    )
+      return false;
+    return c.productMode === "ALL" || c.productMode === "SPECIFIC";
+  });
+  if (!campaigns.length) return { label, handles: [] };
+
+  // Store-level market rule (same gate as the product-page config).
+  const rule = await getMarketRule(shop);
+  const marketAllowed =
+    rule.scope !== "SPECIFIC" ||
+    !marketId ||
+    rule.markets.includes(marketId) ||
+    rule.markets.map(gidNum).includes(gidNum(marketId));
+  if (!marketAllowed) return { label, handles: [] };
+
+  if (campaigns.some((c) => c.productMode === "ALL")) {
+    return { label, handles: clean };
+  }
+
+  // Resolve handles → product ids in one Admin call.
+  let resolved: { id: string; handle: string }[] = [];
+  try {
+    const q = clean.map((h) => `handle:${h}`).join(" OR ");
+    const res = await admin.graphql(
+      `#graphql
+      query EncoreBadgeProducts($q: String!) {
+        products(first: 24, query: $q) { nodes { id handle } }
+      }`,
+      { variables: { q } },
+    );
+    const body = (await res.json()) as {
+      data?: { products?: { nodes?: { id: string; handle: string }[] } };
+    };
+    resolved = body.data?.products?.nodes ?? [];
+  } catch (err) {
+    console.error("[encore] badge handle resolution failed", err);
+    return { label, handles: [] };
+  }
+
+  const campaignIds = new Set(
+    campaigns.flatMap((c) => jsonArr(c.productIds).map(gidNum)),
+  );
+  const out = resolved
+    .filter((p) => campaignIds.has(gidNum(p.id)))
+    .map((p) => p.handle.toLowerCase());
+  return { label, handles: out };
+}
 
 export async function getStorefrontConfig(
   shop: string,
@@ -255,6 +355,16 @@ export async function getStorefrontConfig(
         shipLabel: s(g, "shipDatePropLabel", "Ships"),
       },
       mixedCartMessage: s(g, "mixedCartMessage", ""),
+      // R0.1: per-campaign trigger, honored by the storefront widget.
+      // "stock"  → show preorder only when the selected variant is unavailable.
+      // "always" → show regardless of stock (presale/drop mode; MANUAL or DATE —
+      //            DATE timing is already enforced by startDate above).
+      trigger: match.triggerType === "STOCK" ? "stock" : "always",
+      // R1 — campaign window for the countdown block. The match loop above has
+      // already excluded not-yet-started / already-ended campaigns, so endDate
+      // here is always "the moment this offer closes" (null = open-ended).
+      startDate: match.startDate ? match.startDate.toISOString() : null,
+      endDate: match.endDate ? match.endDate.toISOString() : null,
       campaignId: match.id,
       // Numeric Selling Plan id for the storefront add-to-cart (selling_plan
       // param). Present once the campaign has been synced via the selling-plan

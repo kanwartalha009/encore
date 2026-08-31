@@ -57,7 +57,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 export const headers: HeadersFunction = (h) => boundary.headers(h);
 
 const money = (minor: number, currency: string) =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency }).format(minor / 100);
+  new Intl.NumberFormat(undefined, { style: "currency", currency }).format(minor / 100);
 
 export default function PlansPage() {
   const { t } = useLocale();
@@ -128,6 +128,18 @@ export default function PlansPage() {
           </BlockStack>
         </Card>
 
+        {plans.length === 0 ? (
+          <Card>
+            <BlockStack gap="200">
+              <Text as="h2" variant="headingMd">{t("Plans couldn't be loaded")}</Text>
+              <Text as="p" tone="subdued">{t("This is usually a brief connection hiccup — your store and settings are unaffected. Try again in a moment.")}</Text>
+              <InlineStack>
+                <Button variant="primary" onClick={() => window.location.reload()}>{t("Try again")}</Button>
+              </InlineStack>
+            </BlockStack>
+          </Card>
+        ) : (
+          <>
         <InlineStack align="center">
           <ButtonGroup variant="segmented">
             <Button pressed={interval === "EVERY_30_DAYS"} onClick={() => setInterval("EVERY_30_DAYS")}>
@@ -189,6 +201,8 @@ export default function PlansPage() {
             );
           })}
         </Layout>
+          </>
+        )}
 
         <Box paddingBlockStart="200">
           <Text as="p" variant="bodySm" tone="subdued">

@@ -19,6 +19,7 @@ import { syncCampaignSellingPlan } from "../models/selling-plan.server";
 import { listCollections } from "../models/collections.server";
 import { fetchMarkets } from "../models/markets.server";
 import { getSettings } from "../models/settings.server";
+import { getShopCurrency } from "../models/shop.server";
 import CampaignForm, {
   campaignDefaultsFromSettings,
 } from "../components/CampaignForm";
@@ -31,12 +32,14 @@ const STATUS_BY_INTENT: Record<string, CampaignStatus> = {
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
-  const [collections, markets, settings] = await Promise.all([
+  const [collections, markets, settings, currency] = await Promise.all([
     listCollections(admin),
     fetchMarkets(admin),
     getSettings(session.shop),
+    getShopCurrency(admin, session.shop),
   ]);
   return {
+    currency,
     collections,
     marketsList:
       markets?.map((m) => ({ id: m.id, title: m.name, subtitle: m.handle })) ?? null,
@@ -81,11 +84,12 @@ export const headers: HeadersFunction = (headersArgs) => {
 
 export default function CampaignsNew() {
   const { t } = useLocale();
-  const { collections, marketsList, initialValues } = useLoaderData<typeof loader>();
+  const { collections, marketsList, initialValues, currency } = useLoaderData<typeof loader>();
   return (
     <CampaignForm
       mode="create"
       initialValues={initialValues}
+      currency={currency}
       pageTitle={t("New preorder")}
       pageSubtitle={t("Three quick fields and you're live: name, variants, ship date.")}
       backTo="/app/campaigns"

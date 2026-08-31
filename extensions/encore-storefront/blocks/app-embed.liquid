@@ -9,7 +9,9 @@
 <script>
   window.EncoreProxyBase = window.EncoreProxyBase || "/apps/encore";
   window.EncoreSettings = Object.assign(window.EncoreSettings || {}, {
-    accent: {{ block.settings.accent | json }}
+    accent: {{ block.settings.accent | json }},
+    collectionBadges: {{ block.settings.collection_badges | json }},
+    locale: {{ localization.language.iso_code | default: request.locale.iso_code | json }}
   });
 </script>
 {% schema %}
@@ -21,7 +23,14 @@
   "settings": [
     {
       "type": "paragraph",
-      "content": "Optional. The Preorder, Back-in-stock and Low-stock blocks work on their own — enable this only to apply Encore styling site-wide."
+      "content": "Optional. The Preorder, Back-in-stock and Low-stock blocks work on their own — enable this to apply Encore styling site-wide and to show preorder badges on collection pages."
+    },
+    {
+      "type": "checkbox",
+      "id": "collection_badges",
+      "label": "Show preorder badges on collection pages",
+      "default": false,
+      "info": "Marks products that are on a live preorder wherever product cards appear (collections, search, home)."
     },
     {
       "type": "color",

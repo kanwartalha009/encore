@@ -282,6 +282,16 @@ export default function LowStockPage() {
           </Card>
 
           <Card>
+            <BlockStack gap="200">
+              <Text as="h2" variant="headingMd">{t("No products are running low")}</Text>
+              <Text as="p" tone="subdued">{t("As inventory drops to your threshold, the indicator shows on those product pages automatically — and suggestions for what to preorder next will appear here.")}</Text>
+              <InlineStack>
+                <Button url="/app/campaigns">{t("View preorders")}</Button>
+              </InlineStack>
+            </BlockStack>
+          </Card>
+
+          <Card>
             <BlockStack gap="400">
               <Text as="h2" variant="headingMd">{t("When to show")}</Text>
               <Divider />

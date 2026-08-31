@@ -73,6 +73,29 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
+/** First-run teaching state for a tab: heading + one line + one action. */
+function TabTeachingState({
+  heading,
+  body,
+  actionLabel,
+  actionUrl,
+}: {
+  heading: string;
+  body: string;
+  actionLabel: string;
+  actionUrl: string;
+}) {
+  return (
+    <BlockStack gap="200">
+      <Text as="h3" variant="headingSm">{heading}</Text>
+      <Text as="p" tone="subdued">{body}</Text>
+      <InlineStack>
+        <Button variant="primary" url={actionUrl}>{actionLabel}</Button>
+      </InlineStack>
+    </BlockStack>
+  );
+}
+
 export default function InsightsPage() {
   const { t, locale } = useLocale();
   const d = useLoaderData<typeof loader>();
@@ -98,9 +121,18 @@ export default function InsightsPage() {
           <BlockStack gap="400">
             {selected === 0 && (
               <>
-                <InlineGrid columns={{ xs: 1, sm: 2 }} gap="400">
-                  <Stat label={t("Demand signals")} value={d.demand.signals.toLocaleString()} />
-                </InlineGrid>
+                {d.demand.signals === 0 ? (
+                  <TabTeachingState
+                    heading={t("No demand signals yet")}
+                    body={t("Demand appears once shoppers view preorder products and join waitlists.")}
+                    actionLabel={t("Create a preorder")}
+                    actionUrl="/app/campaigns/new"
+                  />
+                ) : (
+                  <InlineGrid columns={{ xs: 1, sm: 2 }} gap="400">
+                    <Stat label={t("Demand signals")} value={d.demand.signals.toLocaleString()} />
+                  </InlineGrid>
+                )}
                 <Divider />
                 <InlineStack align="end">
                   <Button url="/app/demand">{t("Open full view")}</Button>
@@ -109,15 +141,26 @@ export default function InsightsPage() {
             )}
             {selected === 1 && (
               <>
-                <InlineGrid columns={{ xs: 1, sm: 4 }} gap="400">
-                  <Stat label={t("Waitlist conversion")} value={conv} />
-                  <Stat label={t("Lift")} value={lift} />
-                  <Stat label={t("Units captured")} value={d.benchmark.units.toLocaleString()} />
-                  <Stat
-                    label={t("GMV captured")}
-                    value={formatMoney(Math.round(d.benchmark.gmv * 100), d.currency, locale)}
+                {d.benchmark.conversionRate == null &&
+                d.benchmark.units === 0 &&
+                d.benchmark.gmv === 0 ? (
+                  <TabTeachingState
+                    heading={t("Your benchmark starts with your first preorders")}
+                    body={t("This scorecard fills in after your first preorders and back-in-stock alerts convert to orders.")}
+                    actionLabel={t("Create a preorder")}
+                    actionUrl="/app/campaigns/new"
                   />
-                </InlineGrid>
+                ) : (
+                  <InlineGrid columns={{ xs: 1, sm: 4 }} gap="400">
+                    <Stat label={t("Waitlist conversion")} value={conv} />
+                    <Stat label={t("Lift")} value={lift} />
+                    <Stat label={t("Units captured")} value={d.benchmark.units.toLocaleString()} />
+                    <Stat
+                      label={t("GMV captured")}
+                      value={formatMoney(Math.round(d.benchmark.gmv * 100), d.currency, locale)}
+                    />
+                  </InlineGrid>
+                )}
                 <Divider />
                 <InlineStack align="end">
                   <Button url="/app/benchmark">{t("Open full view")}</Button>
@@ -126,14 +169,21 @@ export default function InsightsPage() {
             )}
             {selected === 2 && (
               <>
-                <InlineStack gap="300" blockAlign="center">
-                  <Badge tone={d.lowStock.enabled ? "success" : undefined}>
-                    {d.lowStock.enabled ? t("On") : t("Off")}
-                  </Badge>
-                  <Text as="span" variant="bodyMd">
-                    {`${t("Shows when stock ≤")} ${d.lowStock.threshold}`}
-                  </Text>
-                </InlineStack>
+                {!d.lowStock.enabled ? (
+                  <TabTeachingState
+                    heading={t("Low-stock alerts are off")}
+                    body={t("Turn them on and set a threshold to show shoppers when a product is almost gone.")}
+                    actionLabel={t("Set your threshold")}
+                    actionUrl="/app/low-stock"
+                  />
+                ) : (
+                  <InlineStack gap="300" blockAlign="center">
+                    <Badge tone="success">{t("On")}</Badge>
+                    <Text as="span" variant="bodyMd">
+                      {`${t("Shows when stock ≤")} ${d.lowStock.threshold}`}
+                    </Text>
+                  </InlineStack>
+                )}
                 <Divider />
                 <InlineStack align="end">
                   <Button url="/app/low-stock">{t("Open full view")}</Button>
@@ -142,9 +192,18 @@ export default function InsightsPage() {
             )}
             {selected === 3 && (
               <>
-                <InlineGrid columns={{ xs: 1, sm: 2 }} gap="400">
-                  <Stat label={t("Active cohorts")} value={d.cohorts.count.toLocaleString()} />
-                </InlineGrid>
+                {d.cohorts.count === 0 ? (
+                  <TabTeachingState
+                    heading={t("No cohorts yet")}
+                    body={t("Cohorts group preorders by ship date — your first one appears when a preorder goes live.")}
+                    actionLabel={t("Create a preorder")}
+                    actionUrl="/app/campaigns/new"
+                  />
+                ) : (
+                  <InlineGrid columns={{ xs: 1, sm: 2 }} gap="400">
+                    <Stat label={t("Active cohorts")} value={d.cohorts.count.toLocaleString()} />
+                  </InlineGrid>
+                )}
                 <Divider />
                 <InlineStack align="end">
                   <Button url="/app/cohorts">{t("Open full view")}</Button>
