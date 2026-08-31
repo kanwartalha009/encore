@@ -223,21 +223,6 @@ export default function SettingsPage() {
     shopify.toast.show("Settings saved");
   };
 
-  const handleConnect = (provider: string) => {
-    shopify.toast.show(`Demo: would launch ${provider} OAuth flow`);
-  };
-
-  const handleWipeDemo = () => {
-    if (
-      typeof window !== "undefined" &&
-      !window.confirm(
-        "Wipe all preorders, cohorts, customer preorders, and waitlist data for this shop? This cannot be undone.",
-      )
-    )
-      return;
-    shopify.toast.show("Demo: would wipe all data");
-  };
-
   // Live-preview message: substitute {{shipping_date}}, or use the fallback
   // when the product has no ship date.
   const SAMPLE_SHIP_DATE = "Aug 15, 2026";
@@ -314,7 +299,7 @@ export default function SettingsPage() {
         </div>
 
         <BlockStack gap="500">
-          <Banner tone="info" onDismiss={() => {}}>
+          <Banner tone="info">
             <Text as="span">{t("These defaults pre-fill new preorders. You can change anything per preorder at any time.")}</Text>
           </Banner>
 
@@ -902,7 +887,11 @@ export default function SettingsPage() {
                   <IntegrationRow
                     name="Klaviyo"
                     helpText={t("Sync waitlist signups + preorder campaigns to a Klaviyo list.")}
-                    onConnect={() => handleConnect("Klaviyo")}
+                    action={
+                      <Button url="/klaviyo/connect">
+                        {klaviyoKey ? t("Reconnect") : t("Connect")}
+                      </Button>
+                    }
                     connected={!!klaviyoKey}
                   >
                     <TextField
@@ -919,7 +908,7 @@ export default function SettingsPage() {
                   <IntegrationRow
                     name="Omnisend"
                     helpText={t("Push preorder events into Omnisend automation flows.")}
-                    onConnect={() => handleConnect("Omnisend")}
+                    action={<Button disabled>{t("Coming soon")}</Button>}
                     connected={!!omnisendKey}
                   >
                     <TextField
@@ -936,7 +925,7 @@ export default function SettingsPage() {
                   <IntegrationRow
                     name="Slack alerts"
                     helpText={t("Per-preorder merchant alerts (balance failures, cohort ready).")}
-                    onConnect={() => handleConnect("Slack")}
+                    action={<Button disabled>{t("Coming soon")}</Button>}
                     connected={!!slackWebhook}
                   >
                     <TextField
@@ -974,18 +963,6 @@ export default function SettingsPage() {
 
                 <BlockStack gap="300">
                   <Text as="h3" variant="headingSm">{t("Danger zone")}</Text>
-                  <InlineStack
-                    align="space-between"
-                    blockAlign="center"
-                    wrap={false}
-                  >
-                    <BlockStack gap="050">
-                      <Text as="p" variant="bodyMd" fontWeight="semibold">{t("Wipe demo data")}</Text>
-                      <Text as="p" variant="bodySm" tone="subdued">{t("Deletes all preorders, cohorts, customer preorders, and waitlist subscriptions for this shop.")}</Text>
-                    </BlockStack>
-                    <Button tone="critical" onClick={handleWipeDemo}>{t("Wipe data")}</Button>
-                  </InlineStack>
-                  <Divider />
                   <InlineStack
                     align="space-between"
                     blockAlign="center"
@@ -1033,8 +1010,8 @@ export default function SettingsPage() {
         <Box paddingBlockEnd="400">
           <Text as="p" variant="bodySm" tone="subdued" alignment="center">
             Need help?{" "}
-            <Link url="/app/help" external>
-              Read the docs
+            <Link url="/app/help">
+              {t("Get help")}
             </Link>{" "}
             or contact{" "}
             <Link url="/app/help">support</Link>.
@@ -1049,13 +1026,13 @@ export default function SettingsPage() {
 function IntegrationRow({
   name,
   helpText,
-  onConnect,
+  action,
   connected,
   children,
 }: {
   name: string;
   helpText: string;
-  onConnect: () => void;
+  action: React.ReactNode;
   connected: boolean;
   children: React.ReactNode;
 }) {
@@ -1075,9 +1052,7 @@ function IntegrationRow({
             {helpText}
           </Text>
         </BlockStack>
-        <Button onClick={onConnect}>
-          {connected ? "Reconnect" : "Connect"}
-        </Button>
+        {action}
       </InlineStack>
       {children}
     </BlockStack>

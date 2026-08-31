@@ -46,7 +46,6 @@ import {
   XIcon,
 } from "@shopify/polaris-icons";
 
-import { DEMO_MARKETS, DEMO_COLLECTIONS } from "../lib/demoProducts";
 
 // ---------- View-state shape ----------
 export type VariantAvailabilityUI =
@@ -165,6 +164,7 @@ export const CAMPAIGN_FORM_DEFAULTS: CampaignFormValues = {
     { id: "d3", channel: "sms", offsetDays: 5, label: "Final reminder" },
   ],
   webhookUrl: "",
+  // NOTE: renaming this namespace requires a data migration of existing metafields — do not change casually.
   metafieldNamespace: "preorder_novafied",
 };
 
@@ -322,10 +322,9 @@ export default function CampaignForm({
   marketsList,
   currency = "USD",
 }: CampaignFormProps & { currency?: string }) {
-  // Real catalog data (loader) with demo fallback — never an empty picker by accident.
-  const collectionChoices =
-    collections && collections.length ? collections : DEMO_COLLECTIONS;
-  const marketChoices = marketsList && marketsList.length ? marketsList : DEMO_MARKETS;
+  // Real catalog data from the loader; empty stores get an honest empty picker.
+  const collectionChoices = collections ?? [];
+  const marketChoices = marketsList ?? [];
   const { t, locale } = useLocale();
   const navigate = useNavigate();
   const submit = useSubmit();
@@ -620,7 +619,7 @@ export default function CampaignForm({
           <Layout.Section>
             <BlockStack gap="500">
               {mode === "create" && (
-                <Banner tone="info" onDismiss={() => {}}>
+                <Banner tone="info">
                   <Text as="span">{t("Three quick steps: name it, pick a ship date, and choose products below. Customers pay in full by default — open \"Customize payment\" for deposits or pay-later.")}</Text>
                 </Banner>
               )}
@@ -920,7 +919,7 @@ export default function CampaignForm({
                         type="button"
                         style={{ background: "#202223", color: "#fff", border: "none", borderRadius: 8, padding: "10px 14px", fontWeight: 600, width: "100%", cursor: "default" }}
                       >
-                        {initialValues.ctaLabel || "Preorder"}
+                        {ctaLabel || "Preorder"}
                       </button>
                       <Text as="span" variant="bodySm" tone="subdued">
                         {shipDate
@@ -963,6 +962,11 @@ export default function CampaignForm({
                   {marketScope === "specific" && (
                     <Box paddingInlineStart="200">
                       <BlockStack gap="150">
+                        {marketChoices.length === 0 && (
+                          <Text as="p" variant="bodySm" tone="subdued">
+                            {t("No markets found.")}
+                          </Text>
+                        )}
                         {marketChoices.map((m) => (
                           <Checkbox
                             key={m.id}
@@ -1083,6 +1087,11 @@ export default function CampaignForm({
                 ]}
                 value={collectionId}
                 onChange={setCollectionId}
+                helpText={
+                  collectionChoices.length === 0
+                    ? t("No collections found in your store.")
+                    : undefined
+                }
               />
             </Box>
           ) : (
@@ -1127,7 +1136,7 @@ export default function CampaignForm({
                         </BlockStack>
                       </IndexTable.Cell>
                       <IndexTable.Cell>
-                        <Text as="span" variant="bodySm" tone="subdued">{t("0 units")}</Text>
+                        <Text as="span" variant="bodySm" tone="subdued">—</Text>
                       </IndexTable.Cell>
                       <IndexTable.Cell>
                         <Box minWidth="120px">

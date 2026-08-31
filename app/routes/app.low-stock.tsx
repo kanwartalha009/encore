@@ -17,13 +17,11 @@ import {
   TextField,
   Select,
   Divider,
-  Banner,
 } from "@shopify/polaris";
 import { useAppBridge } from "@shopify/app-bridge-react";
 
 import { authenticate } from "../shopify.server";
 import { LOW_STOCK_PRESETS, type LowStockPreset } from "../lib/demoStorefront";
-import { DEMO_COLLECTIONS } from "../lib/demoProducts";
 import { listCollections } from "../models/collections.server";
 import { CollectionPicker } from "../lib/storefrontKit";
 import { useLocale } from "../lib/i18n";
@@ -198,7 +196,6 @@ export default function LowStockPage() {
   const shopify = useAppBridge();
   const { t } = useLocale();
   const { saved, collections } = useLoaderData<typeof loader>();
-  const collectionChoices = collections.length ? collections : DEMO_COLLECTIONS;
   const submit = useSubmit();
   const v = saved as {
     enabled?: boolean;
@@ -229,12 +226,13 @@ export default function LowStockPage() {
   );
 
   const n = Math.min(5, Number(threshold) || 10);
-  const save = () => {
+  const save = (overrides: { enabled?: boolean } = {}) => {
     submit(
       {
         payload: JSON.stringify({
           enabled, threshold, preset, text, barColor, bgColor, textColor,
           position, customCss, excludeTags, excludeCollections,
+          ...overrides,
         }),
       },
       { method: "post" },
@@ -246,7 +244,7 @@ export default function LowStockPage() {
     <Page
       title={t("lowstock.title")}
       subtitle={t("lowstock.subtitle")}
-      primaryAction={enabled ? { content: t("common.save"), onAction: save } : undefined}
+      primaryAction={{ content: t("common.save"), onAction: () => save() }}
     >
       {!enabled ? (
         // ----- Enable-first guide -----
@@ -277,13 +275,22 @@ export default function LowStockPage() {
                 </InlineStack>
                 <Text as="p" variant="bodySm" tone="subdued">{t("Shown on product pages when available is at or below your threshold.")}</Text>
               </BlockStack>
-              <Button variant="tertiary" tone="critical" onClick={() => setEnabled(false)}>{t("Turn off")}</Button>
+              <Button
+                variant="tertiary"
+                tone="critical"
+                onClick={() => {
+                  setEnabled(false);
+                  save({ enabled: false });
+                }}
+              >
+                {t("Turn off")}
+              </Button>
             </InlineStack>
           </Card>
 
           <Card>
             <BlockStack gap="200">
-              <Text as="h2" variant="headingMd">{t("No products are running low")}</Text>
+              <Text as="h2" variant="headingMd">{t("Products running low will appear here once inventory tracking picks them up.")}</Text>
               <Text as="p" tone="subdued">{t("As inventory drops to your threshold, the indicator shows on those product pages automatically — and suggestions for what to preorder next will appear here.")}</Text>
               <InlineStack>
                 <Button url="/app/campaigns">{t("View preorders")}</Button>
@@ -387,16 +394,21 @@ export default function LowStockPage() {
                 helpText={t("Comma-separated, e.g. archived, clearance.")}
               />
               <CollectionPicker
-                collections={collectionChoices}
+                collections={collections}
                 selected={excludeCollections}
                 onChange={setExcludeCollections}
                 label={t("Exclude collections")}
               />
+              {collections.length === 0 && (
+                <Text as="p" variant="bodySm" tone="subdued">
+                  {t("No collections found in your store.")}
+                </Text>
+              )}
             </BlockStack>
           </Card>
 
           <InlineStack align="end">
-            <Button variant="primary" onClick={save}>{t("common.save")}</Button>
+            <Button variant="primary" onClick={() => save()}>{t("common.save")}</Button>
           </InlineStack>
         </BlockStack>
       )}

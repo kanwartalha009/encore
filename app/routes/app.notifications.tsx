@@ -133,7 +133,7 @@ export default function NotificationsPage() {
           {t("Encore delivers customer emails through Klaviyo or Shopify Flow — pick whichever your store already uses, then tailor the copy for each message and language below.")}
         </Text>
         {fetcher.data?.ok && (
-          <Banner tone="success" onDismiss={() => {}}>
+          <Banner tone="success">
             {t("Saved.")}
           </Banner>
         )}

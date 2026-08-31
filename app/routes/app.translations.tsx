@@ -102,7 +102,7 @@ export default function TranslationsPage() {
       primaryAction={{ content: t("common.save"), onAction: save }}
     >
       <BlockStack gap="500">
-        <Banner tone="info" onDismiss={() => {}}>
+        <Banner tone="info">
           <Text as="span">{t("The admin language follows your Shopify account automatically. Below you translate the storefront text we add (button, badge, cart, popup, low-stock) — these register with Shopify so they switch with the buyer's language alongside Translate & Adapt.")}</Text>
         </Banner>
 
@@ -125,7 +125,7 @@ export default function TranslationsPage() {
             {localeMeta && !localeMeta.published && (
               <Banner tone="warning">
                 <Text as="span">
-                  {localeMeta.name} {t("isn't published on your storefront yet — publish it in Shopify → Settings → Languages for these to show.")}
+                  {t("If this language isn't published on your storefront yet, publish it in Shopify Settings → Languages.")}
                 </Text>
               </Banner>
             )}

@@ -21,7 +21,6 @@ import {
   EmptyState,
   Link,
   Banner,
-  Tooltip,
   IndexTable,
   useIndexResourceState,
 } from "@shopify/polaris";
@@ -33,7 +32,6 @@ import {
   EmailIcon,
   ArrowRightIcon,
   ChartVerticalIcon,
-  ClockIcon,
   CheckIcon,
   AlertCircleIcon,
 } from "@shopify/polaris-icons";
@@ -519,9 +517,6 @@ export default function DashboardIndex() {
               <BlockStack gap="400">
                 <InlineStack align="space-between" blockAlign="center">
                   <Text as="h2" variant="headingMd">{t("Recent activity")}</Text>
-                  <Tooltip content={t("Auto-refreshes every 60 seconds.")}>
-                    <Icon source={ClockIcon} tone="subdued" />
-                  </Tooltip>
                 </InlineStack>
                 <Divider />
                 <ActivityFeed items={ACTIVITY} />

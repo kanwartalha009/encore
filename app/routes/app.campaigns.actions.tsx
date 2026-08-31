@@ -14,6 +14,7 @@ import { redirect } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
 import { authenticate } from "../shopify.server";
+import prisma from "../db.server";
 import {
   bulkSetCampaignStatus,
   deleteCampaign,
@@ -97,11 +98,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       break;
     }
     case "set_cohort_ready": {
-      // Mark the campaign's primary cohort as READY_TO_SHIP via raw SQL is
-      // overkill; the cohort lives on prisma but we don't need a typed update
-      // here since it's a fire-and-forget admin action.
-      // Defer real implementation to v1.1 when scheduled balance capture is
-      // wired.
+      // Mark the campaign's cohort(s) READY_TO_SHIP. MVP has one cohort per
+      // campaign; updateMany is shop-scoped and safe either way.
+      await prisma.cohort.updateMany({
+        where: { campaignId: { in: ids }, shop: session.shop },
+        data: { status: "READY_TO_SHIP" },
+      });
       break;
     }
     default:

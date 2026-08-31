@@ -433,9 +433,8 @@ export default function CampaignsIndex() {
                     onAction: () => navigate("/app/campaigns/new"),
                   }}
                   secondaryAction={{
-                    content: t("Read the docs"),
+                    content: t("Get help"),
                     url: "/app/help",
-                    external: true,
                   }}
                   image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
                 >
@@ -446,7 +445,7 @@ export default function CampaignsIndex() {
           </Layout>
         ) : (
           <>
-            <Banner tone="info" onDismiss={() => {}}>
+            <Banner tone="info">
               <Text as="span" variant="bodyMd">
                 <Text as="span" variant="bodyMd" fontWeight="semibold">{t("Tip:")}</Text>{" "}{t("Click any row to drill into the cohort, customers, and balance status.")}
               </Text>

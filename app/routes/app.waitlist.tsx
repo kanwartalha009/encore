@@ -24,14 +24,13 @@ import {
   IndexTable,
   Banner,
 } from "@shopify/polaris";
-import { EmailIcon, NotificationIcon, ExportIcon, ImportIcon } from "@shopify/polaris-icons";
+import { NotificationIcon, ExportIcon, ImportIcon } from "@shopify/polaris-icons";
 import { useAppBridge } from "@shopify/app-bridge-react";
 
 import { authenticate } from "../shopify.server";
 import { listWaitlistGroups, importWaitlist } from "../models/waitlist.server";
 import { notifyGroup, retryFailed } from "../services/waitlist-notify.server";
 import { NOTIFY_POSITIONS } from "../lib/demoStorefront";
-import { DEMO_COLLECTIONS } from "../lib/demoProducts";
 import { listCollections } from "../models/collections.server";
 import { CollectionPicker } from "../lib/storefrontKit";
 import { useLocale } from "../lib/i18n";
@@ -89,7 +88,6 @@ export const headers: HeadersFunction = (headersArgs) =>
 
 export default function BackInStockPage() {
   const { groups, saved, collections } = useLoaderData<typeof loader>();
-  const collectionChoices = collections.length ? collections : DEMO_COLLECTIONS;
   const shopify = useAppBridge();
   const { t } = useLocale();
   const submit = useSubmit();
@@ -453,11 +451,16 @@ export default function BackInStockPage() {
                   helpText={t("Comma-separated, e.g. archived, discontinued.")}
                 />
                 <CollectionPicker
-                  collections={collectionChoices}
+                  collections={collections}
                   selected={excludeCollections}
                   onChange={setExcludeCollections}
                   label={t("Exclude collections")}
                 />
+                {collections.length === 0 && (
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {t("No collections found in your store.")}
+                  </Text>
+                )}
               </BlockStack>
             </Card>
 
@@ -530,9 +533,6 @@ export default function BackInStockPage() {
               <Text as="h2" variant="headingMd">{t("Subscribers")}</Text>
               <Button icon={ExportIcon} onClick={exportCsv}>{t("Export CSV")}</Button>
             </InlineStack>
-            <Banner icon={EmailIcon} tone="info" onDismiss={() => {}} title={t("Demo data")}>
-              <Text as="span">{t("“Notify” fires a toast for now — it will notify subscribers via your chosen sync (Klaviyo / Shopify) once wired.")}</Text>
-            </Banner>
             <Card padding="0">
               <IndexTable
                 resourceName={{ singular: "subscriber group", plural: "subscriber groups" }}

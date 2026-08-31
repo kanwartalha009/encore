@@ -186,7 +186,7 @@ export default function MarketsPage() {
     >
       <BlockStack gap="500">
         {usingDemo && (
-          <Banner tone="info" onDismiss={() => {}}>
+          <Banner tone="info">
             <Text as="span">{t("Showing sample markets — connect a dev store with multiple Shopify Markets to see live data.")}</Text>
           </Banner>
         )}
