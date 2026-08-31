@@ -12,7 +12,7 @@ name = "Encore — Tag order"
 type = "flow_action"
 handle = "encore-tag-order"
 description = "Add a tag to an order — e.g. route a pre-order to a 3PL or mark deposit-paid orders for follow-up."
-runtime_url = "https://encore.nova-platform.localhost:3003/flow/tag-order"
+runtime_url = "https://encore-production-7c8f.up.railway.app/flow/tag-order"
 
 [settings]
 

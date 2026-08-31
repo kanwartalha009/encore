@@ -21,34 +21,37 @@ export default function App() {
   return (
     <div className={styles.index}>
       <div className={styles.content}>
-        <h1 className={styles.heading}>A short heading about [your app]</h1>
+        <h1 className={styles.heading}>Encore — Preorder &amp; Back in Stock</h1>
         <p className={styles.text}>
-          A tagline about [your app] that describes your value proposition.
+          Sell what isn&apos;t on the shelf yet. Preorders, deposits and
+          back-in-stock alerts for Shopify stores — set up in minutes, no code.
         </p>
         {showForm && (
           <Form className={styles.form} method="post" action="/auth/login">
             <label className={styles.label}>
-              <span>Shop domain</span>
+              <span>Enter your shop domain to install or open Encore</span>
               <input className={styles.input} type="text" name="shop" />
               <span>e.g: my-shop-domain.myshopify.com</span>
             </label>
             <button className={styles.button} type="submit">
-              Log in
+              Continue
             </button>
           </Form>
         )}
         <ul className={styles.list}>
           <li>
-            <strong>Product feature</strong>. Some detail about your feature and
-            its benefit to your customer.
+            <strong>Preorders that run themselves</strong>. Sell out-of-stock or
+            upcoming products with automatic start and stop rules — full
+            payment, deposits, or pay later.
           </li>
           <li>
-            <strong>Product feature</strong>. Some detail about your feature and
-            its benefit to your customer.
+            <strong>Never oversell</strong>. Hard caps enforced at checkout, and
+            every preorder tagged and tracked through to fulfillment.
           </li>
           <li>
-            <strong>Product feature</strong>. Some detail about your feature and
-            its benefit to your customer.
+            <strong>Back-in-stock alerts that convert</strong>. Capture demand
+            with waitlists and notify customers by email the moment inventory
+            returns.
           </li>
         </ul>
       </div>

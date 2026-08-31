@@ -24,7 +24,7 @@ import { useEffect, useState } from "react";
 // deploy (it only updates application_url/redirect_urls in shopify.app.toml).
 // ⇒ DEPLOY STEP: set this to the production application_url before `deploy`.
 // See DEPLOY-CHECKLIST.md ("Production URLs"). Dev default below.
-const APP_URL = "https://encore.nova-platform.localhost:3003";
+const APP_URL = "https://encore-production-7c8f.up.railway.app";
 
 export default reactExtension("customer-account.order-index.block.render", () => (
   <Preorders />

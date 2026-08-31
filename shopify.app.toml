@@ -4,7 +4,7 @@
 
 client_id = "98895e8868ecb5c8555ab43039b554e1"
 name = "Encore"
-application_url = "https://encore.nova-platform.localhost:3003"
+application_url = "https://encore-production-7c8f.up.railway.app"
 embedded = true
 
 [access_scopes]
@@ -13,7 +13,7 @@ embedded = true
 scopes = "read_products,write_products,write_purchase_options,read_inventory,read_locations,read_orders,write_orders,read_markets,read_customers,read_themes,read_discounts,write_metaobjects,write_metaobject_definitions"
 
 [auth]
-redirect_urls = [ "https://encore.nova-platform.localhost:3003/auth/callback" ]
+redirect_urls = [ "https://encore-production-7c8f.up.railway.app/auth/callback" ]
 
 [webhooks]
 api_version = "2025-10"
@@ -78,7 +78,7 @@ uri = "/webhooks/shop/redact"
 
 # Storefront endpoints behind the app proxy (App-Embed-only architecture; PRD wedge 4).
 [app_proxy]
-url = "https://encore.nova-platform.localhost:3003/proxy"
+url = "https://encore-production-7c8f.up.railway.app/proxy"
 subpath = "encore"
 prefix = "apps"
 

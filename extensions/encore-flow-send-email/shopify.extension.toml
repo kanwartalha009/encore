@@ -15,7 +15,7 @@ name = "Encore — Send email"
 type = "flow_action"
 handle = "encore-send-email"
 description = "Send a customizable Encore email (pre-order confirmation, back-in-stock, ship-date update, or balance-due) to a customer."
-runtime_url = "https://encore.nova-platform.localhost:3003/flow/send-email"
+runtime_url = "https://encore-production-7c8f.up.railway.app/flow/send-email"
 
 [settings]
 

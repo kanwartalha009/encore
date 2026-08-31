@@ -9,8 +9,9 @@
  * reflects the new state.
  */
 
-import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
+import type { ActionFunctionArgs, HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { redirect } from "react-router";
+import { boundary } from "@shopify/shopify-app-react-router/server";
 
 import { authenticate } from "../shopify.server";
 import {
@@ -25,6 +26,9 @@ import {
 } from "../models/selling-plan.server";
 
 // Loader: nothing to fetch, but block direct GETs.
+// Shopify embedded-app boundary: keep iframe headers on thrown auth responses (same as sibling routes).
+export const headers: HeadersFunction = (headersArgs) => boundary.headers(headersArgs);
+
 export const loader = async () => {
   throw new Response("Method not allowed", { status: 405 });
 };
