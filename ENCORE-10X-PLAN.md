@@ -35,7 +35,7 @@ Fixes to existing promised behavior (bugs, dead paths, polish) are not "new feat
 - [x] Welcome banner: dismissible + persisted, "Encore" naming, dead docs domain → in-app Get help (4 sites)
 - [x] Outbox health warning on dashboard (stuck>15min or DEAD → visible banner; self-diagnosing delivery)
 - [x] Currency threaded into CampaignForm (4 "USD" hardcodes gone); Plans locale fixed
-- [ ] **Kanwar:** set `ENCORE_CRON_SECRET` on Railway; schedule crons: `/cron/nova-outbox` (2 min), `/cron/balance-reminders` (daily), `/cron/purge-uninstalled` (daily)
+- [x] Crons: in-process scheduler (`app/services/scheduler.server.ts`, started from entry.server) — outbox 2min, reminders+purge hourly, all idempotent; `ENCORE_CRON_SECRET` set on Railway (endpoints remain as manual triggers); single-platform, no external scheduler
 - [ ] **Kanwar:** `npm install && npm run typecheck && npm run build` → commit → push → `shopify app deploy` → release
 - [ ] Verify on dev store: stock-trigger campaign hides button while in stock, shows when sold out; always-campaign shows while in stock; mixed-cart note visible
 - [ ] PHASE-R0-AUDIT.md

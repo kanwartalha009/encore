@@ -35,20 +35,13 @@ Notes:
 - `shopify app deploy` will show the new **Preorder countdown** block and the updated app embed. Everything else about the extension config is unchanged from the version that already released cleanly.
 - If typecheck complains about missing Prisma types, run `npx prisma generate` once and re-run.
 
-## 2) One-time ops setup — crons (required, ~5 min)
+## 2) Ops — crons are now BUILT IN (nothing to schedule)
 
-Still open from R0. Without these, Nova event delivery retries, balance reminders and GDPR purge never run.
+The app now runs its own scheduler inside the Railway service (single platform, no external dependency): outbox retries every 2 minutes, balance reminders + GDPR purge hourly (both idempotent — stamped in the DB, so they never fire twice). It starts ~30s after each deploy boots.
 
-1. On Railway → your Encore service → Variables, add `ENCORE_CRON_SECRET` = a long random string.
-2. Schedule (Railway cron, cron-job.org, or any scheduler) with header `Authorization: Bearer <secret>`:
-
-| URL | Schedule |
-|---|---|
-| `https://encore-production-7c8f.up.railway.app/cron/nova-outbox` | every 2 minutes |
-| `https://encore-production-7c8f.up.railway.app/cron/balance-reminders` | daily |
-| `https://encore-production-7c8f.up.railway.app/cron/purge-uninstalled` | daily |
-
-Sanity check: `curl -H "Authorization: Bearer <secret>" .../cron/nova-outbox` → `{"ok":true,...}`.
+- `ENCORE_CRON_SECRET` stays useful: the `/cron/*` endpoints still work as token-guarded **manual triggers** (e.g. `curl -X POST -H "Authorization: Bearer <secret>" .../cron/nova-outbox`) and as a health check (`GET` = dry run).
+- Verify after deploy: Railway → service → Logs → look for `[scheduler] started — outbox every 2min, reminders/purge hourly`.
+- Escape hatch: set `ENCORE_DISABLE_INTERNAL_CRON=1` to turn the internal timers off (only if you ever move to an external scheduler).
 
 ## 3) Dev-store test walk (~40 min, in order)
 

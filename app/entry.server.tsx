@@ -5,6 +5,11 @@ import { createReadableStreamFromReadable } from "@react-router/node";
 import { type EntryContext } from "react-router";
 import { isbot } from "isbot";
 import { addDocumentResponseHeaders } from "./shopify.server";
+import { startScheduler } from "./services/scheduler.server";
+
+// In-process cron (outbox retries, balance reminders, GDPR purge) — Railway
+// runs this web service 24/7, so it schedules its own idempotent jobs.
+startScheduler();
 
 export const streamTimeout = 5000;
 
