@@ -417,9 +417,12 @@ export default function CampaignDetail() {
               label={t("Balance pending")}
               value={c.balancePending}
               sub={
-                c.autoCharge && c.shipDate !== "TBD"
-                  ? `${t("auto-charge")} ${c.shipDate}`
-                  : `${t("balance due")} ${c.shipDate}`
+                // Pay-now preorders never have a balance — claim nothing.
+                c.paymentMode === "PAY_NOW"
+                  ? undefined
+                  : c.autoCharge && c.shipDate !== "TBD"
+                    ? `${t("auto-charge")} ${c.shipDate}`
+                    : `${t("balance due")} ${c.shipDate}`
               }
               tone="attention"
             />
