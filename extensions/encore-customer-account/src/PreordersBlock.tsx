@@ -1,34 +1,25 @@
 /**
  * Customer Account block: the signed-in shopper's Encore pre-orders + waitlist.
  *
- * Pulls data from the app's /customer/portal endpoint, authenticated with the
- * customer-account session token. Shows ship date + balance-due per pre-order
- * and restock status per waitlist item. Fails closed (renders nothing) so it can
- * never break the customer's Orders page.
+ * API 2025-10 (Preact + Polaris web components — the react wrapper ended at
+ * 2025-07). Pulls data from the app's /customer/portal endpoint, authenticated
+ * with the customer-account session token. Shows ship date + balance-due per
+ * pre-order and restock status per waitlist item. Fails closed (renders
+ * nothing) so it can never break the customer's Orders page.
  */
-import {
-  reactExtension,
-  BlockStack,
-  InlineLayout,
-  Card,
-  Text,
-  Badge,
-  Divider,
-  Spinner,
-  useApi,
-  useTranslate,
-} from "@shopify/ui-extensions-react/customer-account";
-import { useEffect, useState } from "react";
+import "@shopify/ui-extensions/preact";
+import { render } from "preact";
+import { useEffect, useState } from "preact/hooks";
 
 // The app's public URL. NOTE: the Shopify CLI does NOT rewrite this constant on
 // deploy (it only updates application_url/redirect_urls in shopify.app.toml).
 // ⇒ DEPLOY STEP: set this to the production application_url before `deploy`.
-// See DEPLOY-CHECKLIST.md ("Production URLs"). Dev default below.
+// See DEPLOY-CHECKLIST.md ("Production URLs").
 const APP_URL = "https://encore-production-7c8f.up.railway.app";
 
-export default reactExtension("customer-account.order-index.block.render", () => (
-  <Preorders />
-));
+export default async () => {
+  render(<Preorders />, document.body);
+};
 
 type PreorderRow = {
   product: string;
@@ -42,8 +33,8 @@ type PreorderRow = {
 type WaitRow = { product: string; variant: string; productId: string; status: string };
 
 function Preorders() {
-  const { sessionToken, i18n } = useApi();
-  const translate = useTranslate();
+  const t = (key: string, vars?: Record<string, unknown>) =>
+    shopify.i18n.translate(key, vars);
   const [loading, setLoading] = useState(true);
   const [preorders, setPreorders] = useState<PreorderRow[]>([]);
   const [waitlist, setWaitlist] = useState<WaitRow[]>([]);
@@ -52,7 +43,7 @@ function Preorders() {
     let active = true;
     (async () => {
       try {
-        const token = await sessionToken.get();
+        const token = await shopify.sessionToken.get();
         const res = await fetch(`${APP_URL}/customer/portal`, {
           method: "POST",
           headers: {
@@ -77,67 +68,65 @@ function Preorders() {
     return () => {
       active = false;
     };
-  }, [sessionToken]);
+  }, []);
 
-  if (loading) return <Spinner accessibilityLabel={translate("loading")} />;
+  if (loading) return <s-spinner accessibilityLabel={t("loading")} />;
   if (preorders.length === 0 && waitlist.length === 0) return null;
 
   return (
-    <BlockStack spacing="loose">
+    <s-stack direction="block" gap="large">
       {preorders.length > 0 && (
-        <Card padding>
-          <BlockStack spacing="base">
-            <Text emphasis="bold">{translate("preorders.title")}</Text>
+        <s-section heading={t("preorders.title")}>
+          <s-stack direction="block" gap="base">
             {preorders.map((p, i) => (
-              <BlockStack spacing="tight" key={`${p.orderRef}-${i}`}>
-                {i > 0 && <Divider />}
-                <InlineLayout columns={["fill", "auto"]}>
-                  <Text>
+              <s-stack direction="block" gap="small" key={`${p.orderRef}-${i}`}>
+                {i > 0 && <s-divider />}
+                <s-grid gridTemplateColumns="1fr auto" gap="base">
+                  <s-text>
                     {p.product}
                     {p.orderRef ? ` · ${p.orderRef}` : ""}
-                  </Text>
-                  <Badge tone={p.balanceDue > 0 ? "warning" : "success"}>
+                  </s-text>
+                  <s-badge tone={p.balanceDue > 0 ? "warning" : "success"}>
                     {p.balanceDue > 0
-                      ? translate("preorders.balanceDue", {
-                          amount: i18n.formatCurrency(p.balanceDue),
+                      ? t("preorders.balanceDue", {
+                          amount: shopify.i18n.formatCurrency(p.balanceDue),
                         })
-                      : translate("preorders.paid")}
-                  </Badge>
-                </InlineLayout>
-                <Text appearance="subdued" size="small">
+                      : t("preorders.paid")}
+                  </s-badge>
+                </s-grid>
+                <s-text color="subdued">
                   {p.shipDate
-                    ? translate("preorders.ships", { date: p.shipDate })
-                    : translate("preorders.shipTba")}
-                </Text>
-              </BlockStack>
+                    ? t("preorders.ships", { date: p.shipDate })
+                    : t("preorders.shipTba")}
+                </s-text>
+              </s-stack>
             ))}
-          </BlockStack>
-        </Card>
+          </s-stack>
+        </s-section>
       )}
 
       {waitlist.length > 0 && (
-        <Card padding>
-          <BlockStack spacing="base">
-            <Text emphasis="bold">{translate("waitlist.title")}</Text>
+        <s-section heading={t("waitlist.title")}>
+          <s-stack direction="block" gap="base">
             {waitlist.map((w, i) => (
-              <BlockStack spacing="tight" key={`${w.productId}-${i}`}>
-                {i > 0 && <Divider />}
-                <InlineLayout columns={["fill", "auto"]}>
-                  <Text>
+              <s-stack direction="block" gap="small" key={`${w.productId}-${i}`}>
+                {i > 0 && <s-divider />}
+                <s-grid gridTemplateColumns="1fr auto" gap="base">
+                  <s-text>
                     {w.product}
                     {w.variant ? ` · ${w.variant}` : ""}
-                  </Text>
-                  <Badge tone={w.status === "AVAILABLE" ? "success" : "info"}>
+                  </s-text>
+                  <s-badge tone={w.status === "AVAILABLE" ? "success" : "info"}>
                     {w.status === "AVAILABLE"
-                      ? translate("waitlist.available")
-                      : translate("waitlist.waiting")}
-                  </Badge>
-                </InlineLayout>
-              </BlockStack>
+                      ? t("waitlist.available")
+                      : t("waitlist.waiting")}
+                  </s-badge>
+                </s-grid>
+              </s-stack>
             ))}
-          </BlockStack>
-        </Card>
+          </s-stack>
+        </s-section>
       )}
-    </BlockStack>
+    </s-stack>
   );
 }
