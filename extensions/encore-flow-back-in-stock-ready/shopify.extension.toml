@@ -28,7 +28,7 @@ description = "Fires per waitlisted shopper when their product is back in stock.
 
   [[settings.fields]]
   type = "single_line_text_field"
-  key = "product_url"
+  key = "Product URL"
   description = "Storefront URL for the product, or blank."
 
   [[settings.fields]]

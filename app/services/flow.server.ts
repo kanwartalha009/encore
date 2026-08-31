@@ -30,11 +30,38 @@ mutation EncoreFlowTrigger($handle: String, $payload: JSON) {
   }
 }`;
 
+// Flow trigger field keys may only contain alphabetic characters and spaces
+// (shopify.dev Flow trigger reference). App code keeps its snake_case vars —
+// this map translates them at the send boundary so the payload matches the
+// keys declared in each extension's shopify.extension.toml.
+const FLOW_KEY_RENAMES: Record<string, string> = {
+  product_url: "Product URL",
+  due_date: "Due date",
+  pay_link: "Payment link",
+  order_name: "Order name",
+  order_id: "Order ID",
+  variant_id: "Variant ID",
+  ship_date: "Ship date",
+  waitlist_count: "Waitlist count",
+  old_ship_date: "Old ship date",
+  new_ship_date: "New ship date",
+  customer_name: "Customer name",
+};
+
+function toFlowKeys(payload: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(payload)) {
+    out[FLOW_KEY_RENAMES[k] ?? k] = v;
+  }
+  return out;
+}
+
 export async function emitFlow(
   shop: string,
   handle: string,
-  payload: Record<string, unknown>,
+  rawPayload: Record<string, unknown>,
 ): Promise<void> {
+  const payload = toFlowKeys(rawPayload);
   try {
     const { admin } = await unauthenticated.admin(shop);
     const res = await admin.graphql(TRIGGER, { variables: { handle, payload } });

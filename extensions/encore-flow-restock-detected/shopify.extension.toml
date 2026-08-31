@@ -18,7 +18,7 @@ description = "Fires when a variant a shopper waitlisted comes back in stock. Us
 
   [[settings.fields]]
   type = "single_line_text_field"
-  key = "variant_id"
+  key = "Variant ID"
   description = "The restocked variant's Admin GraphQL ID."
 
   [[settings.fields]]
@@ -28,5 +28,5 @@ description = "Fires when a variant a shopper waitlisted comes back in stock. Us
 
   [[settings.fields]]
   type = "single_line_text_field"
-  key = "waitlist_count"
+  key = "Waitlist count"
   description = "How many shoppers were waiting on this variant when it restocked."

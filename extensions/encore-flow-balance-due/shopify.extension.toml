@@ -29,17 +29,17 @@ description = "Fires per pre-order customer when the remaining balance on a depo
 
   [[settings.fields]]
   type = "single_line_text_field"
-  key = "due_date"
+  key = "Due date"
   description = "When the balance will be charged."
 
   [[settings.fields]]
   type = "single_line_text_field"
-  key = "pay_link"
+  key = "Payment link"
   description = "Optional payment link, or blank."
 
   [[settings.fields]]
   type = "single_line_text_field"
-  key = "order_name"
+  key = "Order name"
   description = "The customer's order name, or blank."
 
   [[settings.fields]]

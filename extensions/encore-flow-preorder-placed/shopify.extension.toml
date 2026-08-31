@@ -13,7 +13,7 @@ description = "Fires when a customer places a pre-order through Encore. Use it t
 
   [[settings.fields]]
   type = "single_line_text_field"
-  key = "order_id"
+  key = "Order ID"
   description = "The order's Admin GraphQL ID (gid://shopify/Order/…)."
 
   [[settings.fields]]
@@ -23,7 +23,7 @@ description = "Fires when a customer places a pre-order through Encore. Use it t
 
   [[settings.fields]]
   type = "single_line_text_field"
-  key = "variant_id"
+  key = "Variant ID"
   description = "The pre-ordered variant's Admin GraphQL ID."
 
   [[settings.fields]]
@@ -33,5 +33,5 @@ description = "Fires when a customer places a pre-order through Encore. Use it t
 
   [[settings.fields]]
   type = "single_line_text_field"
-  key = "ship_date"
+  key = "Ship date"
   description = "Expected ship date (ISO yyyy-mm-dd), or blank if not set."
