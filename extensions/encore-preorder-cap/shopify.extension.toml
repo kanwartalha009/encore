@@ -8,6 +8,7 @@ api_version = "2025-10"
 [[extensions]]
 name = "Encore preorder cap"
 handle = "encore-preorder-cap"
+uid = "a80f1552-1f81-04dc-b3d8-26b6fe653572b845798f"
 type = "function"
 description = "Blocks checkout when a preorder line exceeds its remaining cap."
 
