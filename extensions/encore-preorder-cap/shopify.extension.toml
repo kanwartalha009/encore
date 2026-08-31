@@ -14,7 +14,9 @@ description = "Blocks checkout when a preorder line exceeds its remaining cap."
   [[extensions.targeting]]
   target = "cart.validations.generate.run"
   input_query = "src/cart_validations_generate_run.graphql"
-  export = "cartValidationsGenerateRun"
+  # Wasm Component Model requires kebab-case; the JS export
+  # `cartValidationsGenerateRun` is auto-mapped to this name.
+  export = "cart-validations-generate-run"
 
   [extensions.build]
   # No command: the Shopify CLI builds JavaScript functions itself (Javy),
