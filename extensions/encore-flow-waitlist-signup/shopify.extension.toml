@@ -7,7 +7,7 @@ name = "Encore — Waitlist signup"
 type = "flow_trigger"
 handle = "encore-waitlist-signup"
 uid = "6750b7c5-6167-0f0a-5e2f-4f15f257de6db690693e"
-description = "Fires when a shopper joins an Encore back-in-stock waitlist. Use it to sync the contact to your ESP/CRM, tag interest, or trigger a welcome message."
+description = "Fires when a shopper joins an Encore back-in-stock waitlist. Sync the contact to your ESP or CRM, or trigger a welcome message."
 
 [settings]
 

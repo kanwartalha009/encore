@@ -1,5 +1,5 @@
+extends: theme-check:theme-app-extension
 AssetSizeAppBlockJavaScript:
   enabled: true
-  # Default 10KB exceeded by 0.4KB even fully minified. Raised pending the
-  # planned per-block JS split (E2 polish). Lighthouse budget is the real gate.
-  threshold_in_bytes: 15000
+  # 10KB default exceeded by 0.4KB even fully minified; per-block JS split is the tracked fix.
+  thresholdInBytes: 15000
