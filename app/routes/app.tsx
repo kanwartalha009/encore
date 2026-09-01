@@ -11,7 +11,7 @@ import itTranslations from "@shopify/polaris/locales/it.json";
 import ptTranslations from "@shopify/polaris/locales/pt-BR.json";
 import nlTranslations from "@shopify/polaris/locales/nl.json";
 import plTranslations from "@shopify/polaris/locales/pl.json";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 
 import { authenticate } from "../shopify.server";
 import {
@@ -78,6 +78,38 @@ function LocalizedPolarisProvider({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * Diagnostic: forward uncaught client errors to /client-log via sendBeacon so
+ * they appear in the server logs (the embedded iframe's console is invisible
+ * in production). sendBeacon deliberately bypasses window.fetch (and any App
+ * Bridge patching of it), so this works even when authenticated fetch breaks.
+ */
+function ClientErrorReporter() {
+  useEffect(() => {
+    const report = (kind: string, message: string, stack?: string) => {
+      try {
+        const body = `${kind}: ${message}${stack ? ` :: ${stack.slice(0, 1500)}` : ""} :: at ${window.location.pathname}`;
+        navigator.sendBeacon("/client-log", body);
+      } catch {
+        // reporting must never throw
+      }
+    };
+    const onError = (e: ErrorEvent) =>
+      report("error", e.message || String(e.error), e.error?.stack);
+    const onRejection = (e: PromiseRejectionEvent) => {
+      const r = e.reason as { message?: string; stack?: string } | undefined;
+      report("unhandledrejection", r?.message ?? String(e.reason), r?.stack);
+    };
+    window.addEventListener("error", onError);
+    window.addEventListener("unhandledrejection", onRejection);
+    return () => {
+      window.removeEventListener("error", onError);
+      window.removeEventListener("unhandledrejection", onRejection);
+    };
+  }, []);
+  return null;
+}
+
 export default function App() {
   const { apiKey, storeLocale } = useLoaderData<typeof loader>();
 
@@ -85,6 +117,7 @@ export default function App() {
     <AppProvider embedded apiKey={apiKey}>
       <LocaleProvider defaultLocale={storeLocale}>
         <LocalizedPolarisProvider>
+          <ClientErrorReporter />
           <AppNav />
           <Outlet />
         </LocalizedPolarisProvider>

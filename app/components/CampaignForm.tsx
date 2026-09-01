@@ -555,8 +555,25 @@ export default function CampaignForm({
     return fd;
   };
 
-  const dispatch = (intent: "publish" | "draft" | "save" | "delete") =>
-    submit(buildFormData(intent), { method: "post" });
+  const dispatch = (intent: "publish" | "draft" | "save" | "delete") => {
+    // Never fail silently: a thrown error here previously made Save/Publish
+    // look dead with no feedback. Surface it and report it to the server log.
+    try {
+      submit(buildFormData(intent), { method: "post" });
+    } catch (err) {
+      const e = err as { message?: string; stack?: string };
+      setDispatchError(e?.message ?? String(err));
+      try {
+        navigator.sendBeacon(
+          "/client-log",
+          `dispatch(${intent}) threw: ${e?.message ?? String(err)} :: ${(e?.stack ?? "").slice(0, 1500)}`,
+        );
+      } catch {
+        /* reporting must never throw */
+      }
+    }
+  };
+  const [dispatchError, setDispatchError] = useState<string | null>(null);
 
   const productsChosen =
     productMode === "all" ||
@@ -614,6 +631,15 @@ export default function CampaignForm({
       secondaryActions={secondaryActions}
     >
       <BlockStack gap="500">
+        {dispatchError && (
+          <Banner
+            tone="critical"
+            title={t("Something went wrong while saving")}
+            onDismiss={() => setDispatchError(null)}
+          >
+            <Text as="p">{dispatchError}</Text>
+          </Banner>
+        )}
         <Layout>
           {/* ----- Left column ----- */}
           <Layout.Section>
