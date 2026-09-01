@@ -559,7 +559,9 @@ export default function CampaignForm({
     // Never fail silently: a thrown error here previously made Save/Publish
     // look dead with no feedback. Surface it and report it to the server log.
     try {
+      navigator.sendBeacon?.("/client-log", `dispatch:start ${intent}`);
       submit(buildFormData(intent), { method: "post" });
+      navigator.sendBeacon?.("/client-log", `dispatch:submitted ${intent}`);
     } catch (err) {
       const e = err as { message?: string; stack?: string };
       setDispatchError(e?.message ?? String(err));

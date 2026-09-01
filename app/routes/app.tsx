@@ -102,7 +102,32 @@ function ClientErrorReporter() {
     };
     window.addEventListener("error", onError);
     window.addEventListener("unhandledrejection", onRejection);
+
+    // Diagnostic probe: is App Bridge alive, and does its session token ever
+    // resolve? A hanging idToken() makes every authenticated fetch (loaders,
+    // actions, navigations) wait forever with no error — exactly the "buttons
+    // do nothing" symptom. This reports the truth within 5 seconds of load.
+    const probe = async () => {
+      try {
+        const sb = (window as unknown as {
+          shopify?: { idToken?: () => Promise<string> };
+        }).shopify;
+        if (!sb) return report("probe", "window.shopify MISSING");
+        if (typeof sb.idToken !== "function")
+          return report("probe", "shopify.idToken missing (App Bridge partial)");
+        const token = await Promise.race([
+          sb.idToken().then((t) => (t ? "ok" : "empty")),
+          new Promise<string>((res) => setTimeout(() => res("TIMEOUT-4s"), 4000)),
+        ]);
+        report("probe", `idToken: ${token === "ok" ? "ok" : token}`);
+      } catch (e) {
+        report("probe", `idToken threw: ${(e as Error)?.message ?? String(e)}`);
+      }
+    };
+    const probeTimer = setTimeout(probe, 1000);
+
     return () => {
+      clearTimeout(probeTimer);
       window.removeEventListener("error", onError);
       window.removeEventListener("unhandledrejection", onRejection);
     };
