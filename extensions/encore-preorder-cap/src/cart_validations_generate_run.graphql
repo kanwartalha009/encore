@@ -1,4 +1,7 @@
-query Input {
+# Named to match the generated type the source imports
+# (CartValidationsGenerateRunInput) and to avoid colliding with the schema's
+# own `Input` type in generated/api.ts (tsc TS2300 on 2026-09-01).
+query CartValidationsGenerateRunInput {
   cart {
     lines {
       id
