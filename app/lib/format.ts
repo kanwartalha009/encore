@@ -41,3 +41,67 @@ export function formatMoney(
 export function formatGmv(cents: number, currency = "USD", locale = "en"): string {
   return formatMoney(cents, currency, locale);
 }
+
+/**
+ * ONE status→badge-tone mapping for the whole admin (QA 2026-08-31: three
+ * pages each had their own, so "Ended" was grey on the dashboard, red on the
+ * detail page). Canonical choices: Live/On track = success, Paused/At risk =
+ * warning, Scheduled = info, Draft/Ready to ship = attention, Ended = neutral
+ * grey (a normal lifecycle end, not an error — mirrors Shopify's "Archived").
+ */
+export type BadgeTone =
+  | "success"
+  | "warning"
+  | "info"
+  | "attention"
+  | "critical";
+
+export function statusToTone(status: string): BadgeTone | undefined {
+  switch (status) {
+    case "Live":
+    case "On track":
+      return "success";
+    case "Paused":
+    case "At risk":
+      return "warning";
+    case "Scheduled":
+      return "info";
+    case "Draft":
+    case "Ready to ship":
+      return "attention";
+    case "Ended":
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * ONE localized relative-time helper (replaces two English-only copies).
+ * Renders "3 hours ago" / "hace 3 horas" / "vor 3 Stunden" from the active
+ * admin locale via Intl.RelativeTimeFormat. Accepts a Date or ISO string so
+ * loaders can ship raw timestamps and components format in the user's locale.
+ */
+export function relativeTime(date: Date | string, locale = "en"): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  const ms = d.getTime();
+  if (!Number.isFinite(ms)) return "—";
+  const seconds = Math.round((ms - Date.now()) / 1000); // negative = past
+  const abs = Math.abs(seconds);
+  const units: Array<[Intl.RelativeTimeFormatUnit, number]> = [
+    ["year", 31536000],
+    ["month", 2592000],
+    ["week", 604800],
+    ["day", 86400],
+    ["hour", 3600],
+    ["minute", 60],
+  ];
+  try {
+    const rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
+    for (const [unit, size] of units) {
+      if (abs >= size) return rtf.format(Math.trunc(seconds / size), unit);
+    }
+    return rtf.format(0, "second"); // "now" / "ahora" / "jetzt"
+  } catch {
+    return d.toISOString().slice(0, 10);
+  }
+}

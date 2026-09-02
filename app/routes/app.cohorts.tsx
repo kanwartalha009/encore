@@ -201,7 +201,7 @@ export default function OrdersPage() {
               </EmptyState>
             ) : (
               <IndexTable
-                resourceName={{ singular: "order", plural: "orders" }}
+                resourceName={{ singular: t("order"), plural: t("orders") }}
                 itemCount={orders.length}
                 selectable={false}
                 headings={[
@@ -227,7 +227,7 @@ export default function OrdersPage() {
             </EmptyState>
           ) : (
             <IndexTable
-              resourceName={{ singular: "cohort", plural: "cohorts" }}
+              resourceName={{ singular: t("cohort"), plural: t("cohorts") }}
               itemCount={cohorts.length}
               selectable={false}
               headings={[

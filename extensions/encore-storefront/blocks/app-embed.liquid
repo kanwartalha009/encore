@@ -1,10 +1,14 @@
 {%- comment -%}
   Encore storefront runtime (app embed).
-  Optional global include: sets the app-proxy base + accent theming and loads the
-  shared runtime/styles site-wide. The product-page app blocks (Preorder,
-  Back-in-stock, Low-stock) each load encore.js on their own, so this embed is
-  not required for them to work — it only adds site-wide theming and lets a
-  future cart preorder badge render on every page.
+
+  Sets the app-proxy base + accent theming and loads the shared runtime/styles
+  site-wide. On product pages it ALSO renders hidden fallback shells for the
+  Preorder button, Notify-me and Low-stock UI: encore.js moves them next to the
+  theme's add-to-cart button automatically when the merchant hasn't added the
+  corresponding app block. That makes Encore work on EVERY theme — OS 2.0 and
+  vintage alike — with zero theme edits ("no theme code needed"). When an app
+  block for a feature IS present, the block wins and its fallback shell is
+  discarded, so nothing ever renders twice.
 {%- endcomment -%}
 <script>
   window.EncoreProxyBase = window.EncoreProxyBase || "/apps/encore";
@@ -14,6 +18,78 @@
     locale: {{ localization.language.iso_code | default: request.locale.iso_code | json }}
   });
 </script>
+{%- if product -%}
+  {%- assign ev = product.selected_or_first_available_variant -%}
+  {%- assign loc = localization.language.iso_code | default: request.locale.iso_code -%}
+  <div data-encore-auto-wrap hidden aria-hidden="true">
+    <div
+      class="encore encore-preorder"
+      data-encore-preorder
+      data-encore-auto
+      data-product-id="{{ product.id }}"
+      data-variant-id="{{ ev.id }}"
+      data-available="{% if ev.available %}true{% else %}false{% endif %}"
+      data-in-stock="{% if ev.inventory_quantity > 0 %}true{% else %}false{% endif %}"
+      data-market="{{ localization.market.id }}"
+      data-locale="{{ loc }}"
+      data-label="Preorder"
+      data-show-badge="true"
+      data-placement="stack"
+      style="--encore-accent: {{ block.settings.accent }}; --encore-on-accent: #FFFFFF; --encore-radius: 6px;"
+    >
+      {%- if product.selling_plan_groups.size > 0 -%}
+        <div class="encore-preorder__skeleton" data-encore-pre-skeleton aria-hidden="true"></div>
+      {%- endif -%}
+      <div class="encore-preorder__ui" data-encore-pre-ui hidden>
+        <button type="button" class="encore-btn" data-encore-pre-btn>Preorder</button>
+        <p class="encore-preorder__note" data-encore-pre-note></p>
+      </div>
+    </div>
+    <div
+      class="encore encore-notify"
+      data-encore-notify
+      data-encore-auto
+      data-product-id="{{ product.id }}"
+      data-variant-id="{{ ev.id }}"
+      data-product-title="{{ product.title | escape }}"
+      data-available="{% if ev.available %}true{% else %}false{% endif %}"
+      data-locale="{{ loc }}"
+      data-collect-phone="false"
+      style="--encore-accent: {{ block.settings.accent }}; --encore-on-accent: #FFFFFF; --encore-radius: 6px;"
+    >
+      <button type="button" class="encore-btn encore-btn--outline" data-encore-notify-btn hidden>
+        Notify me when available
+      </button>
+    </div>
+    <div
+      class="encore encore-lowstock"
+      data-encore-lowstock
+      data-encore-auto
+      data-product-id="{{ product.id }}"
+      data-variant-id="{{ ev.id }}"
+      data-threshold="10"
+      data-preset="bar_text"
+      data-locale="{{ loc }}"
+      style="--encore-bar: #E8A13A; --encore-bar-bg: #F1F1F1; --encore-lowstock-fg: #6B6B6B;"
+    >
+      <div class="encore-lowstock__ui" data-encore-low-ui hidden></div>
+    </div>
+    <script type="application/json" data-encore-variants="{{ product.id }}">
+      [
+        {%- for v in product.variants -%}
+          {"id": {{ v.id }}, "available": {{ v.available }}, "title": {{ v.title | json }}}{%- unless forloop.last -%},{%- endunless -%}
+        {%- endfor -%}
+      ]
+    </script>
+    <script type="application/json" data-encore-inventory="{{ product.id }}">
+      {
+        {%- for v in product.variants -%}
+          "{{ v.id }}": {"qty": {{ v.inventory_quantity | default: 0 }}, "tracked": {% if v.inventory_management %}true{% else %}false{% endif %}, "policy": {{ v.inventory_policy | json }}}{%- unless forloop.last -%},{%- endunless -%}
+        {%- endfor -%}
+      }
+    </script>
+  </div>
+{%- endif -%}
 {% schema %}
 {
   "name": "t:encore.blocks.embed",
@@ -23,7 +99,7 @@
   "settings": [
     {
       "type": "paragraph",
-      "content": "Optional. The Preorder, Back-in-stock and Low-stock blocks work on their own — enable this to apply Encore styling site-wide and to show preorder badges on collection pages."
+      "content": "Turn this ON and Encore works on any theme with no further setup: the Preorder button, Notify-me and Low-stock indicator appear automatically next to your add-to-cart button on products that need them. Add Encore's app blocks to your product template only if you want to control their exact position and styling — blocks always take priority over the automatic placement."
     },
     {
       "type": "checkbox",

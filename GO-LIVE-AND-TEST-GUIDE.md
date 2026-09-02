@@ -1,130 +1,153 @@
-# Encore — Go-Live & Test Guide (R0 + R1 + test-walk fixes, updated 2026-08-31)
+# Encore — Go-Live & Test Guide
 
-Status right now:
+_Last updated: 2026-09-01 (universal app embed, /health endpoint, corrected cron paths)_
 
-- R0 + R1 code: DONE, committed and **already live on Railway** (verified: new `/apps/encore/config` and `/apps/encore/badges` respond correctly through Shopify's signed app proxy).
-- Claude ran the admin walk in Chrome on dev-novasolutions: every app page loads, no broken links, R0 "When shoppers see it" control live, PKR currency correct. Full detail: `TEST-WALK-FINDINGS-2026-08-31.md`.
-- 5 bugs found in that walk are FIXED in the repo (onboarding picker fallback, "Preorder Novafied" naming, internal-doc banner copy, fake KPI deltas, fake waitlist stat) — **they reach the live app when you push (step 1)**.
-- Crons are built into the app (in-process scheduler; single platform, nothing external to set up).
-
-Your critical path: **step 1 → step 2 → step 3 → screenshots → submit.**
+Everything you need to take Encore from "deployed on Railway" to "live on a real store," plus how to test each feature end-to-end on your dev store.
 
 ---
 
-## 1) Deploy the fix pass (~10 min)
+## 0. Current state (what's already done)
+
+| Piece | Status |
+|---|---|
+| App deployed on Railway | ✅ `encore-production-7c8f.up.railway.app` |
+| Postgres on Railway | ✅ (`DATABASE_URL` set) |
+| App installed on dev store | ✅ `dev-novasolutions.myshopify.com` |
+| Billing (3 plans + 14-day trial) | ✅ Test-mode charges on dev store |
+| Webhooks (orders, inventory, GDPR, uninstall) | ✅ Registered; delivery verified live 2026-09-01 (`inventory_levels/update` + `products/update` → 200) |
+| Theme extension (button, badge, widget, countdown) | ✅ Built; **universal app embed — works on ANY theme with one toggle** (see §4) |
+| Checkout UI extension (thank-you page) | ✅ Built; add in checkout editor |
+| Preorder cap function | ✅ Deployed with app |
+| Health endpoint `/health` | ✅ db + scheduler heartbeat + outbox counts (added 2026-09-01) |
+| Email (Resend) | ⏳ Needs `RESEND_API_KEY` + domain verify — **verified missing on Railway 2026-09-01** |
+| Klaviyo | ⏳ Optional; connect in Settings → Notifications |
+| Background jobs (outbox, reminders, purge) | ✅ Built-in scheduler — verified ticking live 2026-09-01 |
+| Sentry | ⏳ Optional (`SENTRY_DSN`) |
+
+---
+
+## 1. Required environment variables (Railway)
+
+Already set (verified in Railway → service → Variables, 2026-09-01): `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, `SHOPIFY_APP_URL`, `SCOPES`, `DATABASE_URL`, `APP_ENCRYPTION_KEY`, `ENCORE_CRON_SECRET`, `NOVA_API`, `NOVA_INGRESS_HMAC_SECRET`, `NOVA_INSTALL_CONFIRM_SECRET`, `PORT`, `SHOPIFY_ORG_ID`.
+
+Add these before going live:
+
+```
+# Email — required for any customer-facing email (NOT SET yet)
+RESEND_API_KEY=re_...              # resend.com → API Keys
+EMAIL_FROM=notify@yourdomain.com   # must be on a verified domain in Resend
+
+# Optional but recommended
+SENTRY_DSN=<from sentry.io>        # error monitoring
+```
+
+---
+
+## 2. Background jobs — built-in (nothing to set up)
+
+The app runs its own scheduler in-process (started automatically on boot; verified live):
+
+| Job | Schedule | What it does |
+|---|---|---|
+| Outbox flush | every 2 min | Sends queued emails/notifications (BIS alerts, ship-date changes, balance reminders) |
+| Balance reminders | hourly | Emails customers with upcoming balance captures (deferred-payment preorders) |
+| Data purge | hourly | Deletes soft-deleted rows past the retention window |
+
+No external cron services. `ENCORE_CRON_SECRET` still protects the manual HTTP endpoints (`/cron/nova-outbox`, `/cron/balance-reminders`, `/cron/purge-uninstalled`) if you ever want to trigger a job by hand:
+
+```bash
+curl -X POST https://encore-production-7c8f.up.railway.app/cron/nova-outbox \
+  -H "Authorization: Bearer $ENCORE_CRON_SECRET"
+```
+
+To disable the built-in scheduler (e.g. if you ever move to external cron), set `ENCORE_DISABLE_INTERNAL_CRON=1`.
+
+**Health probe:** `GET /health` (public, safe) → `{status, db, scheduler: {started, lastOutboxTickAt}, outbox: {pending, dead}}`. Point any uptime monitor at it.
+
+---
+
+## 3. Deploying a change
 
 ```bash
 cd ~/Documents/Claude/Projects/"Nova Apps Platform"/shopify/encore
+npm run typecheck && npm test && npm run build   # expect green (34 tests)
+git add -A && git commit -m "..." && git push    # Railway auto-deploys the app
 
-rm -f _to_delete_index.lock      # leftover from the cleared git lock, if still there
-
-npm install                      # once — picks up the vitest dev-dependency
-npm run typecheck                # expect: clean
-npm test                         # expect: 6 files, 33 tests, green
-npm run build                    # expect: green
-
-git add -A
-git commit -m "Test-walk fixes: onboarding picker fallback, real KPI deltas, truthful waitlist stats, Encore naming, merchant-language outbox banner"
-git push                         # Railway auto-deploys
-
-npm run deploy                   # shopify app deploy — releases the NEW extension version
-# → the version list must show "Preorder countdown" block + updated app embed. Release it.
+npm run deploy   # shopify app deploy — ONLY needed when extensions/ changed;
+                 # releases the new extension version (theme blocks + embed + storefront JS)
 ```
 
-Notes:
+After a Railway deploy, check `/health` and the service Logs for `[scheduler] started`.
 
-- `npm run deploy` is **not optional**: the countdown block, the collection-badges embed toggle, and the new storefront JS only reach themes through the released extension version. (The walk could not confirm this ran after R1.)
-- If typecheck complains about Prisma types: `npx prisma generate`, re-run.
-- After Railway redeploys, check service Logs for `[scheduler] started — outbox every 2min, reminders/purge hourly`.
+---
 
-## 2) One-time dev-store prep (~10 min) — why the storefront showed nothing
+## 4. Storefront setup (theme editor — ONE toggle, any theme)
 
-The walk found the storefront can't display any Encore feature yet because of store setup, not app code:
+Since 2026-09-01 the app embed is **universal**: it works on every Shopify theme — OS 2.0 (Dawn, Horizon, third-party) and vintage (Debut) alike — with zero theme edits.
 
-1. **Theme**: the published theme is Debut (2021) with no app-block support visible. Use the **Horizon draft theme** (or install Dawn) for testing — publish it or use its preview.
-2. **Products**: only *Short Sleeve* (sold out) is published to the Online Store; the LIVE "test" campaign targets an unpublished product, so nothing can render. Publish a second, in-stock product (e.g. Echo Bag) to the Online Store sales channel.
-3. **Campaigns**: create two —
-   - Campaign A on **Short Sleeve** → "When shoppers see it" = *Only when sold out* → LIVE.
-   - Campaign B on the **in-stock product** → *Always (presale)* → give it an **end date 2 days out** → LIVE.
-4. **Theme blocks** (on the modern theme): product template → add **Preorder button**, **Preorder countdown**, **Back-in-stock button**, **Low-stock meter**. App embeds → enable **Storefront runtime** + turn ON "Show preorder badges on collection pages".
+1. **Online Store → Themes → Customize**
+2. **App embeds** (bottom-left) → toggle **Encore** ON → **Save**. That alone enables:
+   - The **Preorder button**, **Notify-me** and **Low-stock** UI, auto-placed next to the theme's add-to-cart button on products that need them
+   - Collection-page preorder badges (checkbox in the embed's settings)
+   - Accent colour + site-wide styles
+3. *(Optional)* On OS 2.0 themes you can still add Encore's app blocks to the product template for exact position/styling control — a block **always overrides** the auto-placed version of the same feature (nothing ever renders twice). The **Countdown timer** is block-only.
 
-## 3) Test walk (~30 min, in order)
+Then make sure a **live campaign targets a real product published to the Online Store channel** — the button only activates on products with an active campaign.
 
-Admin-side items marked ✅ were already verified live by Claude's walk — spot-check, don't re-test.
+> Dev-store note: the storefront is password-protected (password `nova`, shown in Online Store → Preferences). Enter it once per browser before testing.
 
-### 3.1 Fix-pass retest (new — after step 1)
+---
 
-- [ ] Dashboard: deltas show real numbers or "—" (no more +18.4% / +312); Recent activity says "Welcome to **Encore**".
-- [ ] Onboarding → Choose products: picker opens. If it still doesn't, a warning banner with "Open the full preorder form" now appears instead of a dead button — use it, and tell Claude so we can debug with the console.
-- [ ] Waitlist: third stat card shows "Products with waitlists" (no ~12% guess).
+## 5. End-to-end preorder test (dev store)
 
-### 3.2 R0 — trigger truth
+1. Admin → Encore → **New preorder**:
+   - Pick a real published product (e.g. "Short Sleeve", handle `short-sleeve`), select variants
+   - Units per variant: e.g. 10; Payment: **Pay later (deposit)** → 25%; Ship date ~2 weeks out → **Launch**
+2. Storefront → open that product:
+   - Button reads **Preorder** (or your custom CTA); badge + "ships <date>" note show
+   - With a stock-triggered campaign the button only shows when the variant is sold out; "Always" shows it even in stock
+3. **Add to cart → checkout** (dev store = Bogus Gateway test payments) — complete checkout
+4. Verify in Encore admin: campaign detail → units reserved +1, order appears; Shopify order gets the preorder tag + properties
+5. **Deferred flow**: second campaign with **Charge later** → deposit terms at checkout (test mode)
+6. **Back-in-stock**: on a 0-inventory product with no campaign, **Notify me** shows (embed auto-places it); submit an email → appears in Encore → Back in stock; restock → outbox queues the alert (sends once `RESEND_API_KEY` is set)
 
-- ✅ "When shoppers see it" select live in campaign form (Advanced → Button) with correct options/help text.
-- [ ] Product A (sold out, *Only when sold out*): storefront shows preorder button; set stock >0 → button disappears.
-- [ ] Product B (in stock, *Always*): preorder button shows while in stock.
-- [ ] Mixed-cart note: set the message in Settings → with preorder + normal item in cart, note appears under the button.
-- [ ] Edit Campaign A → the select round-trips ("Only when sold out" still selected).
+---
 
-### 3.3 R1 — countdown
+## 6. Going live on a real store
 
-- [ ] Product B page: "Preorder ends in 1d 23h …" ticking every second.
-- [ ] Remove end date → countdown gone.
+1. **Partners dashboard** → your app → **Distribution**: Custom app (single store, no review) or Public app (App Store listing + review — see `LISTING-KIT.md`)
+2. Install on the real store; toggle the Encore app embed ON in its theme (§4 — one toggle, any theme)
+3. Set `RESEND_API_KEY` + verified `EMAIL_FROM` (real emails!)
+4. Billing: plans auto-switch from test to real charges on non-dev stores
+5. Watch `/health` + Railway logs the first day; optional Sentry DSN
 
-### 3.4 R1 — collection badges
+---
 
-- ✅ `/apps/encore/badges` endpoint verified working through the app proxy.
-- [ ] Catalog page: both campaign products show the **Preorder** pill; non-campaign products don't.
-- [ ] Toggle the embed setting off → badges gone.
+## 7. Feature reference — what's in the box
 
-### 3.5 R1 — waitlist CSV import
+See `ENCORE-10X-PLAN.md` (all R1 items ✅) and `LISTING-KIT.md`:
 
-- ✅ Import CSV button + empty state live.
-- [ ] Import this file (use your real product handle):
-  ```csv
-  email,product_handle
-  test1@example.com,short-sleeve
-  test2@example.com,short-sleeve
-  ```
-- [ ] "2 subscribers imported" → re-import same file → "2 already existed" → file without an email column → clear error.
+- Preorder campaigns (fixed cap / date window / evergreen), per-variant rules
+- Deposits & deferred payments (selling plans), balance reminders, dunning
+- Back-in-stock waitlists (+ CSV import/export), Klaviyo sync
+- Multi-market campaigns, 8 admin languages, translated storefront strings
+- Insights: cohorts, demand, benchmarks, low-stock alerts
+- Countdown timers, collection badges, custom CTA
+- No-oversell inventory guard (cap function), GDPR-compliant data handling
 
-### 3.6 R1 — onboarding
+---
 
-- [ ] Settings → default button label = "Reserve now" → /app/onboarding step 3 pre-fills "Reserve now".
-- [ ] Finish wizard → lands on campaign page with green "Your first preorder is live!" banner; banner gone after dismiss + reload.
+## 8. If something breaks
 
-### 3.7 R1 — i18n + empty states
+| Symptom | Check |
+|---|---|
+| Emails not sending | `RESEND_API_KEY` set? Domain verified in Resend? Railway logs `[outbox]` lines |
+| Outbox stuck | `GET /health` (scheduler heartbeat + pending/dead counts); Railway logs `[scheduler]` lines |
+| Storefront UI missing | App embed ON in theme editor? Campaign LIVE and targeting that product? Product published to Online Store channel? Store password entered (dev store)? |
+| Webhooks failing | Partners dashboard → app → Webhooks delivery metrics; Railway logs `POST /webhooks/... 200` |
+| "Demo data" showing | Shouldn't happen — demo seeding removed. Fake-looking data = real rows in your DB |
+| Charges failing on real store | Plans page → plan status; Railway logs `[billing]` |
 
-- ✅ Settings language section, Insights/waitlist empty states verified live.
-- [ ] Switch app language to German → nav, dashboard, campaign form translated (Polaris pagination/date pickers too).
+---
 
-### 3.8 Money path (re-confirm once)
-
-- [ ] Deposit campaign (25%) on product B → checkout shows deposit now / balance later.
-- [ ] Cap = 1, try qty 2 → checkout blocked: "Only 1 preorder left".
-- [ ] Order appears on dashboard; outbox banner stays away (note: if the Nova platform backend isn't running, the delivery banner may show — that's the delivery target being down, not Encore).
-
-## 4) Screenshots for the listing (×6, 1600×900)
-
-1. Dashboard (after a test order — real numbers, real deltas)
-2. Campaign form — "When shoppers see it" + payment section
-3. Storefront product page — preorder button + countdown
-4. Collection page with preorder badges
-5. Waitlist page (import + subscriber groups)
-6. Insights page
-
-## 5) Submit
-
-1. Partner Dashboard → Distribution → listing: name "Encore — Preorder & Back in Stock", copy from `LISTING-KIT.md`, icon `listing-assets/encore-icon-1200.png`, screenshots above.
-2. Protected customer data form: email + name usage (waitlist + preorder notifications), encryption at rest, GDPR webhooks implemented.
-3. Support email set; privacy (`/privacy`) + terms (`/terms`) — ✅ verified live on the Railway domain.
-4. Submit. Review typically walks: clean install → onboarding to first preorder → uninstall webhook → GDPR endpoints. All covered above.
-
-## If something fails
-
-- Widget absent everywhere → App proxy: Partner Dashboard → App setup → prefix `apps/encore` → `https://encore-production-7c8f.up.railway.app/proxy`.
-- Countdown block missing from theme editor → `npm run deploy` + release (step 1), then reload the editor.
-- Countdown not showing on page → campaign has no end date, or product is in stock on a sold-out-only campaign (both by design).
-- Badges missing → embed toggle off, or campaign product unpublished/COLLECTION-mode (badges cover ALL + SPECIFIC campaigns only, by design).
-- `npm test` red on Mac → `npx prisma generate` first.
-- Git "index.lock exists" → `rm .git/index.lock` (stale lock; no git process actually running).
+*Matches deployed build + the 2026-09-01 fix pass (QA polish, /health, universal embed).*

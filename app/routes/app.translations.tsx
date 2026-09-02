@@ -66,11 +66,12 @@ export default function TranslationsPage() {
   const [translations, setTranslations] = useState<
     Record<string, Record<string, string>>
   >(() => {
+    // Only the merchant's SAVED translations count as "done" (QA 2026-08-31:
+    // bundled sample texts inflated the "n/n translated" badge). Samples now
+    // appear only as placeholder suggestions in the empty fields below.
     const merged: Record<string, Record<string, string>> = {};
-    for (const [loc, m] of Object.entries(SAMPLE_TRANSLATIONS))
-      merged[loc] = { ...m };
     for (const [loc, m] of Object.entries(saved))
-      merged[loc] = { ...(merged[loc] ?? {}), ...m };
+      merged[loc] = { ...m };
     return merged;
   });
 
@@ -165,7 +166,10 @@ export default function TranslationsPage() {
                           value={(translations[locale] ?? {})[s.key] ?? ""}
                           onChange={(v) => setVal(s.key, v)}
                           autoComplete="off"
-                          placeholder={`${t("Translate to")} ${localeMeta?.name ?? locale}…`}
+                          placeholder={
+                            SAMPLE_TRANSLATIONS[locale]?.[s.key] ??
+                            `${t("Translate to")} ${localeMeta?.name ?? locale}…`
+                          }
                         />
                       </div>
                     </InlineStack>

@@ -15,6 +15,9 @@ import prisma from "../db.server";
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { shop, topic, payload } = await authenticate.webhook(request);
 
+  // Time-to-ack matters: Shopify redelivers on slow responses, so we log the
+  // handler duration to catch drift toward the delivery deadline.
+  const t0 = Date.now();
   console.log(`[webhook] ${topic} from ${shop}`);
 
   try {
@@ -76,35 +79,45 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         })
         .catch((e) => console.error("[webhook] orders/create: tagged stamp failed", e));
 
-      // Shopify Flow: "Preorder placed" trigger (best-effort; emitFlow swallows
-      // its own errors so it can never fail the webhook). Representative line =
-      // the first pre-order line on the order.
-      const lines = order.line_items ?? [];
-      const preLine =
-        lines.find((li) =>
-          (li.properties ?? []).some(
-            (pp) => pp.name === "_preorder_campaign_id" || pp.name === "_preorder",
-          ),
-        ) ?? lines[0];
-      const liProp = (n: string) =>
-        String((preLine?.properties ?? []).find((pp) => pp.name === n)?.value ?? "");
-      await emitFlow(shop, FLOW_PREORDER_PLACED, {
-        order_id: result.orderGid,
-        product: preLine?.title ?? "",
-        variant_id: preLine?.variant_id
-          ? `gid://shopify/ProductVariant/${preLine.variant_id}`
-          : "",
-        market: liProp("_preorder_market"),
-        ship_date: (result.shipDates ?? [])[0] ?? "",
-      });
+      // Shopper-facing side effects (Flow trigger + Klaviyo event) fire ONLY
+      // when THIS delivery actually created new PreOrder rows. Shopify
+      // redelivers webhooks after any timeout/500 — without this gate a
+      // redelivery would re-send the customer's confirmation event and re-fire
+      // the merchant's Flow automations (duplicate emails). Dedupe is the
+      // create-side idempotency above (order+line), so createdCount === 0 on
+      // every redelivery.
+      if (result.createdCount > 0) {
+        const lines = order.line_items ?? [];
+        const preLine =
+          lines.find((li) =>
+            (li.properties ?? []).some(
+              (pp) => pp.name === "_preorder_campaign_id" || pp.name === "_preorder",
+            ),
+          ) ?? lines[0];
+        const liProp = (n: string) =>
+          String((preLine?.properties ?? []).find((pp) => pp.name === n)?.value ?? "");
 
-      // Klaviyo path: "Encore Preorder Placed" event with editable/translatable
-      // copy (provider-gated; dormant until PCD enables orders/* like the rest).
-      const ns = await getNotificationSettings(shop);
-      if (ns.provider === "klaviyo") {
-        const email =
-          order.email ?? order.contact_email ?? order.customer?.email ?? "";
-        if (email) {
+        // Run the two independent notification paths concurrently — each
+        // swallows its own errors; allSettled keeps one failure from blocking
+        // the other and shortens time-to-ack (Shopify's delivery deadline).
+        const flowP = emitFlow(shop, FLOW_PREORDER_PLACED, {
+          order_id: result.orderGid,
+          product: preLine?.title ?? "",
+          variant_id: preLine?.variant_id
+            ? `gid://shopify/ProductVariant/${preLine.variant_id}`
+            : "",
+          market: liProp("_preorder_market"),
+          ship_date: (result.shipDates ?? [])[0] ?? "",
+        });
+
+        // Klaviyo path: "Encore Preorder Placed" event with editable/
+        // translatable copy (provider-gated).
+        const klaviyoP = (async () => {
+          const ns = await getNotificationSettings(shop);
+          if (ns.provider !== "klaviyo") return;
+          const email =
+            order.email ?? order.contact_email ?? order.customer?.email ?? "";
+          if (!email) return;
           const vars = {
             customer_name: order.customer?.first_name ?? "there",
             product: preLine?.title ?? "",
@@ -125,7 +138,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             EmailBody: copy.body,
             Source: "Encore",
           });
-        }
+        })().catch((e) =>
+          console.error("[webhook] orders/create: klaviyo event failed", e),
+        );
+
+        await Promise.allSettled([flowP, klaviyoP]);
       }
     }
   } catch (err) {
@@ -134,5 +151,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return new Response("Handler failed", { status: 500 });
   }
 
+  console.log(`[webhook] orders/create acked in ${Date.now() - t0}ms`);
   return new Response();
 };

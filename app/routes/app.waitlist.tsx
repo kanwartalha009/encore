@@ -188,7 +188,7 @@ export default function BackInStockPage() {
     if (d.intent === "notify_group" || d.intent === "retry_failed") {
       const failed = d.failed ?? 0;
       shopify.toast.show(
-        `Notified ${d.sent ?? 0}${failed > 0 ? ` · ${failed} failed` : ""}`,
+        `${t("Notified")} ${d.sent ?? 0}${failed > 0 ? ` · ${failed} ${t("failed")}` : ""}`,
         failed > 0 ? { isError: true } : undefined,
       );
     }
@@ -368,7 +368,7 @@ export default function BackInStockPage() {
                   <Box minWidth="200px">
                     <TextField label={t("Button colour (hex)")} value={buttonColor} onChange={setButtonColor} autoComplete="off" />
                   </Box>
-                  <div style={{ width: 36, height: 36, borderRadius: 8, background: buttonColor, border: "1px solid #E1E3E5" }} />
+                  <div style={{ width: 36, height: 36, borderRadius: 8, background: buttonColor, border: "1px solid var(--p-color-border)" }} />
                 </InlineStack>
               </BlockStack>
             </Card>
@@ -398,15 +398,15 @@ export default function BackInStockPage() {
                         <Text as="span" variant="headingSm">{popupTitle}</Text>
                         {showProductInfo && (
                           <InlineStack gap="200" blockAlign="center">
-                            <div style={{ width: 36, height: 36, borderRadius: 6, background: "#E3E3E3" }} />
-                            <Text as="span" variant="bodySm" tone="subdued">Aurora Hoodie — Indigo</Text>
+                            <div style={{ width: 36, height: 36, borderRadius: 6, background: "var(--p-color-bg-fill-tertiary)" }} />
+                            <Text as="span" variant="bodySm" tone="subdued">{t("Aurora Hoodie — Indigo")}</Text>
                           </InlineStack>
                         )}
-                        <div style={{ border: "1px solid #E1E3E5", borderRadius: 8, padding: "8px 10px", color: "#8A8A8A", fontSize: 13 }}>you@email.com</div>
+                        <div style={{ border: "1px solid var(--p-color-border)", borderRadius: 8, padding: "8px 10px", color: "var(--p-color-text-secondary)", fontSize: 13 }}>you@email.com</div>
                         {collectPhone && (
-                          <div style={{ border: "1px solid #E1E3E5", borderRadius: 8, padding: "8px 10px", color: "#8A8A8A", fontSize: 13 }}>+1 555 000 0000</div>
+                          <div style={{ border: "1px solid var(--p-color-border)", borderRadius: 8, padding: "8px 10px", color: "var(--p-color-text-secondary)", fontSize: 13 }}>+1 555 000 0000</div>
                         )}
-                        <button type="button" style={{ background: buttonColor, color: "#fff", border: "none", borderRadius: 8, padding: "10px 14px", fontWeight: 600, cursor: "default" }}>
+                        <button type="button" tabIndex={-1} aria-hidden="true" style={{ background: buttonColor, color: "#fff", border: "none", borderRadius: 8, padding: "10px 14px", fontWeight: 600, cursor: "default" }}>
                           {buttonText}
                         </button>
                         <Text as="span" variant="bodySm" tone="subdued">{consentText}</Text>

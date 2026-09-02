@@ -13,6 +13,7 @@
  */
 
 import { useState } from "react";
+import ConfirmModal from "./ConfirmModal";
 import { useLocale } from "../lib/i18n";
 import { useNavigate, useNavigation, useSubmit } from "react-router";
 import {
@@ -276,7 +277,7 @@ function ScopeCard({
     <button
       type="button"
       onClick={onClick}
-      style={{ all: "unset", cursor: "pointer", display: "block", flex: 1, minWidth: 0 }}
+      style={{ all: "unset", outline: "revert", cursor: "pointer", display: "block", flex: 1, minWidth: 0 }}
     >
       <Box
         padding="400"
@@ -588,16 +589,8 @@ export default function CampaignForm({
   const handleSaveDraft = () => dispatch("draft");
   const handlePublish = () => dispatch("publish");
   const handleSaveChanges = () => dispatch("save");
-  const handleDelete = () => {
-    if (
-      typeof window !== "undefined" &&
-      !window.confirm(
-        "Delete this preorder? This cannot be undone. Existing preorders will be cascaded.",
-      )
-    )
-      return;
-    dispatch("delete");
-  };
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const handleDelete = () => setConfirmDeleteOpen(true);
 
   const primaryAction =
     mode === "create"
@@ -940,14 +933,16 @@ export default function CampaignForm({
                   <Divider />
                   <Box padding="400" borderWidth="025" borderColor="border" borderRadius="300" background="bg-surface">
                     <BlockStack gap="200">
-                      <div><Badge tone="warning">Preorder</Badge></div>
+                      <div><Badge tone="warning">{t("Preorder")}</Badge></div>
                       <Text as="span" variant="bodyMd" fontWeight="semibold">{t("Aurora Hoodie — Indigo")}</Text>
                       <Text as="span" tone="subdued">$54.00</Text>
                       <button
                         type="button"
-                        style={{ background: "#202223", color: "#fff", border: "none", borderRadius: 8, padding: "10px 14px", fontWeight: 600, width: "100%", cursor: "default" }}
+                        tabIndex={-1}
+                        aria-hidden="true"
+                        style={{ background: "var(--p-color-bg-inverse)", color: "var(--p-color-text-inverse)", border: "none", borderRadius: 8, padding: "10px 14px", fontWeight: 600, width: "100%", cursor: "default" }}
                       >
-                        {ctaLabel || "Preorder"}
+                        {ctaLabel || t("Preorder")}
                       </button>
                       <Text as="span" variant="bodySm" tone="subdued">
                         {shipDate
@@ -1274,6 +1269,17 @@ export default function CampaignForm({
           </InlineStack>
         </Card>
       </BlockStack>
+      <ConfirmModal
+        open={confirmDeleteOpen}
+        title={t("Delete preorder")}
+        message={t("Delete this preorder? This cannot be undone. Shopify orders already placed are not affected.")}
+        confirmLabel={t("Delete")}
+        onConfirm={() => {
+          setConfirmDeleteOpen(false);
+          dispatch("delete");
+        }}
+        onCancel={() => setConfirmDeleteOpen(false)}
+      />
     </Page>
   );
 }

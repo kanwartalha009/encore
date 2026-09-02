@@ -81,7 +81,7 @@ function ColorField({
       <Box minWidth="180px">
         <TextField label={label} value={value} onChange={onChange} autoComplete="off" />
       </Box>
-      <div style={{ width: 32, height: 32, borderRadius: 8, background: value, border: "1px solid #E1E3E5" }} />
+      <div style={{ width: 32, height: 32, borderRadius: 8, background: value, border: "1px solid var(--p-color-border)" }} />
     </InlineStack>
   );
 }
@@ -175,7 +175,7 @@ function PresetCard({
 }) {
   const { t } = useLocale();
   return (
-    <button type="button" onClick={onClick} style={{ all: "unset", cursor: "pointer", flex: 1, minWidth: 0 }}>
+    <button type="button" onClick={onClick} style={{ all: "unset", outline: "revert", cursor: "pointer", flex: 1, minWidth: 0 }}>
       <Box
         padding="300"
         borderWidth={active ? "050" : "025"}
@@ -237,7 +237,7 @@ export default function LowStockPage() {
       },
       { method: "post" },
     );
-    shopify.toast.show("Low-stock settings saved");
+    shopify.toast.show(t("Low-stock settings saved"));
   };
 
   return (

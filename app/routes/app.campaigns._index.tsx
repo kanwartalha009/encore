@@ -29,11 +29,17 @@ import { PlusIcon } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import { listCampaigns, formatGmv } from "../models/campaign.server";
 import { useLocale } from "../lib/i18n";
+import { statusToTone, relativeTime } from "../lib/format";
 import { getShopCurrency } from "../models/shop.server";
+import ConfirmModal from "../components/ConfirmModal";
 
 // ---------- View-model types ----------
 type CampaignStatus = "Live" | "Scheduled" | "Paused" | "Draft" | "Ended";
-type PaymentMode = "Pay now" | "Deposit + balance" | "Pay later" | "MOQ gated";
+type PaymentMode =
+  | "Pay now"
+  | "Deposit + balance"
+  | "Pay later"
+  | "Minimum to confirm";
 type CartMode = "Hard split" | "Warning only";
 
 type Campaign = {
@@ -74,22 +80,6 @@ const STATUS_LABEL: Record<string, CampaignStatus> = {
   ENDED: "Ended",
 };
 
-function relativeTime(d: Date) {
-  const seconds = Math.floor((Date.now() - d.getTime()) / 1000);
-  if (seconds < 60) return "just now";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes} min ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} hr ago`;
-  const days = Math.floor(hours / 24);
-  if (days === 1) return "Yesterday";
-  if (days < 7) return `${days} days ago`;
-  const weeks = Math.floor(days / 7);
-  if (weeks < 4) return `${weeks} week${weeks > 1 ? "s" : ""} ago`;
-  const months = Math.floor(days / 30);
-  return `${months} month${months > 1 ? "s" : ""} ago`;
-}
-
 // ---------- Loader / headers ----------
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
@@ -99,7 +89,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const campaigns: Campaign[] = rows.map((r) => {
     const isMoqGated = r.moqEnabled;
     const payment: PaymentMode = isMoqGated
-      ? "MOQ gated"
+      ? "Minimum to confirm"
       : (PAYMENT_LABEL[r.paymentMode] ?? "Pay now");
     return {
       id: r.id,
@@ -120,7 +110,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       gmv: formatGmv(r.gmvCents, currency),
       shipDate: r.shipDate ? r.shipDate.toISOString().slice(0, 10) : "TBD",
       status: STATUS_LABEL[r.status] ?? "Draft",
-      updatedAt: relativeTime(r.updatedAt),
+      updatedAt: r.updatedAt.toISOString(),
     };
   });
 
@@ -132,25 +122,6 @@ export const headers: HeadersFunction = (headersArgs) => {
 };
 
 // ---------- Helpers ----------
-function statusToTone(
-  status: CampaignStatus,
-): "success" | "warning" | "info" | "attention" | "critical" | undefined {
-  switch (status) {
-    case "Live":
-      return "success";
-    case "Scheduled":
-      return "info";
-    case "Paused":
-      return "warning";
-    case "Draft":
-      return "attention";
-    case "Ended":
-      return "critical";
-    default:
-      return undefined;
-  }
-}
-
 function paymentBadgeTone(
   payment: PaymentMode,
 ): "success" | "info" | "attention" | undefined {
@@ -161,7 +132,7 @@ function paymentBadgeTone(
       return "info";
     case "Pay later":
       return "attention";
-    case "MOQ gated":
+    case "Minimum to confirm":
       return "success";
   }
 }
@@ -169,7 +140,7 @@ function paymentBadgeTone(
 // ---------- Page ----------
 export default function CampaignsIndex() {
   const navigate = useNavigate();
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const { campaigns: CAMPAIGNS } = useLoaderData<typeof loader>();
 
   // Tab + filters state (Shopify "saved views" pattern)
@@ -241,7 +212,7 @@ export default function CampaignsIndex() {
             { label: t("Pay now"), value: "Pay now" },
             { label: t("Deposit + balance"), value: "Deposit + balance" },
             { label: t("Pay later"), value: "Pay later" },
-            { label: t("Minimum to confirm"), value: "MOQ gated" },
+            { label: t("Minimum to confirm"), value: "Minimum to confirm" },
           ]}
           selected={paymentFilter}
           onChange={setPaymentFilter}
@@ -313,7 +284,7 @@ export default function CampaignsIndex() {
   }
 
   // Selection
-  const resourceName = { singular: "preorder", plural: "preorders" };
+  const resourceName = { singular: t("preorder"), plural: t("preorders") };
   const { selectedResources, allResourcesSelected, handleSelectionChange } =
     useIndexResourceState(
       filteredCampaigns.map((c) => ({ id: c.id })) as never,
@@ -332,22 +303,14 @@ export default function CampaignsIndex() {
       action: "/app/campaigns/actions",
     });
   };
+  const [confirmEndOpen, setConfirmEndOpen] = useState(false);
   const promotedBulkActions = [
     { content: t("Pause"), onAction: () => submitBulk("pause") },
     { content: t("Resume"), onAction: () => submitBulk("resume") },
     { content: t("Duplicate"), onAction: () => submitBulk("duplicate") },
     {
       content: t("End preorder"),
-      onAction: () => {
-        if (
-          typeof window !== "undefined" &&
-          !window.confirm(
-            `End ${selectedResources.length} preorder${selectedResources.length === 1 ? "" : "s"}? Existing customer orders are kept; new ones are blocked.`,
-          )
-        )
-          return;
-        submitBulk("end");
-      },
+      onAction: () => setConfirmEndOpen(true),
     },
   ];
 
@@ -400,7 +363,7 @@ export default function CampaignsIndex() {
         <IndexTable.Cell>{c.shipDate}</IndexTable.Cell>
         <IndexTable.Cell>
           <Text as="span" variant="bodySm" tone="subdued">
-            {c.updatedAt}
+            {relativeTime(c.updatedAt, locale)}
           </Text>
         </IndexTable.Cell>
       </IndexTable.Row>
@@ -507,6 +470,21 @@ export default function CampaignsIndex() {
           </>
         )}
       </BlockStack>
+      <ConfirmModal
+        open={confirmEndOpen}
+        title={t("End preorder")}
+        message={
+          selectedResources.length === 1
+            ? t("End this preorder? Existing customer orders are kept; new ones are blocked.")
+            : t("End the selected preorders? Existing customer orders are kept; new ones are blocked.")
+        }
+        confirmLabel={t("End preorder")}
+        onConfirm={() => {
+          setConfirmEndOpen(false);
+          submitBulk("end");
+        }}
+        onCancel={() => setConfirmEndOpen(false)}
+      />
     </Page>
   );
 }

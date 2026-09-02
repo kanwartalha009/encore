@@ -141,6 +141,61 @@
     });
   }
 
+  // ---------- Universal auto-mount (works on ANY theme, vintage included) ----
+  // The app embed renders hidden fallback shells for the Preorder button,
+  // Notify-me and Low-stock UI on every product page. If the merchant added
+  // the matching app block, the block wins and the fallback is discarded.
+  // Otherwise the shell is moved right next to the theme's add-to-cart button
+  // and initialized like a block — zero theme edits required.
+  function findProductForm() {
+    // Prefer the form whose hidden [name=id] exists (the real product form,
+    // not a search or quick-buy form).
+    var forms = document.querySelectorAll('form[action*="/cart/add"]');
+    for (var i = 0; i < forms.length; i++) {
+      if (forms[i].querySelector('[name="id"]')) return forms[i];
+    }
+    return forms[0] || null;
+  }
+
+  function findBuyAnchor(form) {
+    if (!form) return null;
+    var sels = ['[name="add"]', ".product-form__submit", 'button[type="submit"]', 'input[type="submit"]'];
+    for (var i = 0; i < sels.length; i++) {
+      var n = form.querySelector(sels[i]);
+      if (n) return n;
+    }
+    return null;
+  }
+
+  function autoMount() {
+    var wrap = document.querySelector("[data-encore-auto-wrap]");
+    if (!wrap) return;
+    var form = findProductForm();
+    var anchor = findBuyAnchor(form);
+    var kinds = ["data-encore-preorder", "data-encore-notify", "data-encore-lowstock"];
+    for (var i = 0; i < kinds.length; i++) {
+      // Query globally, not just inside the wrap: on a section re-render the
+      // shell may already have been moved next to the buy button.
+      var auto = document.querySelector("[" + kinds[i] + "][data-encore-auto]");
+      if (!auto) continue;
+      // A real app block for this feature exists → block wins, drop the
+      // fallback (even if it was mounted earlier) so nothing renders twice.
+      if (document.querySelector("[" + kinds[i] + "]:not([data-encore-auto])")) {
+        if (auto.parentNode) auto.parentNode.removeChild(auto);
+        continue;
+      }
+      if (wrap.contains(auto)) {
+        if (anchor && anchor.parentNode) {
+          anchor.parentNode.insertBefore(auto, anchor.nextSibling);
+        } else if (form) {
+          form.appendChild(auto);
+        }
+        // else: no add-to-cart form found — leave the shell in the hidden wrap
+        // (nothing renders; better than a floating button in the wrong place).
+      }
+    }
+  }
+
   // ---------- Preorder ----------
   function initPreorder(root) {
     if (root.__encoreInit) return;
@@ -163,6 +218,10 @@
 
       if (!cfg || !cfg.preorder || !cfg.preorder.active) return;
       var p = cfg.preorder;
+
+      // Auto-mounted shells carry no per-block placement choice — follow the
+      // placement configured in the Encore admin instead.
+      if (root.hasAttribute("data-encore-auto") && p.placement) placement = p.placement;
 
       // R0.1 — honor the campaign's trigger:
       //   "stock"  → preorder only when the product/variant is NOT in stock
@@ -631,18 +690,21 @@
     for (var l = 0; l < cnt.length; l++) initCountdown(cnt[l]);
   }
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", function () {
-      initAll();
-      initCollectionBadges();
-    });
-  } else {
+  function boot() {
+    autoMount(); // must run before initAll so relocated shells init in place
     initAll();
     initCollectionBadges();
   }
 
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot);
+  } else {
+    boot();
+  }
+
   // Theme editor: re-init when a section is re-rendered.
   document.addEventListener("shopify:section:load", function (e) {
+    autoMount();
     initAll(e.target);
   });
 })();

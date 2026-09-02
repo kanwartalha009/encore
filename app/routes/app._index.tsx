@@ -38,6 +38,7 @@ import {
 
 import { authenticate } from "../shopify.server";
 import { useLocale } from "../lib/i18n";
+import { statusToTone } from "../lib/format";
 
 // ---------- View-model helpers ----------
 type Cohort = {
@@ -92,27 +93,6 @@ export const headers: HeadersFunction = (headersArgs) => {
 };
 
 // ---------- Helpers ----------
-function statusToTone(
-  status: Cohort["status"] | CampaignRow["status"],
-): "success" | "warning" | "info" | "attention" | undefined {
-  switch (status) {
-    case "On track":
-    case "Live":
-      return "success";
-    case "At risk":
-    case "Paused":
-      return "warning";
-    case "Ready to ship":
-      return "attention";
-    case "Scheduled":
-      return "info";
-    case "Draft":
-    case "Ended":
-    default:
-      return undefined;
-  }
-}
-
 // ---------- Sub-components ----------
 function KpiCard({
   label,
@@ -315,7 +295,7 @@ function ActivityFeed({ items }: { items: ActivityItem[] }) {
 
 function CampaignsTable({ campaigns }: { campaigns: CampaignRow[] }) {
   const { t } = useLocale();
-  const resourceName = { singular: "campaign", plural: "campaigns" };
+  const resourceName = { singular: t("preorder"), plural: t("preorders") };
   const { selectedResources, allResourcesSelected, handleSelectionChange } =
     useIndexResourceState(campaigns.map((c) => ({ id: c.id })) as never);
 

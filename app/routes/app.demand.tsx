@@ -138,7 +138,7 @@ export default function DemandPage() {
             <Text as="h2" variant="headingMd">{t("Demand by variant")}</Text>
           </Box>
           <IndexTable
-            resourceName={{ singular: "row", plural: "rows" }}
+            resourceName={{ singular: t("row"), plural: t("rows") }}
             itemCount={rows.length}
             selectable={false}
             headings={[
@@ -163,8 +163,8 @@ export default function DemandPage() {
               {sizeCurve.map((s) => (
                 <InlineStack key={s.size} gap="300" blockAlign="center" wrap={false}>
                   <Box minWidth="56px"><Text as="span" variant="bodyMd" fontWeight="semibold">{s.size}</Text></Box>
-                  <div style={{ flex: 1, background: "#F1F1F1", borderRadius: 999, height: 14, overflow: "hidden" }}>
-                    <div style={{ width: `${Math.round((s.total / sizeMax) * 100)}%`, height: "100%", background: "#1A1A1A", borderRadius: 999 }} />
+                  <div style={{ flex: 1, background: "var(--p-color-bg-surface-secondary)", borderRadius: 999, height: 14, overflow: "hidden" }}>
+                    <div style={{ width: `${Math.round((s.total / sizeMax) * 100)}%`, height: "100%", background: "var(--p-color-bg-inverse)", borderRadius: 999 }} />
                   </div>
                   <Box minWidth="40px"><Text as="span" variant="bodySm" tone="subdued" alignment="end">{s.total}</Text></Box>
                 </InlineStack>

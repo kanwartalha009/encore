@@ -34,7 +34,30 @@ const uninstalledShop = (
   }
 ).uninstalledShop;
 
+/** Heartbeats for /health — proves the timers are actually firing. */
+export function schedulerHeartbeat(): {
+  started: boolean;
+  lastOutboxTickAt: string | null;
+  lastHourlyTickAt: string | null;
+} {
+  const g = globalThis as unknown as {
+    __encoreSchedulerStarted?: boolean;
+    __encoreLastOutboxTick?: number;
+    __encoreLastHourlyTick?: number;
+  };
+  return {
+    started: !!g.__encoreSchedulerStarted,
+    lastOutboxTickAt: g.__encoreLastOutboxTick
+      ? new Date(g.__encoreLastOutboxTick).toISOString()
+      : null,
+    lastHourlyTickAt: g.__encoreLastHourlyTick
+      ? new Date(g.__encoreLastHourlyTick).toISOString()
+      : null,
+  };
+}
+
 async function outboxTick(): Promise<void> {
+  (globalThis as unknown as { __encoreLastOutboxTick?: number }).__encoreLastOutboxTick = Date.now();
   try {
     const r = await flushOutbox(100);
     if (r.processed > 0) {
@@ -46,6 +69,7 @@ async function outboxTick(): Promise<void> {
 }
 
 async function balanceRemindersTick(): Promise<void> {
+  (globalThis as unknown as { __encoreLastHourlyTick?: number }).__encoreLastHourlyTick = Date.now();
   try {
     const shops = await prisma.session.findMany({ distinct: ["shop"], select: { shop: true } });
     let reminded = 0;

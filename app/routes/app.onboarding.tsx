@@ -209,7 +209,7 @@ export default function OnboardingWizard() {
                 <Box background="bg-surface-secondary" padding="400" borderRadius="200">
                   <InlineStack align="center">
                     <span style={{ background: "#1a1a1a", color: "#fff", padding: "12px 24px", borderRadius: 8, fontWeight: 600 }}>
-                      {ctaLabel || "Preorder"}
+                      {ctaLabel || t("Preorder")}
                     </span>
                   </InlineStack>
                 </Box>

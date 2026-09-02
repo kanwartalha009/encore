@@ -114,8 +114,8 @@ export default function BenchmarkPage() {
 
   return (
     <Page
-      title={t("Pilot benchmark")}
-      subtitle={t("Recovered demand vs the incumbent — the validation-gate scorecard.")}
+      title={t("Benchmark")}
+      subtitle={t("How much demand Encore recovers for your store — at a glance.")}
       secondaryActions={[{ content: t("Export CSV"), onAction: exportCsv }]}
     >
       <BlockStack gap="500">
@@ -136,8 +136,8 @@ export default function BenchmarkPage() {
               value={pctText(data.waitlist.conversionRate)}
               sub={`${data.waitlist.converted} / ${data.waitlist.sent} ${t("notified")}`}
             />
-            <Metric label="Units captured" value={data.preorder.units.toLocaleString()} sub={t("pre-orders")} />
-            <Metric label="GMV captured" value={formatGmv(Math.round(data.preorder.gmv * 100), data.currency, locale)} sub={t("pre-order value")} />
+            <Metric label="Units captured" value={data.preorder.units.toLocaleString()} sub={t("preorders")} />
+            <Metric label="GMV captured" value={formatGmv(Math.round(data.preorder.gmv * 100), data.currency, locale)} sub={t("preorder value")} />
           </InlineGrid>
         )}
 
@@ -146,20 +146,20 @@ export default function BenchmarkPage() {
             <Card>
               <BlockStack gap="400">
                 <InlineStack align="space-between" blockAlign="center">
-                  <Text as="h2" variant="headingMd">{t("Beat the incumbent")}</Text>
+                  <Text as="h2" variant="headingMd">{t("Compare with your previous app")}</Text>
                   <Badge tone={liftTone}>
                     {`${t("Lift")} ${liftText}`}
                   </Badge>
                 </InlineStack>
                 <Text as="p" variant="bodySm" tone="subdued">
-                  {t("Enter the incumbent's waitlist→purchase rate to compute Encore's lift. The gate: Encore beats this baseline.")}
+                  {t("Enter your previous app's waitlist-to-purchase rate to see Encore's lift against that baseline.")}
                 </Text>
                 <Divider />
                 <fetcher.Form method="post">
                   <input type="hidden" name="intent" value="save_baseline" />
                   <InlineGrid columns={{ xs: 1, sm: 3 }} gap="300">
                     <TextField
-                      label={t("Incumbent app")}
+                      label={t("Previous app name")}
                       name="incumbentName"
                       value={name}
                       onChange={setName}
@@ -167,7 +167,7 @@ export default function BenchmarkPage() {
                       placeholder="e.g. Globo / Notify Me"
                     />
                     <TextField
-                      label={t("Incumbent conversion rate (%)")}
+                      label={t("Previous app conversion rate (%)")}
                       name="incumbentConversionRate"
                       value={rate}
                       onChange={setRate}
@@ -204,7 +204,7 @@ export default function BenchmarkPage() {
                   </Badge>
                 </InlineStack>
                 {!clean && (
-                  <Banner tone="critical">{t("A reliability incident is open — resolve before the gate.")}</Banner>
+                  <Banner tone="critical">{t("A reliability issue is open — resolve it before relying on these numbers.")}</Banner>
                 )}
               </BlockStack>
             </Card>

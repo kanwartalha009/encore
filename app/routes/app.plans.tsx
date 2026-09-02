@@ -107,7 +107,7 @@ export default function PlansPage() {
             <InlineGrid columns={{ xs: 1, sm: 2 }} gap="400">
               <BlockStack gap="100">
                 <InlineStack align="space-between">
-                  <Text as="span" variant="bodyMd">{t("Pre-orders")}</Text>
+                  <Text as="span" variant="bodyMd">{t("Preorders")}</Text>
                   <Text as="span" variant="bodyMd">{`${usage.preorders.toLocaleString()} / ${limitText(usage.preorderLimit)}`}</Text>
                 </InlineStack>
                 <ProgressBar progress={usageBar(usage.preorders, usage.preorderLimit)} size="small" tone={usage.preorderOver ? "critical" : "primary"} />
@@ -122,7 +122,7 @@ export default function PlansPage() {
             </InlineGrid>
             {(usage.preorderOver || usage.notifyOver) && (
               <Banner tone="warning">
-                {t("You've hit a monthly limit — new pre-orders / notify-me signups pause until you upgrade or the month resets. Existing orders are unaffected.")}
+                {t("You've hit a monthly limit — new preorders / notify-me signups pause until you upgrade or the month resets. Existing orders are unaffected.")}
               </Banner>
             )}
           </BlockStack>
@@ -176,7 +176,7 @@ export default function PlansPage() {
                     )}
                     <Divider />
                     <BlockStack gap="100">
-                      <Text as="p" variant="bodyMd">{`${limitText(p.preorderLimit)} ${t("pre-orders / mo")}`}</Text>
+                      <Text as="p" variant="bodyMd">{`${limitText(p.preorderLimit)} ${t("preorders / mo")}`}</Text>
                       <Text as="p" variant="bodyMd">{`${limitText(p.notifyLimit)} ${t("notify-me / mo")}`}</Text>
                       {p.trialDays > 0 && (
                         <Text as="p" variant="bodySm" tone="subdued">{`${p.trialDays}-${t("day free trial")}`}</Text>

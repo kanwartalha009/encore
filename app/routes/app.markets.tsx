@@ -224,7 +224,7 @@ export default function MarketsPage() {
             <Text as="h2" variant="headingMd">{t("Market × inventory")}</Text>
           </Box>
           <IndexTable
-            resourceName={{ singular: "market", plural: "markets" }}
+            resourceName={{ singular: t("market"), plural: t("markets") }}
             itemCount={markets.length}
             selectable={false}
             headings={[

@@ -220,7 +220,7 @@ export default function SettingsPage() {
       },
       { method: "post" },
     );
-    shopify.toast.show("Settings saved");
+    shopify.toast.show(t("Settings saved"));
   };
 
   // Live-preview message: substitute {{shipping_date}}, or use the fallback
@@ -277,7 +277,7 @@ export default function SettingsPage() {
                   key={id}
                   type="button"
                   onClick={() => jumpTo(id)}
-                  style={{ all: "unset", cursor: "pointer", display: "block", width: "100%" }}
+                  style={{ all: "unset", outline: "revert", cursor: "pointer", display: "block", width: "100%" }}
                 >
                   <Box
                     padding="200"
@@ -687,7 +687,7 @@ export default function SettingsPage() {
                   height: 36,
                   borderRadius: 8,
                   background: buttonColor,
-                  border: "1px solid #E1E3E5",
+                  border: "1px solid var(--p-color-border)",
                 }}
               />
             </InlineStack>
@@ -739,23 +739,25 @@ export default function SettingsPage() {
                               : 2,
                       }}
                     >
-                      Preorder
+                      {t("Preorder")}
                     </span>
                     <div
                       style={{
                         marginTop: 12,
                         fontWeight: 600,
                         fontSize: 16,
-                        color: "#202223",
+                        color: "var(--p-color-text)",
                       }}
                     >
-                      Aurora Hoodie — Indigo
+                      {t("Aurora Hoodie — Indigo")}
                     </div>
-                    <div style={{ color: "#6D7175", marginBottom: 12 }}>
+                    <div style={{ color: "var(--p-color-text-secondary)", marginBottom: 12 }}>
                       $54.00
                     </div>
                     <button
                       type="button"
+                      tabIndex={-1}
+                      aria-hidden="true"
                       className="encore-preorder-button"
                       style={{
                         background: buttonColor,
@@ -772,7 +774,7 @@ export default function SettingsPage() {
                     </button>
                     <div
                       className="encore-preorder-note"
-                      style={{ marginTop: 8, color: "#6D7175", fontSize: 13 }}
+                      style={{ marginTop: 8, color: "var(--p-color-text-secondary)", fontSize: 13 }}
                     >
                       {previewNote}
                     </div>
@@ -794,7 +796,7 @@ export default function SettingsPage() {
                 <InlineStack gap="200" blockAlign="center">
                   <Text as="h2" variant="headingMd">{t("Storefront block")}</Text>
                   <Badge tone={embedEnabled ? "success" : "warning"}>
-                    {embedEnabled ? "Enabled" : "Disabled"}
+                    {embedEnabled ? t("Enabled") : t("Disabled")}
                   </Badge>
                 </InlineStack>
                 <Text as="p" variant="bodySm" tone="subdued">{t("The Preorder button appears automatically on product pages for variants you've put on preorder. No theme code needed.")}</Text>
@@ -814,7 +816,7 @@ export default function SettingsPage() {
               <BlockStack gap="050">
                 <Text as="h2" variant="headingMd">{t("Discount compatibility")}</Text>
                 <Text as="p" variant="bodySm" tone="subdued">
-                  {t("Check your active discounts against pre-orders — Buy-X-Get-Y is the usual conflict.")}
+                  {t("Check your active discounts against preorders — Buy-X-Get-Y is the usual conflict.")}
                 </Text>
               </BlockStack>
               <Button onClick={checkDiscounts} loading={discountFetcher.state !== "idle"}>
@@ -830,7 +832,7 @@ export default function SettingsPage() {
               </Banner>
             ) : discountFetcher.data ? (
               (discountFetcher.data.rows?.length ?? 0) === 0 ? (
-                <Text as="p" tone="subdued">{t("No active discounts — nothing conflicts with pre-orders.")}</Text>
+                <Text as="p" tone="subdued">{t("No active discounts — nothing conflicts with preorders.")}</Text>
               ) : (
                 <BlockStack gap="300">
                   {discountFetcher.data.rows?.map((d) => (
@@ -848,7 +850,7 @@ export default function SettingsPage() {
               )
             ) : (
               <Text as="p" tone="subdued">
-                {t("Run a check to see how your live discounts interact with pre-orders.")}
+                {t("Run a check to see how your live discounts interact with preorders.")}
               </Text>
             )}
           </BlockStack>

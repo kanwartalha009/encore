@@ -41,6 +41,8 @@ import {
 
 import { authenticate } from "../shopify.server";
 import { useLocale } from "../lib/i18n";
+import { statusToTone, relativeTime } from "../lib/format";
+import ConfirmModal from "../components/ConfirmModal";
 import { getShopCurrency } from "../models/shop.server";
 
 const TRIGGER_LABEL: Record<string, string> = {
@@ -148,7 +150,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
         }
       })(),
       createdAt: campaign.createdAt.toISOString().slice(0, 10),
-      updatedAt: relativeTime(campaign.updatedAt),
+      updatedAt: campaign.updatedAt.toISOString(),
       cohortId: cohort?.id ?? "—",
       discount: campaign.discountEnabled
         ? `${campaign.discountAmount}${campaign.discountKind === "PERCENT" ? "%" : ""} off preorder`
@@ -167,18 +169,6 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     })),
   };
 };
-
-function relativeTime(d: Date) {
-  const seconds = Math.floor((Date.now() - d.getTime()) / 1000);
-  if (seconds < 60) return "just now";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes} min ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} hours ago`;
-  const days = Math.floor(hours / 24);
-  if (days === 1) return "Yesterday";
-  return `${days} days ago`;
-}
 
 export const headers: HeadersFunction = (headersArgs) => {
   return boundary.headers(headersArgs);
@@ -228,21 +218,6 @@ type Customer = {
 };
 
 // ---------- Helpers ----------
-function statusToTone(
-  status: CampaignDetail["status"],
-): "success" | "warning" | "info" | "critical" | undefined {
-  switch (status) {
-    case "Live":
-      return "success";
-    case "Scheduled":
-      return "info";
-    case "Paused":
-      return "warning";
-    case "Ended":
-      return "critical";
-  }
-}
-
 function paymentStatusTone(
   s: Customer["paymentStatus"],
 ): "success" | "warning" | "critical" | "info" | "attention" | undefined {
@@ -262,7 +237,7 @@ function paymentStatusTone(
 
 // ---------- Page ----------
 export default function CampaignDetail() {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const navigate = useNavigate();
   const shopify = useAppBridge();
   const fetcher = useFetcher();
@@ -311,14 +286,8 @@ export default function CampaignDetail() {
       redirectTo: `/app/campaigns/${id}`,
     });
   const handleDuplicate = () => submitMutation("duplicate");
-  const handleEnd = () => {
-    if (
-      typeof window !== "undefined" &&
-      !window.confirm(t("End this preorder? Shoppers will no longer see it."))
-    )
-      return;
-    submitMutation("end", { redirectTo: `/app/campaigns/${id}` });
-  };
+  const [confirmEndOpen, setConfirmEndOpen] = useState(false);
+  const handleEnd = () => setConfirmEndOpen(true);
   // Toast only once the mutation actually completed (fetcher back to idle).
   const [pendingToast, setPendingToast] = useState<string | null>(null);
   useEffect(() => {
@@ -342,7 +311,7 @@ export default function CampaignDetail() {
       backAction={{ content: t("Preorders"), url: "/app/campaigns" }}
       title={c.name}
       titleMetadata={<Badge tone={statusToTone(c.status)}>{t(c.status)}</Badge>}
-      subtitle={`${c.product} · Cohort ${c.cohortId} · Updated ${c.updatedAt}`}
+      subtitle={`${c.product} · ${t("Updated")} ${relativeTime(c.updatedAt, locale)}`}
       primaryAction={{
         content: t("Edit preorder"),
         icon: EditIcon,
@@ -350,7 +319,7 @@ export default function CampaignDetail() {
       }}
       secondaryActions={[
         {
-          content: c.status === "Paused" ? "Resume" : "Pause",
+          content: c.status === "Paused" ? t("Resume") : t("Pause"),
           icon: c.status === "Paused" ? PlayCircleIcon : PauseCircleIcon,
           onAction: handlePauseResume,
         },
@@ -448,6 +417,17 @@ export default function CampaignDetail() {
           </Tabs>
         </Card>
       </BlockStack>
+      <ConfirmModal
+        open={confirmEndOpen}
+        title={t("End preorder")}
+        message={t("End this preorder? Shoppers will no longer see it.")}
+        confirmLabel={t("End preorder")}
+        onConfirm={() => {
+          setConfirmEndOpen(false);
+          submitMutation("end", { redirectTo: `/app/campaigns/${id}` });
+        }}
+        onCancel={() => setConfirmEndOpen(false)}
+      />
     </Page>
   );
 }
@@ -521,13 +501,11 @@ function OverviewTab({
                   <Text as="p" variant="bodySm" tone="subdued">
                     {campaign.unitsTarget != null ? (
                       <>
-                        Units pre-sold toward the {campaign.unitsTarget}-unit
-                        target for cohort {campaign.cohortId}.
+                        {t("Units sold toward this cohort's goal of")}{" "}
+                        {campaign.unitsTarget} {t("units")}.
                       </>
                     ) : (
-                      <>
-                        {t("Units pre-sold for cohort")} {campaign.cohortId}.
-                      </>
+                      <>{t("Units sold for this cohort so far.")}</>
                     )}
                   </Text>
                 </BlockStack>
@@ -623,7 +601,7 @@ function OverviewTab({
 
 function CustomersTab({ customers }: { customers: Customer[] }) {
   const { t } = useLocale();
-  const resourceName = { singular: "customer", plural: "customers" };
+  const resourceName = { singular: t("customer"), plural: t("customers") };
 
   if (customers.length === 0) {
     return (
