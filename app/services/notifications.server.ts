@@ -27,9 +27,9 @@ export { MESSAGE_TYPES } from "../lib/notifications-shared";
 
 const DEFAULTS: Record<MessageType, MessageTemplate> = {
   preorder_confirmation: {
-    subject: "Your pre-order is confirmed — {{product}}",
+    subject: "Your preorder is confirmed — {{product}}",
     body:
-      "Hi {{customer_name}},\n\nThanks for pre-ordering {{product}}. " +
+      "Hi {{customer_name}},\n\nThanks for preordering {{product}}. " +
       "It's expected to ship around {{ship_date}}.\n\n" +
       "We'll email you as soon as it's on the way.",
   },
@@ -40,15 +40,15 @@ const DEFAULTS: Record<MessageType, MessageTemplate> = {
       "Grab it before it sells out again:\n{{product_url}}",
   },
   ship_date_update: {
-    subject: "An update on your pre-order — {{product}}",
+    subject: "An update on your preorder — {{product}}",
     body:
       "Hi {{customer_name}},\n\nThe expected ship date for {{product}} has moved to " +
       "{{new_ship_date}}. Thanks for your patience — we'll keep you posted.",
   },
   balance_due: {
-    subject: "Balance due for your pre-order — {{product}}",
+    subject: "Balance due for your preorder — {{product}}",
     body:
-      "Hi {{customer_name}},\n\nYour pre-order of {{product}} is almost ready. " +
+      "Hi {{customer_name}},\n\nYour preorder of {{product}} is almost ready. " +
       "The remaining balance of {{balance}} is due {{due_date}}.\n{{pay_link}}",
   },
 };

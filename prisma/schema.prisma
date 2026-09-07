@@ -251,6 +251,10 @@ model PreOrder {
   @@index([campaignId])
   @@index([cohortId])
   @@index([shop, paymentStatus])
+  // Webhook idempotency guard (R1.5-9): one row per order line even when
+  // Shopify redelivers orders/create concurrently. NULL orderRef rows (manual
+  // entries) never collide — Postgres treats NULLs as distinct in unique indexes.
+  @@unique([shop, shopifyOrderId, orderRef])
 }
 
 // ---------- UninstalledShop ----------

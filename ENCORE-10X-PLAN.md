@@ -25,58 +25,85 @@ Fixes to existing promised behavior (bugs, dead paths, polish) are not "new feat
 | International | 6 | 100% key coverage ×8 locales, Polaris locale, store-locale autodetect, currency everywhere | R1 |
 | Word-of-mouth ("unforgettable") | — | Merchant sees a number the app earned them, weekly; review ask lands at that moment | R2 |
 
-## R0 — Truth & reliability [CODE DONE 2026-08-31 — verify + deploy]
+## Phase map (updated 2026-09-04)
 
-- [x] STOCK trigger wired end-to-end: config serves `preorder.trigger`; widget honors it (stock = only when variant unavailable; always = presale even in stock — this direction was ALSO broken before)
-- [x] CampaignForm: "When shoppers see it" select (Always / Only when sold out); silent STOCK→MANUAL downgrade removed; DATE preserved
-- [x] Settings: inert "When should preorder be available?" ChoiceList → note pointing to the per-preorder control
-- [x] Mixed-cart message now rendered on storefront (was configured-but-invisible)
-- [x] SMS toggle hidden until the channel is real (audit O4)
-- [x] Welcome banner: dismissible + persisted, "Encore" naming, dead docs domain → in-app Get help (4 sites)
-- [x] Outbox health warning on dashboard (stuck>15min or DEAD → visible banner; self-diagnosing delivery)
-- [x] Currency threaded into CampaignForm (4 "USD" hardcodes gone); Plans locale fixed
-- [x] Crons: in-process scheduler (`app/services/scheduler.server.ts`, started from entry.server) — outbox 2min, reminders+purge hourly, all idempotent; `ENCORE_CRON_SECRET` set on Railway (endpoints remain as manual triggers); single-platform, no external scheduler
-- [ ] **Kanwar:** `npm install && npm run typecheck && npm run build` → commit → push → `shopify app deploy` → release
-- [ ] Verify on dev store: stock-trigger campaign hides button while in stock, shows when sold out; always-campaign shows while in stock; mixed-cart note visible
-- [ ] PHASE-R0-AUDIT.md
+| Phase | Goal | Gate to exit | Est. effort |
+|---|---|---|---|
+| R0 Truth & reliability | ✅ done, verified live | — | — |
+| R1 Parity + polish | ✅ code done, verified live | — | — |
+| **R1.5 Submission** | App on the App Store | Reviewer-grade E2E proof + external gates | 2–3 days (mostly waiting on PCD/assets) |
+| R2 Revenue Advisor + AI | "The app finds money for me" | 3 advisor cards live on ≥1 real store, digest sent weekly | 3–4 weeks |
+| R3 Channels, scale, moat | Category exclusives + BFS | Auto-convert live, BFS application filed | 3–4 weeks |
+| P Platform factory | 50 apps at Encore quality | New app scaffold → E2E-green in CI in < 1 day | 2–3 weeks, parallel to R2 |
 
-## R1 — Parity + polish (pre-publish) [CODE DONE 2026-08-31 — see GO-LIVE-AND-TEST-GUIDE.md]
+Ordering rule: **R1.5 first, then P (registry + release gates + test-mode token) BEFORE R2** — R2 features need real order data (PCD) and every R2 item is verified 10× faster once the test-mode token exists.
 
-- [x] Countdown timer block — `blocks/countdown.liquid` + campaign start/end served in config; same stock/trigger gating as the button
-- [x] Collection-page preorder badges — app-embed setting + injector; `/apps/encore/badges` proxy (ALL+SPECIFIC campaigns, 60s cache; COLLECTION-mode intentionally excluded from badges v1)
-- [x] Waitlist CSV import — Import CSV on Waitlist page (email + product_id/product_handle + optional variant_id, locale; 5000-row cap, dedupe, handle resolution); switching guide is in GO-LIVE-AND-TEST-GUIDE.md
-- [x] Onboarding: inherits Settings default button label; empty-catalog guidance; `?welcome=1` success banner on the campaign page
-- [x] Empty states: Insights (all tabs), low-stock, notifications, translations, benchmark, plans (+ dashboard cohorts card); help already taught
-- [x] i18n backfill: 145 missing keys ×7 locales (0 missing verified); Polaris locale wiring ×8; store-locale autodetect (shop primaryLocale)
-- [x] Cohort-name locale fix — autoCohortName now locale-aware (admin locale threaded through the form)
-- [x] Vitest suite: 33 tests / 6 files — storefront match loop incl. trigger paths + countdown dates, selling-plan builder (deposit/pay-later/fallback), cap function, Flow key renames, outbox backoff, CSV parser (`npm test`)
-- [ ] **Kanwar:** `npm install && npm run typecheck && npm test && npm run build` → commit → push → `shopify app deploy` → release (full walk in GO-LIVE-AND-TEST-GUIDE.md)
-- [ ] Verify on dev store per GO-LIVE-AND-TEST-GUIDE.md (countdown, badges, CSV import, onboarding, locales)
-- [ ] Lighthouse re-run with extension enabled; screenshots ×6 refreshed on final UI
-- [ ] PHASE-R1-AUDIT.md → **submit to Shopify App Store**
+## R0 — Truth & reliability [DONE — verified live 2026-09-01/04]
 
-## R2 — Revenue Advisor + AI ("the reason they talk about us") — post-first-installs
+- [x] STOCK/always trigger truth end-to-end; "When shoppers see it" control; inert Settings ChoiceList replaced
+- [x] Mixed-cart message rendered on storefront; SMS toggle hidden until real
+- [x] Welcome banner truthful + dismissible; outbox health banner; currency threaded
+- [x] Built-in scheduler (verified `[scheduler] started` + 2-min ticks in Railway logs)
+- [x] `/health` endpoint (db + scheduler heartbeat + outbox counts) — live 2026-09-04
 
-Every item below was proposed under THE FEATURE RULE and **APPROVED by Kanwar 2026-08-31** (all are merchant-approved suggestions — the app never self-creates live preorders):
+## R1 — Parity + polish [DONE — verified live 2026-09-04]
 
-- [ ] Revenue Advisor: low-stock scan → "enable preorder" suggestion cards — APPROVED
-- [ ] Revenue Advisor: OOS-with-demand → one-click preorder prompt — APPROVED
-- [ ] Revenue Advisor: best-seller presale suggestions — APPROVED
-- [ ] Incoming-inventory prompt (new PO / incoming transfer while OOS → offer preorder) — APPROVED
-- [ ] AI Copilot: plain-words prompt → drafted campaign with review card (proposal to come before build)
-- [ ] AI copywriter: notification templates ×8 locales (proposal to come before build)
-- [ ] Weekly revenue digest email + in-app ("your waitlist holds $X — approve these 2 preorders") — APPROVED
-- [ ] Review ask: triggered at the moment the digest shows earned revenue — APPROVED
-- [ ] PHASE-R2-AUDIT.md
+- [x] Countdown block; collection badges + `/apps/encore/badges`; waitlist CSV import; onboarding polish; empty states; i18n backfill ×7 locales + Polaris locale; cohort-name locale; vitest 34 tests
+- [x] QA MEDIUM pass: shared statusToTone, Intl relativeTime, Polaris confirm modals, Polaris tokens, a11y, benchmark copy, honest translation count
+- [x] **Universal app embed** — button/notify/low-stock auto-mount on any theme (verified on Debut)
+- [x] Webhook hardening — side-effect gating on redelivery, concurrent notify paths, ack timing; delivery verified 200
+- [x] Cap-function input query rename (typecheck clean)
+
+## R1.5 — Submission [IN PROGRESS] — see KANWAR-CHECKLIST.md for the owner view
+
+Each line: owner · acceptance check.
+
+1. [ ] Kanwar · Retarget "test" campaign to Short Sleeve (3 variants) + Save · `fetch('/apps/encore/config?product_id=8021084340386')` returns `preorder.active: true`
+2. [ ] Kanwar · `git push` the BIS-default fix (`storefront.server.ts`) · config returns `backInStock.enabled: true` with no saved settings
+3. [ ] Claude · Storefront E2E in Chrome: button + badge on PDP, collection badge, add-to-cart carries `properties[_preorder]` + ship date + selling plan, mixed cart with Echo Bag shows the notice, checkout reached (stop before pay) · screenshots + cart JSON in `PHASE-R1-AUDIT.md`
+4. [ ] Claude · Admin render-walk of every route by URL + all nav links · table in the audit; in-frame buttons listed for Kanwar's spot-check
+5. [ ] Kanwar · Request Protected Customer Data access in Partners (orders; name/email; reason: preorder tracking + notifications) · approval email / status "Approved"
+6. [ ] Claude (on Kanwar's word) · Uncomment `orders/create|paid|cancelled` in `shopify.app.toml` · Kanwar runs `npm run deploy`; a test order produces `POST /webhooks/orders/create 200` and a PreOrder row
+7. [ ] Kanwar · `RESEND_API_KEY` + verified `EMAIL_FROM` on Railway · a notify-me signup + restock produces a real email
+8. [ ] Claude · Remove diagnostics (`client-log` route, ClientErrorReporter probe, dispatch beacons) · grep shows zero `sendBeacon`; gates green
+9. [ ] Claude · DB unique index `PreOrder(shop, shopifyOrderId, orderRef)` migration · Kanwar runs `npx prisma migrate deploy`; redelivered order creates 0 new rows
+10. [ ] Kanwar · Nova decision: bring Nova up OR approve `NOVA_DISABLED=1` · outbox `dead` stops growing on `/health`
+11. [ ] Both · Listing assets: icon 1200², 6 screenshots, demo store + reviewer creds, support email, privacy/terms URLs · LISTING-KIT.md assets checklist all ticked
+12. [ ] Claude · `PHASE-R1-AUDIT.md` (checks, evidence, PASS/FAIL) + Lighthouse with extension enabled
+13. [ ] Kanwar · Partners → Distribution (Custom vs Public) → submit
+
+## P — Platform factory [NEXT after R1.5; runs parallel to R2]
+
+1. [ ] App registry generator: script walks an app → `platform/registry/<app>.yaml` (routes, services, models, webhooks, scopes, extensions, env vars, platform contracts) · Encore YAML produced with zero hand edits
+2. [ ] Knowledge graph artifact rendered from the registry (nodes/edges, click-through to files) · answers "which apps need PCD?" from data
+3. [ ] Release gate script (`npm run gate`): toml-vs-routes parity, docs-vs-routes truth check, generated-files policy, extension version stamped into `/health` · fails on the three real drifts we hit this week
+4. [ ] Test-mode session token (HMAC, `ENCORE_TEST_MODE=1` only, dev stores only) so Playwright drives the embedded admin outside the iframe · Playwright suite: create campaign → save → config shows it, green in CI
+5. [ ] Shared packages: `settings-defaults` (one source for UI + server), `ui-kit` (statusToTone, relativeTime, ConfirmModal, tokens), `outbox` with reachability circuit breaker · Encore consumes all three with zero behavior change
+6. [ ] New-app scaffold from the Encore skeleton + the three saved skills baked into `.claude/skills` · scaffold → gate green → E2E green in < 1 day
+
+## R2 — Revenue Advisor + AI [APPROVED items only; each proposal card before code]
+
+Prereqs: R1.5 #5–6 (real order data), P #4 (fast verification).
+
+1. [ ] Advisor data layer: nightly scan per shop → `AdvisorSuggestion` rows (type, product/variant, evidence numbers, estimated revenue, dismissedAt) · idempotent re-scan; unit tests on the 3 detectors
+2. [ ] Card: low-stock → "enable preorder" (uses low-stock scan + sell-through) · one-click creates a DRAFT campaign with the review card, never live silently
+3. [ ] Card: OOS-with-waitlist-demand → one-click preorder (waitlist count × price = evidence) · same review-card flow
+4. [ ] Card: best-seller presale suggestion (30-day velocity, in stock, no campaign) · same flow
+5. [ ] Incoming-inventory prompt (PO / transfer detected while OOS) → offer preorder · requires `inventory_levels/update` + purchase-order read; proposal first if a new scope is needed
+6. [ ] Weekly digest (in-app card + email via Resend): "your waitlist holds $X; approve these N" · dedupe per week; unsubscribe link; i18n ×8
+7. [ ] Review ask triggered when the digest shows earned revenue ≥ threshold · once per shop, App Bridge review API
+8. [ ] AI Copilot (proposal first): prompt → structured campaign JSON → review card → `createCampaign` · never silent-create; evals on 20 prompts
+9. [ ] AI copywriter (proposal first): notification templates ×8 locales from brand voice · merchant edits before save
+10. [ ] `PHASE-R2-AUDIT.md`
 
 ## R3 — Channels, scale, moat
 
-- [ ] SMS via merchant's Klaviyo (no carrier cost) → evaluate push/WhatsApp
-- [ ] Waitlist→preorder auto-convert with priority window (category-first; feature proposal first)
-- [ ] Postgres migration + real migration history + Session index; per-block JS split (<10KB)
-- [ ] Built for Shopify application when metrics qualify
-- [ ] Nova agency cross-store preorder dashboard (uncopyable moat)
-- [ ] PHASE-R3-AUDIT.md
+1. [ ] SMS via merchant's Klaviyo (no carrier cost) → evaluate push/WhatsApp
+2. [ ] Waitlist→preorder auto-convert with priority window (proposal first) — the unclaimed category exclusive
+3. [ ] Per-block storefront JS split (<10KB per block); Postgres migration history; Session index
+4. [ ] Built for Shopify application when metrics qualify
+5. [ ] Nova agency cross-store preorder dashboard
+6. [ ] `PHASE-R3-AUDIT.md`
 
 ## Operating notes
 

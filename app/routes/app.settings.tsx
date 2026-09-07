@@ -122,6 +122,8 @@ export default function SettingsPage() {
     notifyOverdue: boolean;
     orderTagName: string;
     badgeStyle: "pill" | "corner" | "ribbon";
+    badgePosition: "auto" | "price" | "image-left" | "image-right" | "button";
+    collectionBadges: boolean;
     buttonColor: string;
     customCss: string;
   }>;
@@ -199,6 +201,10 @@ export default function SettingsPage() {
   const [badgeStyle, setBadgeStyle] = useState<"pill" | "corner" | "ribbon">(
     g.badgeStyle ?? "pill",
   );
+  const [badgePosition, setBadgePosition] = useState<
+    "auto" | "price" | "image-left" | "image-right" | "button"
+  >(g.badgePosition ?? "auto");
+  const [collectionBadges, setCollectionBadges] = useState(g.collectionBadges ?? true);
   const [buttonColor, setButtonColor] = useState(g.buttonColor ?? "#1A1A1A");
   const [customCss, setCustomCss] = useState(g.customCss ?? "");
   const [previewNoDate, setPreviewNoDate] = useState(false);
@@ -215,7 +221,7 @@ export default function SettingsPage() {
           hideBuyNow, showPreorderLabel, showPromoNote,
           mixedCartWarning, mixedCartMessage, showLineItem, showContactLink, contactEmail, contactSubject,
           preorderModel, balanceCharge, balanceChargeDays, notifyOverdue, orderTagName,
-          badgeStyle, buttonColor, customCss,
+          badgeStyle, badgePosition, collectionBadges, buttonColor, customCss,
         }),
       },
       { method: "post" },
@@ -671,6 +677,26 @@ export default function SettingsPage() {
               onChange={(v) =>
                 setBadgeStyle(v[0] as "pill" | "corner" | "ribbon")
               }
+            />
+            <Select
+              label={t("Badge position on the product page")}
+              options={[
+                { label: t("Smart (next to the price, else on the image)"), value: "auto" },
+                { label: t("Next to the price"), value: "price" },
+                { label: t("On the image — top left"), value: "image-left" },
+                { label: t("On the image — top right"), value: "image-right" },
+                { label: t("Above the Preorder button"), value: "button" },
+              ]}
+              value={badgePosition}
+              onChange={(v) =>
+                setBadgePosition(v as "auto" | "price" | "image-left" | "image-right" | "button")
+              }
+              helpText={t("Smart placement finds your theme's price or main image automatically — works on any theme.")}
+            />
+            <Checkbox
+              label={t("Show the preorder badge on collection, search and home product cards")}
+              checked={collectionBadges}
+              onChange={setCollectionBadges}
             />
             <InlineStack gap="300" blockAlign="end">
               <Box minWidth="200px">

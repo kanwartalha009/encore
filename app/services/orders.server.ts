@@ -270,6 +270,10 @@ export async function processOrderCreate(
     });
     if (existing) continue;
 
+    // Race-safe: a concurrent redelivery can pass the findFirst above at the
+    // same time; the unique index (shop, shopifyOrderId, orderRef) then rejects
+    // the second insert with P2002 — treat that as "already recorded".
+    let created = true;
     await (
       prisma.preOrder.create as unknown as (a: {
         data: Record<string, unknown>;
@@ -298,7 +302,14 @@ export async function processOrderCreate(
             ? new Date()
             : null,
       },
+    }).catch((e: { code?: string }) => {
+      if (e?.code === "P2002") {
+        created = false;
+        return;
+      }
+      throw e;
     });
+    if (!created) continue;
     createdCount += 1;
     touchedCampaignIds.add(campaign.id);
   }

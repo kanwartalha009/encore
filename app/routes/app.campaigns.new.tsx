@@ -16,6 +16,7 @@ import {
 } from "../models/campaign.server";
 import { useLocale } from "../lib/i18n";
 import { syncCampaignSellingPlan } from "../models/selling-plan.server";
+import { syncContinueSellingSafe } from "../services/inventory-policy.server";
 import { listCollections } from "../models/collections.server";
 import { fetchMarkets } from "../models/markets.server";
 import { getSettings } from "../models/settings.server";
@@ -74,6 +75,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   } catch (e) {
     console.error("selling-plan sync failed (create)", e);
   }
+  // Sold-out variants are only purchasable with inventory policy CONTINUE —
+  // flip it for a LIVE campaign (Settings → auto-manage continue selling).
+  await syncContinueSellingSafe(admin, session.shop, [created.id]);
 
   return redirect(`/app/campaigns/${created.id}`);
 };

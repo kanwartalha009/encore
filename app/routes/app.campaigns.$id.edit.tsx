@@ -22,6 +22,7 @@ import {
   syncCampaignSellingPlan,
 } from "../models/selling-plan.server";
 import prisma from "../db.server";
+import { syncContinueSellingSafe } from "../services/inventory-policy.server";
 import { notifyShipDateChanged } from "../services/notify-events.server";
 import { listCollections } from "../models/collections.server";
 import { fetchMarkets } from "../models/markets.server";
@@ -123,6 +124,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   } catch (e) {
     console.error("selling-plan sync failed (update)", e);
   }
+  await syncContinueSellingSafe(admin, session.shop, [id]);
 
   return redirect(`/app/campaigns/${id}`);
 };

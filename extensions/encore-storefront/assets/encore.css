@@ -224,3 +224,16 @@
   color: var(--encore-on-accent, #fff);
   letter-spacing: 0.02em;
 }
+
+/* ---- Smart badge placement (2026-09-07) ---- */
+.encore-badge--inline { margin-left: 8px; vertical-align: middle; }
+.encore-badge--overlay,
+.encore-card-badge--overlay {
+  position: absolute;
+  z-index: 2;
+  margin: 0;
+  pointer-events: none;
+}
+.encore-badge--tl, .encore-card-badge--overlay { top: 12px; left: 12px; }
+.encore-badge--tr { top: 12px; right: 12px; left: auto; }
+.encore-card-badge--overlay { top: 8px; left: 8px; }

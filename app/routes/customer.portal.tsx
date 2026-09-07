@@ -144,7 +144,7 @@ async function buildPortal({ dest, sub }: Claims) {
         ? 0
         : po.balanceAmount ?? Math.max(0, po.amount - (po.depositAmount ?? 0));
     return {
-      product: po.campaign?.name ?? "Pre-order",
+      product: po.campaign?.name ?? "Preorder",
       orderRef: po.orderRef ?? "",
       units: po.units,
       shipDate: po.campaign?.shipDate

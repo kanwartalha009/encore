@@ -25,6 +25,7 @@ import {
   deleteCampaignSellingPlan,
   syncCampaignSellingPlan,
 } from "../models/selling-plan.server";
+import { syncContinueSellingSafe } from "../services/inventory-policy.server";
 
 // Loader: nothing to fetch, but block direct GETs.
 // Shopify embedded-app boundary: keep iframe headers on thrown auth responses (same as sibling routes).
@@ -61,18 +62,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   switch (intent) {
     case "pause":
       await bulkSetCampaignStatus(session.shop, ids, "PAUSED");
+      await syncContinueSellingSafe(admin, session.shop, ids);
       break;
     case "resume":
       await bulkSetCampaignStatus(session.shop, ids, "LIVE");
+      await syncContinueSellingSafe(admin, session.shop, ids);
       break;
     case "schedule":
       await bulkSetCampaignStatus(session.shop, ids, "SCHEDULED");
+      await syncContinueSellingSafe(admin, session.shop, ids);
       break;
     case "end":
       await bulkSetCampaignStatus(session.shop, ids, "ENDED");
+      await syncContinueSellingSafe(admin, session.shop, ids);
       break;
     case "publish":
       await bulkSetCampaignStatus(session.shop, ids, "LIVE");
+      await syncContinueSellingSafe(admin, session.shop, ids);
       break;
     case "delete":
       // Tear down the Shopify selling plan before the rows disappear.

@@ -196,6 +196,91 @@
     }
   }
 
+
+  // ---------- Smart badge placement ----------
+  // Where the "Preorder" badge goes, in priority order for "auto":
+  //   price  → inline right after the product price
+  //   image  → overlay on the main product image (top-left / top-right)
+  //   button → above the Preorder button (always works)
+  var PRICE_SELECTORS = [
+    ".price__regular .price-item--regular",
+    ".price-item--regular",
+    ".product__price",
+    ".product-single__price",
+    ".product-price",
+    "[data-product-price]",
+    ".price__current",
+    ".product__price-container .price",
+    ".price",
+    '[class*="price"]:not([class*="compare"]):not([class*="unit"])',
+  ];
+
+  function isVisible(el) {
+    if (!el) return false;
+    var r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0;
+  }
+
+  function findPriceEl(form, root) {
+    for (var i = 0; i < PRICE_SELECTORS.length; i++) {
+      var nodes = document.querySelectorAll(PRICE_SELECTORS[i]);
+      var best = null;
+      for (var j = 0; j < nodes.length; j++) {
+        var n = nodes[j];
+        if (root.contains(n) || !isVisible(n)) continue;
+        if (n.closest && n.closest("header, footer, nav, [data-encore-preorder]")) continue;
+        // Prefer a price that sits BEFORE the buy form in document order (the
+        // main product price) and skip ones inside product cards (recommendations).
+        if (form && form.compareDocumentPosition(n) & Node.DOCUMENT_POSITION_FOLLOWING) continue;
+        if (n.closest && n.closest("li, .card, .grid__item, .product-card, [class*='recommend']")) continue;
+        best = n; // last match preceding the form = closest to it
+      }
+      if (best) return best;
+    }
+    return null;
+  }
+
+  function findMainImage(form, root) {
+    var imgs = document.querySelectorAll("img");
+    var best = null;
+    var bestArea = 0;
+    for (var i = 0; i < imgs.length; i++) {
+      var im = imgs[i];
+      if (root.contains(im) || !isVisible(im)) continue;
+      if (im.closest && im.closest("header, footer, nav, li, .card, .grid__item, .product-card, [class*='recommend'], [class*='thumb']")) continue;
+      var r = im.getBoundingClientRect();
+      if (r.width < 200) continue;
+      var area = r.width * r.height;
+      if (area > bestArea) { bestArea = area; best = im; }
+    }
+    return best;
+  }
+
+  function placeBadge(badge, root, form, ui, position) {
+    var pos = position || "auto";
+    if (pos === "auto" || pos === "price") {
+      var price = findPriceEl(form, root);
+      if (price && price.parentNode) {
+        badge.className += " encore-badge--inline";
+        price.parentNode.insertBefore(badge, price.nextSibling);
+        return "price";
+      }
+      if (pos === "price") pos = "auto";
+    }
+    if (pos === "auto" || pos === "image-left" || pos === "image-right") {
+      var img = findMainImage(form, root);
+      var host = img && img.parentNode;
+      if (host) {
+        if (getComputedStyle(host).position === "static") host.style.position = "relative";
+        badge.className += " encore-badge--overlay " + (pos === "image-right" ? "encore-badge--tr" : "encore-badge--tl");
+        host.appendChild(badge);
+        return pos === "image-right" ? "image-right" : "image-left";
+      }
+    }
+    ui.insertBefore(badge, ui.firstChild);
+    return "button";
+  }
+
   // ---------- Preorder ----------
   function initPreorder(root) {
     if (root.__encoreInit) return;
@@ -235,9 +320,10 @@
 
       if (showBadge && p.showBadge !== false) {
         var badge = document.createElement("span");
-        badge.className = "encore-badge encore-badge--" + (p.badgeStyle || "pill");
+        badge.className = "encore encore-badge encore-badge--" + (p.badgeStyle || "pill");
         badge.textContent = p.badge || "Preorder";
-        ui.insertBefore(badge, ui.firstChild);
+        badge.setAttribute("data-encore-badge", "1");
+        placeBadge(badge, root, form, ui, p.badgePosition || root.getAttribute("data-badge-position") || "auto");
       }
 
       note.textContent = p.shipText
@@ -350,7 +436,9 @@
 
   function initCollectionBadges() {
     var settings = window.EncoreSettings || {};
-    if (!settings.collectionBadges) return;
+    // The app's Design setting decides (the /badges response carries
+    // `enabled`); the theme embed checkbox is an additional force-on. Runs on
+    // every page with product cards, including "you may also like" on PDPs.
 
     var links = document.querySelectorAll('a[href*="/products/"]');
     if (!links.length) return;
@@ -388,6 +476,7 @@
       })
       .then(function (res) {
         if (!res || !res.handles || !res.handles.length) return;
+        if (res.enabled === false && !settings.collectionBadges) return;
         var label = res.label || "Preorder";
         for (var i = 0; i < res.handles.length; i++) {
           var anchors = byHandle[res.handles[i]] || [];
@@ -402,7 +491,17 @@
             var badge = document.createElement("span");
             badge.className = "encore encore-card-badge";
             badge.textContent = label;
-            anchors[j].parentNode.insertBefore(badge, anchors[j]);
+            // Overlay on the card image (top-left) when there is one; otherwise
+            // fall back to an inline badge above the card link.
+            var cardImg = card.querySelector ? card.querySelector("img") : null;
+            var host = cardImg && cardImg.parentNode;
+            if (host && isVisible(cardImg)) {
+              if (getComputedStyle(host).position === "static") host.style.position = "relative";
+              badge.className += " encore-card-badge--overlay";
+              host.appendChild(badge);
+            } else {
+              anchors[j].parentNode.insertBefore(badge, anchors[j]);
+            }
             break;
           }
         }

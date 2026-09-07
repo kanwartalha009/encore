@@ -103,6 +103,7 @@ export type StorefrontConfig = {
         badge: string;
         showBadge: boolean;
         badgeStyle: string;
+        badgePosition: string; // auto | price | image-left | image-right | button
         placement: string;
         message: string;
         fallback: string;
@@ -161,7 +162,9 @@ export async function getPreorderBadgeHandles(
   locale: string,
   marketId = "",
   admin: AdminGraphqlClient | null = null,
-): Promise<{ label: string; handles: string[] }> {
+): Promise<{ enabled: boolean; label: string; handles: string[] }> {
+  const { general: gen } = await getSettings(shop);
+  const enabled = (gen as { collectionBadges?: boolean }).collectionBadges !== false;
   const clean = Array.from(
     new Set(
       handles
@@ -174,8 +177,8 @@ export async function getPreorderBadgeHandles(
   const tr: Record<string, string> = tAll[locale] || {};
   const label = (tr.preorder_badge && tr.preorder_badge.trim()) || "Preorder";
 
-  if (!clean.length || !admin) return { label, handles: [] };
-  if (await isOverPreorderLimit(shop)) return { label, handles: [] };
+  if (!enabled || !clean.length || !admin) return { enabled, label, handles: [] };
+  if (await isOverPreorderLimit(shop)) return { enabled, label, handles: [] };
 
   const now = new Date();
   const campaigns = (
@@ -196,7 +199,7 @@ export async function getPreorderBadgeHandles(
       return false;
     return c.productMode === "ALL" || c.productMode === "SPECIFIC";
   });
-  if (!campaigns.length) return { label, handles: [] };
+  if (!campaigns.length) return { enabled, label, handles: [] };
 
   // Store-level market rule (same gate as the product-page config).
   const rule = await getMarketRule(shop);
@@ -205,10 +208,10 @@ export async function getPreorderBadgeHandles(
     !marketId ||
     rule.markets.includes(marketId) ||
     rule.markets.map(gidNum).includes(gidNum(marketId));
-  if (!marketAllowed) return { label, handles: [] };
+  if (!marketAllowed) return { enabled, label, handles: [] };
 
   if (campaigns.some((c) => c.productMode === "ALL")) {
-    return { label, handles: clean };
+    return { enabled, label, handles: clean };
   }
 
   // Resolve handles → product ids in one Admin call.
@@ -228,7 +231,7 @@ export async function getPreorderBadgeHandles(
     resolved = body.data?.products?.nodes ?? [];
   } catch (err) {
     console.error("[encore] badge handle resolution failed", err);
-    return { label, handles: [] };
+    return { enabled, label, handles: [] };
   }
 
   const campaignIds = new Set(
@@ -237,7 +240,7 @@ export async function getPreorderBadgeHandles(
   const out = resolved
     .filter((p) => campaignIds.has(gidNum(p.id)))
     .map((p) => p.handle.toLowerCase());
-  return { label, handles: out };
+  return { enabled, label, handles: out };
 }
 
 export async function getStorefrontConfig(
@@ -332,6 +335,7 @@ export async function getStorefrontConfig(
       badge: tv("preorder_badge") || "Preorder",
       showBadge: b(g, "showPreorderLabel", true),
       badgeStyle: s(g, "badgeStyle", "pill"),
+      badgePosition: s(g, "badgePosition", "auto"),
       placement: (
         s(g, "ctaPlacement", "") ||
         match.ctaPlacement ||
@@ -400,7 +404,11 @@ export async function getStorefrontConfig(
       customCss: s(ls, "customCss", ""),
     },
     backInStock: {
-      enabled: b(bis, "enabled", false),
+      // Default ON to match the admin UI (Back in stock page shows the toggle
+      // enabled by default) — before 2026-09-04 the storefront treated unsaved
+      // settings as disabled, so notify-me never appeared until a merchant
+      // opened the settings and pressed Save without changing anything.
+      enabled: b(bis, "enabled", true),
       buttonText:
         tv("notify_button") || s(bis, "buttonText", "Notify me when available"),
       title: tv("notify_title") || s(bis, "popupTitle", "Get notified"),

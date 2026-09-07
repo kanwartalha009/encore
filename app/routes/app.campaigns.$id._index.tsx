@@ -33,6 +33,7 @@ import {
   DuplicateIcon,
   PauseCircleIcon,
   PlayCircleIcon,
+  DeleteIcon,
   CashDollarIcon,
   CartIcon,
   PackageIcon,
@@ -81,6 +82,29 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
   const preorders = await listCustomersForCampaign(session.shop, id);
 
+  // Human product label for the subtitle (was a raw gid://…/Product/123).
+  let productLabel: string | null = null;
+  if (campaign.productMode === "SPECIFIC" && campaign.productIds.length) {
+    try {
+      const gids = campaign.productIds
+        .slice(0, 5)
+        .map((p) => (String(p).startsWith("gid://") ? String(p) : `gid://shopify/Product/${p}`));
+      const res = await admin.graphql(
+        `#graphql
+        query EncoreCampaignProductTitles($ids: [ID!]!) {
+          nodes(ids: $ids) { ... on Product { id title } }
+        }`,
+        { variables: { ids: gids } },
+      );
+      const body = (await res.json()) as { data?: { nodes?: ({ title?: string } | null)[] } };
+      const titles = (body.data?.nodes ?? []).map((n) => n?.title).filter((t): t is string => !!t);
+      const extra = campaign.productIds.length - titles.length;
+      if (titles.length) productLabel = titles.join(" · ") + (extra > 0 ? ` +${extra}` : "");
+    } catch {
+      productLabel = null; // fall through to the count below
+    }
+  }
+
   const cohort = campaign.cohort;
   // Honest target: null when the merchant never set one (no fake 100% bars).
   const unitsTarget = cohort?.unitsTarget ?? null;
@@ -115,7 +139,10 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
           ? "All products"
           : campaign.productMode === "COLLECTION"
             ? `Collection · ${campaign.collectionId ?? "—"}`
-            : (campaign.productIds[0] ?? campaign.name),
+            : (productLabel ??
+              (campaign.productIds.length
+                ? `${campaign.productIds.length} product${campaign.productIds.length === 1 ? "" : "s"}`
+                : campaign.name)),
       trigger: TRIGGER_LABEL[campaign.triggerType] ?? campaign.triggerType,
       payment: PAYMENT_LABEL[campaign.paymentMode] ?? campaign.paymentMode,
       cartMode: CART_LABEL[campaign.cartMode] ?? "Hard split",
@@ -281,13 +308,56 @@ export default function CampaignDetail() {
       action: "/app/campaigns/actions",
     });
   };
-  const handlePauseResume = () =>
-    submitMutation(c.status === "Paused" ? "resume" : "pause", {
-      redirectTo: `/app/campaigns/${id}`,
-    });
-  const handleDuplicate = () => submitMutation("duplicate");
+  // Which mutation is in flight — drives the button spinner so the merchant
+  // sees the system working (Shopify round-trips take 1–3 s).
+  const [pendingIntent, setPendingIntent] = useState<string | null>(null);
+  const busy = fetcher.state !== "idle";
+  useEffect(() => {
+    if (!busy) setPendingIntent(null);
+  }, [busy]);
+  const run = (intent: string, opts: { redirectTo?: string } = {}) => {
+    setPendingIntent(intent);
+    submitMutation(intent, opts);
+  };
+  const here = { redirectTo: `/app/campaigns/${id}` };
+  const handleDuplicate = () => run("duplicate");
   const [confirmEndOpen, setConfirmEndOpen] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const handleEnd = () => setConfirmEndOpen(true);
+
+  // State-aware actions (what a merchant can do NEXT from each status):
+  //   Live / Scheduled → Pause · End
+  //   Paused           → Resume · End · Delete
+  //   Ended            → Reactivate · Delete
+  //   Draft            → Publish · Delete
+  // Duplicate and Edit are always available.
+  const act = (intent: string, content: string, extra: Record<string, unknown> = {}) => ({
+    content,
+    loading: busy && pendingIntent === intent,
+    disabled: busy && pendingIntent !== intent,
+    ...extra,
+  });
+  const secondaryActions = [
+    ...(c.status === "Live" || c.status === "Scheduled"
+      ? [act("pause", t("Pause"), { icon: PauseCircleIcon, onAction: () => run("pause", here) })]
+      : []),
+    ...(c.status === "Paused"
+      ? [act("resume", t("Resume"), { icon: PlayCircleIcon, onAction: () => run("resume", here) })]
+      : []),
+    ...(c.status === "Ended"
+      ? [act("publish", t("Reactivate"), { icon: PlayCircleIcon, onAction: () => run("publish", here) })]
+      : []),
+    ...(c.status === "Draft"
+      ? [act("publish", t("Publish"), { icon: PlayCircleIcon, onAction: () => run("publish", here) })]
+      : []),
+    act("duplicate", t("Duplicate"), { icon: DuplicateIcon, onAction: handleDuplicate }),
+    ...(c.status === "Live" || c.status === "Scheduled" || c.status === "Paused"
+      ? [act("end", t("End preorder"), { destructive: true, onAction: handleEnd })]
+      : []),
+    ...(c.status === "Paused" || c.status === "Ended" || c.status === "Draft"
+      ? [act("delete", t("Delete"), { destructive: true, icon: DeleteIcon, onAction: () => setConfirmDeleteOpen(true) })]
+      : []),
+  ];
   // Toast only once the mutation actually completed (fetcher back to idle).
   const [pendingToast, setPendingToast] = useState<string | null>(null);
   useEffect(() => {
@@ -297,7 +367,7 @@ export default function CampaignDetail() {
     }
   }, [pendingToast, fetcher.state, shopify]);
   const handleMarkCohortReady = () => {
-    submitMutation("set_cohort_ready", { redirectTo: `/app/campaigns/${id}` });
+    run("set_cohort_ready", here);
     setPendingToast(t("Cohort marked ready to ship"));
   };
   const handleViewStorefront = () => {
@@ -315,25 +385,10 @@ export default function CampaignDetail() {
       primaryAction={{
         content: t("Edit preorder"),
         icon: EditIcon,
+        disabled: busy,
         onAction: () => navigate(`/app/campaigns/${id}/edit`),
       }}
-      secondaryActions={[
-        {
-          content: c.status === "Paused" ? t("Resume") : t("Pause"),
-          icon: c.status === "Paused" ? PlayCircleIcon : PauseCircleIcon,
-          onAction: handlePauseResume,
-        },
-        {
-          content: t("Duplicate"),
-          icon: DuplicateIcon,
-          onAction: handleDuplicate,
-        },
-        {
-          content: t("End preorder"),
-          destructive: true,
-          onAction: handleEnd,
-        },
-      ]}
+      secondaryActions={secondaryActions}
     >
       <BlockStack gap="500">
         {showWelcome && (
@@ -424,9 +479,20 @@ export default function CampaignDetail() {
         confirmLabel={t("End preorder")}
         onConfirm={() => {
           setConfirmEndOpen(false);
-          submitMutation("end", { redirectTo: `/app/campaigns/${id}` });
+          run("end", here);
         }}
         onCancel={() => setConfirmEndOpen(false)}
+      />
+      <ConfirmModal
+        open={confirmDeleteOpen}
+        title={t("Delete preorder")}
+        message={t("Delete this preorder? This cannot be undone. Shopify orders already placed are not affected.")}
+        confirmLabel={t("Delete")}
+        onConfirm={() => {
+          setConfirmDeleteOpen(false);
+          run("delete", { redirectTo: "/app/campaigns" });
+        }}
+        onCancel={() => setConfirmDeleteOpen(false)}
       />
     </Page>
   );
