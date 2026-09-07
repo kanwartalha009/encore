@@ -251,10 +251,13 @@ model PreOrder {
   @@index([campaignId])
   @@index([cohortId])
   @@index([shop, paymentStatus])
-  // Webhook idempotency guard (R1.5-9): one row per order line even when
-  // Shopify redelivers orders/create concurrently. NULL orderRef rows (manual
-  // entries) never collide — Postgres treats NULLs as distinct in unique indexes.
-  @@unique([shop, shopifyOrderId, orderRef])
+  // R1.5-9 NOTE: the intended @@unique([shop, shopifyOrderId, orderRef])
+  // idempotency index cannot be added through `prisma db push` on the live
+  // SQLite volume (push refuses constraint additions without
+  // --accept-data-loss, which would block the container from booting — seen
+  // 2026-09-07). It ships with the real migration history (plan item P/R3).
+  // Until then idempotency relies on the find-then-create + P2002 guard in
+  // orders.server.ts, which is correct except under a concurrent redelivery.
 }
 
 // ---------- UninstalledShop ----------
