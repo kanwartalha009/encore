@@ -64,7 +64,7 @@ Each line: owner · acceptance check.
 4. [ ] Claude · Admin render-walk of every route by URL + all nav links · table in the audit; in-frame buttons listed for Kanwar's spot-check
 5. [ ] Kanwar · Request Protected Customer Data access in Partners (orders; name/email; reason: preorder tracking + notifications) · approval email / status "Approved"
 6. [ ] Claude (on Kanwar's word) · Uncomment `orders/create|paid|cancelled` in `shopify.app.toml` · Kanwar runs `npm run deploy`; a test order produces `POST /webhooks/orders/create 200` and a PreOrder row
-7. [ ] Kanwar · `RESEND_API_KEY` + verified `EMAIL_FROM` on Railway · a notify-me signup + restock produces a real email
+7. [ ] Kanwar · `ENCORE_EMAIL_API_KEY` + verified `ENCORE_EMAIL_FROM` on Railway · a notify-me signup + restock produces a real email
 8. [ ] Claude · Remove diagnostics (`client-log` route, ClientErrorReporter probe, dispatch beacons) · grep shows zero `sendBeacon`; gates green
 9. [ ] Claude · DB unique index `PreOrder(shop, shopifyOrderId, orderRef)` migration · Kanwar runs `npx prisma migrate deploy`; redelivered order creates 0 new rows
 10. [ ] Kanwar · Nova decision: bring Nova up OR approve `NOVA_DISABLED=1` · outbox `dead` stops growing on `/health`

@@ -5,7 +5,7 @@
  */
 import { useEffect, useState } from "react";
 import type { HeadersFunction, LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
-import { useLoaderData, useFetcher } from "react-router";
+import { useLoaderData, useFetcher, useRevalidator } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import {
   Page,
@@ -63,14 +63,16 @@ export default function PlansPage() {
   const { t } = useLocale();
   const { plans, usage, billing } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
+  const revalidator = useRevalidator();
   const [interval, setInterval] = useState<"EVERY_30_DAYS" | "ANNUAL">("EVERY_30_DAYS");
 
   // On subscribe, Shopify returns a top-level approval URL.
   useEffect(() => {
     const url = (fetcher.data as { confirmationUrl?: string } | undefined)?.confirmationUrl;
     if (url) {
-      if (window.top) window.top.location.href = url;
-      else window.location.href = url;
+      // Embedded apps cannot set window.top.location cross-origin; App Bridge
+      // patches window.open so "_top" performs the top-level redirect.
+      window.open(url, "_top");
     }
   }, [fetcher.data]);
 
@@ -134,7 +136,7 @@ export default function PlansPage() {
               <Text as="h2" variant="headingMd">{t("Plans couldn't be loaded")}</Text>
               <Text as="p" tone="subdued">{t("This is usually a brief connection hiccup — your store and settings are unaffected. Try again in a moment.")}</Text>
               <InlineStack>
-                <Button variant="primary" onClick={() => window.location.reload()}>{t("Try again")}</Button>
+                <Button variant="primary" onClick={() => revalidator.revalidate()} loading={revalidator.state !== "idle"}>{t("Try again")}</Button>
               </InlineStack>
             </BlockStack>
           </Card>
@@ -206,7 +208,7 @@ export default function PlansPage() {
 
         <Box paddingBlockStart="200">
           <Text as="p" variant="bodySm" tone="subdued">
-            {t("Plans, pricing, and limits are managed by your Nova platform admin.")}
+            {t("Billed through Shopify. Cancel or change plans any time; usage resets monthly.")}
           </Text>
         </Box>
       </BlockStack>

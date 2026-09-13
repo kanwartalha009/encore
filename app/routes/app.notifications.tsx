@@ -4,7 +4,7 @@
  * email copy per message type. The copy feeds both paths (Klaviyo event props /
  * the "Send email" Flow action).
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { HeadersFunction, LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import { useLoaderData, useFetcher, useSearchParams } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
@@ -80,11 +80,17 @@ export const headers: HeadersFunction = (h) => boundary.headers(h);
 
 export default function NotificationsPage() {
   const { t } = useLocale();
+  // Klaviyo OAuth starts with an authenticated fetch, then a top-level hop.
+  const klaviyoConnect = useFetcher<{ url?: string; error?: string }>();
+  useEffect(() => {
+    const u = klaviyoConnect.data?.url;
+    if (u) window.open(u, "_top");
+  }, [klaviyoConnect.data]);
   const { settings, defaults, klaviyoOAuth, klaviyoConfigurable } =
     useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const [searchParams] = useSearchParams();
-  const klaviyoStatus = searchParams.get("klaviyo");
+  const klaviyoStatus = searchParams.get("klaviyo") || (klaviyoConnect.data?.error === "unconfigured" ? "unconfigured" : null);
 
   const [provider, setProvider] = useState<NotificationProvider>(settings.provider);
   const [bisMode, setBisMode] = useState<"events" | "native">(settings.klaviyoBisMode);
@@ -180,7 +186,8 @@ export default function NotificationsPage() {
                     </InlineStack>
                     {klaviyoConfigurable ? (
                       <Button
-                        url="/klaviyo/connect"
+                        onClick={() => klaviyoConnect.load("/klaviyo/connect")}
+                        loading={klaviyoConnect.state !== "idle"}
                         variant={klaviyoOAuth ? "secondary" : "primary"}
                       >
                         {klaviyoOAuth ? t("Reconnect Klaviyo") : t("Connect Klaviyo")}

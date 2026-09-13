@@ -60,22 +60,24 @@ uri = "/webhooks/customers/redact"
 compliance_topics = [ "shop/redact" ]
 uri = "/webhooks/shop/redact"
 
-# orders/* TEMPORARILY DISABLED for local dev — orders carry Protected Customer Data (PCD access +
-# distribution method required). Handlers exist at app/routes/webhooks.orders.{create,paid,cancelled}.tsx.
-# orders/create now tags the order (`preorder` + configured tag) and writes the ship-date metafield
-# (encore.is_preorder / encore.ship_date), verified post-write. Uncomment + redeploy AFTER PCD is
-# approved (Partner Dashboard → API access → Protected customer data) and add the GDPR compliance topics.
-# [[webhooks.subscriptions]]
-# topics = [ "orders/create" ]
-# uri = "/webhooks/orders/create"
+# orders/* carry Protected Customer Data. On a development store the app only needs the
+# PCD request + Data protection details completed in the Partner Dashboard (no review):
+# https://shopify.dev/docs/apps/launch/protected-customer-data — "If your app is for testing
+# or installed only on a development store, you can access customer data in development
+# after Step 5. You don't need to submit for review." `shopify app deploy` refuses these
+# topics until that is done. orders/create records PreOrders, tags the order, writes the
+# encore.is_preorder / encore.ship_date metafields and re-evaluates caps + continue-selling.
+[[webhooks.subscriptions]]
+topics = [ "orders/create" ]
+uri = "/webhooks/orders/create"
 
-# [[webhooks.subscriptions]]
-# topics = [ "orders/paid" ]
-# uri = "/webhooks/orders/paid"
+[[webhooks.subscriptions]]
+topics = [ "orders/paid" ]
+uri = "/webhooks/orders/paid"
 
-# [[webhooks.subscriptions]]
-# topics = [ "orders/cancelled" ]
-# uri = "/webhooks/orders/cancelled"
+[[webhooks.subscriptions]]
+topics = [ "orders/cancelled" ]
+uri = "/webhooks/orders/cancelled"
 
 # Storefront endpoints behind the app proxy (App-Embed-only architecture; PRD wedge 4).
 [app_proxy]

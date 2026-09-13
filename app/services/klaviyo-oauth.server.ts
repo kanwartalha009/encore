@@ -72,6 +72,8 @@ function sign(data: string): string {
 }
 
 // ---- OAuth start (PKCE + signed cookie) ----
+// SameSite=None: the cookie is set from a fetch issued inside the Shopify admin
+// iframe (cross-site) and must be sent on Klaviyo's top-level redirect back.
 export type OAuthStart = { url: string; cookie: string };
 
 export function startOAuth(shop: string): OAuthStart {
@@ -89,12 +91,12 @@ export function startOAuth(shop: string): OAuthStart {
     code_challenge_method: "S256",
   });
   const data = Buffer.from(JSON.stringify({ shop, state, verifier })).toString("base64url");
-  const cookie = `${COOKIE}=${data}.${sign(data)}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=600`;
+  const cookie = `${COOKIE}=${data}.${sign(data)}; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=600`;
   return { url: `${AUTHORIZE_URL}?${params.toString()}`, cookie };
 }
 
 export function clearCookie(): string {
-  return `${COOKIE}=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`;
+  return `${COOKIE}=; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=0`;
 }
 
 export function readCookie(

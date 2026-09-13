@@ -404,16 +404,20 @@ export default function DashboardIndex() {
       ]}
     >
       <BlockStack gap="500">
-        {/* R0.2 — outbox health: delivery to the support/billing backend is
-            stuck or dead. Retries continue automatically (built-in scheduler);
-            the banner tells the merchant what to do, in their words. */}
+        {/* Platform sync (Nova outbox). These are internal messages — install
+            confirmation, billing sync — that the merchant cannot act on, so the
+            tone is informational and never asks them to "contact support". */}
         {data.outboxAlert && (
-          <Banner title={t("Background delivery needs attention")} tone="warning">
+          <Banner title={t("Platform sync is catching up")} tone="info">
             <p>
-              {t("Some messages (support requests, billing sync) haven't been delivered.")}{" "}
-              {data.outboxAlert.stuck > 0 && `${data.outboxAlert.stuck} pending. `}
-              {data.outboxAlert.dead > 0 && `${data.outboxAlert.dead} failed permanently. `}
-              {t("We're retrying automatically — if this doesn't clear within an hour, contact support from the Get help page.")}
+              {t("Encore's connection to its platform backend is retrying in the background")}
+              {" ("}
+              {[
+                data.outboxAlert.stuck > 0 ? `${data.outboxAlert.stuck} ${t("pending")}` : "",
+                data.outboxAlert.dead > 0 ? `${data.outboxAlert.dead} ${t("paused")}` : "",
+              ].filter(Boolean).join(", ")}
+              {"). "}
+              {t("Your store, preorders and checkout are not affected — no action needed.")}
             </p>
           </Banner>
         )}

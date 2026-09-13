@@ -19,7 +19,7 @@ Everything you need to take Encore from "deployed on Railway" to "live on a real
 | Checkout UI extension (thank-you page) | ✅ Built; add in checkout editor |
 | Preorder cap function | ✅ Deployed with app |
 | Health endpoint `/health` | ✅ db + scheduler heartbeat + outbox counts (added 2026-09-01) |
-| Email (Resend) | ⏳ Needs `RESEND_API_KEY` + domain verify — **verified missing on Railway 2026-09-01** |
+| Email (Resend) | ⏳ Needs `ENCORE_EMAIL_API_KEY` + domain verify — **verified missing on Railway 2026-09-01** |
 | Klaviyo | ⏳ Optional; connect in Settings → Notifications |
 | Background jobs (outbox, reminders, purge) | ✅ Built-in scheduler — verified ticking live 2026-09-01 |
 | Sentry | ⏳ Optional (`SENTRY_DSN`) |
@@ -34,8 +34,8 @@ Add these before going live:
 
 ```
 # Email — required for any customer-facing email (NOT SET yet)
-RESEND_API_KEY=re_...              # resend.com → API Keys
-EMAIL_FROM=notify@yourdomain.com   # must be on a verified domain in Resend
+ENCORE_EMAIL_API_KEY=re_...              # resend.com → API Keys
+ENCORE_EMAIL_FROM=notify@yourdomain.com   # must be on a verified domain in Resend
 
 # Optional but recommended
 SENTRY_DSN=<from sentry.io>        # error monitoring
@@ -109,7 +109,7 @@ Then make sure a **live campaign targets a real product published to the Online 
 3. **Add to cart → checkout** (dev store = Bogus Gateway test payments) — complete checkout
 4. Verify in Encore admin: campaign detail → units reserved +1, order appears; Shopify order gets the preorder tag + properties
 5. **Deferred flow**: second campaign with **Charge later** → deposit terms at checkout (test mode)
-6. **Back-in-stock**: on a 0-inventory product with no campaign, **Notify me** shows (embed auto-places it); submit an email → appears in Encore → Back in stock; restock → outbox queues the alert (sends once `RESEND_API_KEY` is set)
+6. **Back-in-stock**: on a 0-inventory product with no campaign, **Notify me** shows (embed auto-places it); submit an email → appears in Encore → Back in stock; restock → outbox queues the alert (sends once `ENCORE_EMAIL_API_KEY` is set)
 
 ---
 
@@ -117,7 +117,7 @@ Then make sure a **live campaign targets a real product published to the Online 
 
 1. **Partners dashboard** → your app → **Distribution**: Custom app (single store, no review) or Public app (App Store listing + review — see `LISTING-KIT.md`)
 2. Install on the real store; toggle the Encore app embed ON in its theme (§4 — one toggle, any theme)
-3. Set `RESEND_API_KEY` + verified `EMAIL_FROM` (real emails!)
+3. Set `ENCORE_EMAIL_API_KEY` + verified `ENCORE_EMAIL_FROM` (real emails!)
 4. Billing: plans auto-switch from test to real charges on non-dev stores
 5. Watch `/health` + Railway logs the first day; optional Sentry DSN
 
@@ -141,7 +141,7 @@ See `ENCORE-10X-PLAN.md` (all R1 items ✅) and `LISTING-KIT.md`:
 
 | Symptom | Check |
 |---|---|
-| Emails not sending | `RESEND_API_KEY` set? Domain verified in Resend? Railway logs `[outbox]` lines |
+| Emails not sending | `ENCORE_EMAIL_API_KEY` set? Domain verified in Resend? Railway logs `[outbox]` lines |
 | Outbox stuck | `GET /health` (scheduler heartbeat + pending/dead counts); Railway logs `[scheduler]` lines |
 | Storefront UI missing | App embed ON in theme editor? Campaign LIVE and targeting that product? Product published to Online Store channel? Store password entered (dev store)? |
 | Webhooks failing | Partners dashboard → app → Webhooks delivery metrics; Railway logs `POST /webhooks/... 200` |

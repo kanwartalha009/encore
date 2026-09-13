@@ -12,7 +12,7 @@ Every row: what was checked, the evidence (command / screenshot / log line run o
 | Webhook delivery | Real inventory change 0→1→0 → `POST /webhooks/inventory_levels/update 200`, `POST /webhooks/products/update 200` (2026-09-01) | PASS |
 | Webhook idempotency | orders/create dedupes by (shop, orderGid, orderRef); side-effects gated on `createdCount > 0`; unique index added to schema + P2002-tolerant create (2026-09-07) | PASS (code) / index applies on next deploy |
 | orders/* subscriptions | Commented in `shopify.app.toml` (PCD gating) — no order reaches the app until R1.5-5/6 | **FAIL until PCD** |
-| Email sending | Railway variables: no `RESEND_API_KEY`, no `EMAIL_FROM` (2026-09-01) | **FAIL until R1.5-7** |
+| Email sending | Railway variables: no `ENCORE_EMAIL_API_KEY`, no `ENCORE_EMAIL_FROM` (2026-09-01) | **FAIL until R1.5-7** |
 | GDPR + uninstall webhooks | Routes present, compliance topics subscribed in toml | PASS (config) |
 | Diagnostics removed | `grep -rn sendBeacon\|client-log app` → 0; `client-log.tsx` moved to `_to_delete/` (2026-09-07) | PASS (pending push) |
 

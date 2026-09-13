@@ -26,7 +26,7 @@ Store: `dev-novasolutions.myshopify.com` · published theme **Debut** (`theme_st
 | Non-PCD webhooks | `products/update`, `inventory_levels/update`, `app_subscriptions/update`, `app/uninstalled`, `app/scopes_update` | — | VERIFIED live 2026-09-01 (200s in Railway logs); not re-fired today |
 | App proxy | `/apps/encore/*` → `/proxy/*`; `authenticate.public.appProxy` HMAC | Today: `config` (JSON, `cart` block present), `badges`, `notify` (`{"ok":true,"deduped":false}` for a test email on the white variant) | VERIFIED |
 | Scopes in use vs declared | `write_products` (variants policy, selling plans, variant metafield definitions), `write_purchase_options`, `read_inventory`, `read_orders/write_orders` (tags, metafields), `read_markets`, `read_customers`, `write_metaobjects*`, **`write_validations` (new)** | — | VERIFIED by grep of mutations vs toml |
-| Email delivery (BIS, preorder emails) | Resend via `RESEND_API_KEY` / `EMAIL_FROM` | Env vars missing on Railway (verified 2026-09-01) → signups are stored, nothing is sent | BLOCKED on Kanwar |
+| Email delivery (BIS, preorder emails) | Resend via `ENCORE_EMAIL_API_KEY` / `ENCORE_EMAIL_FROM` | Env vars missing on Railway (verified 2026-09-01) → signups are stored, nothing is sent | BLOCKED on Kanwar |
 | Database | SQLite on a Railway volume, `prisma db push` at boot | Not a Shopify rule, but `db push` cannot add constraints on a live table (2026-09-13 hotfix) | Move to Postgres + `prisma migrate` before listing |
 
 ## 3. Storefront behaviour fixed today (found while auditing)
@@ -59,6 +59,31 @@ Unit tests: 8 files / **40 tests** green (`inventory-policy` ×4, `storefront-co
 1. **Theme:** delete the `custom_cart_checkout` block from Debut's cart section (§1). Re-test Check out.
 2. **Push + deploy** the six files already on your Mac (`git add -A && git commit -m "per-variant preorder offer, cap validation activation" && git push` then `npm run deploy`). Open the app once afterwards and accept the new `write_validations` scope.
 3. **PCD on the dev store (10 min, no review needed):** Partner Dashboard → Apps → Encore → Distribution → choose a method; API access requests → Protected customer data → request, select **Email** and **Name**, give reasons; complete Data protection details. Tell me "PCD done" → I uncomment `orders/create`, `orders/paid`, `orders/cancelled` → you `npm run deploy`.
-4. Railway: `RESEND_API_KEY` + `EMAIL_FROM` (verified domain) so BIS and preorder emails actually send.
+4. Railway: `ENCORE_EMAIL_API_KEY` + `ENCORE_EMAIL_FROM` (verified domain) so BIS and preorder emails actually send.
 5. Then the sold-out proof: set Units offered = 1 on red, place one test order → PDP flips to Sold out, badge disappears, variant returns to Deny. I'll capture it.
 6. Optional but recommended before listing: install Dawn on the dev store so I can run the OS 2.0 E2E.
+
+## 7. Addendum (same day) — webhooks on, notify-me tested, how other apps cover every theme
+
+**orders/* webhooks are now enabled** in `shopify.app.toml` (`orders/create`, `orders/paid`, `orders/cancelled`). `shopify app deploy` will refuse them until the PCD request on the Partner Dashboard is completed (dev-store path, no review — §2), so do that first, then deploy.
+
+**Notify-me — tested with real typing and clicks (2026-09-13):** white variant (sold out, not in the campaign) → "Notify me when available" is the only Encore CTA → modal "Get notified / Short Sleeve – white" → typed `kanwar-notify-test@example.com`, ticked consent, clicked Notify me → `POST /apps/encore/notify` 200 → "You're on the list — we'll let you know when it's back." What is NOT yet proven: the restock email (needs `ENCORE_EMAIL_API_KEY`/`ENCORE_EMAIL_FROM` on Railway) and the waitlist row in admin (the app was mid-scope-grant when I opened it — re-check after Update is clicked).
+
+**How the established preorder / back-in-stock apps get onto every theme** (from their own help docs):
+
+| App | Mechanism | Source |
+|---|---|---|
+| STOQ (preorder) | Renders "through the STOQ theme app embed"; inherits button position/spacing from the theme; merchant styles text/colour/radius only; "contact support via in-app chat" when a theme misbehaves; warns that the theme editor's inline preview does not run embeds | [STOQ help](https://help.stoqapp.com/en/article/how-to-fix-the-preorder-button-not-appearing-on-your-storefront-cxjg8x/) |
+| PreProduct (preorder) | OS 2.0: "drag and drop a block into your product page"; vintage themes: manual Liquid edit of the add-to-cart button + "continue selling when out of stock" | [PreProduct on Dawn](https://preproduct.io/adding-pre-orders-to-shopify-dawn/) |
+| Dotdigital (back in stock) | App embed auto-applies scripts on standard themes; "If your store uses a custom theme, you must enter a CSS selector … to position the Notify me button" | [Dotdigital help](https://marketing.help.dotdigital.com/en/articles/8199738-set-up-back-in-stock-alerts-for-shopify) |
+| Shopify's own guidance | Pre-orders require an app; "the pre-order app displays pre-order details on the product page" — no theme-level mechanism is mandated | [Shopify Help Center](https://help.shopify.com/en/manual/products/purchase-options/pre-orders/setup) |
+
+So the industry pattern is exactly three layers, and Encore already has the first two: (1) **app embed with automatic placement** next to the theme's cart form — Encore's universal auto-mount; (2) **app blocks** for OS 2.0 merchants who want exact placement — Encore ships `preorder`, `notify-me`, `low-stock`, `countdown`; (3) a **merchant-entered CSS selector override** for custom/exotic themes where detection fails, plus a support escape hatch.
+
+**What was missing on our side and is fixed today:** Settings claimed "Storefront block: Enabled" from a saved flag, never from the theme. It now reads the live theme's `config/settings_data.json` (`read_themes` scope, `themes(roles:[MAIN]).files`) and shows Enabled / Not enabled / Not verified, with the documented one-click deep link `…/themes/current/editor?context=apps&activateAppId=<extension-uid>/app-embed` labelled "Turn on in theme editor" when it is off.
+
+**Proposed (Feature Rule — needs your approval, 4 bullets):**
+- *What:* Settings → Storefront → "Advanced theme integration": optional CSS selectors for the buy button, price element and main image (`--` blank = automatic), passed to the runtime through the config proxy.
+- *Why:* layer 3 above — the escape hatch every mature app has for custom themes; turns "it doesn't show on my theme" support tickets into a 30-second fix.
+- *Scope:* 3 text fields + 3 config keys + ~20 lines in `placeBadge` / `autoMount` honouring overrides first. No new screens.
+- *Risk:* a bad selector could hide the wrong button — mitigated by a "Test on product page" link and by falling back to automatic when the selector matches nothing.

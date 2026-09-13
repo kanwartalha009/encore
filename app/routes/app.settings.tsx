@@ -40,11 +40,14 @@ import {
   checkDiscountCompatibility,
   type DiscountCompatRow,
 } from "../services/discount-compat.server";
+import { getEmbedStatus, embedActivationUrl } from "../models/theme-embed.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   const { general } = await getSettings(session.shop);
-  return { shop: session.shop, saved: general };
+  // Real check against the live theme (not the saved flag).
+  const embed = await getEmbedStatus(admin);
+  return { shop: session.shop, saved: general, embed, embedUrl: embedActivationUrl(session.shop) };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -72,7 +75,7 @@ export const headers: HeadersFunction = (headersArgs) => {
 };
 
 export default function SettingsPage() {
-  const { shop, saved } = useLoaderData<typeof loader>();
+  const { shop, saved, embed, embedUrl } = useLoaderData<typeof loader>();
   const shopify = useAppBridge();
   const submit = useSubmit();
   const discountFetcher = useFetcher<{
@@ -814,23 +817,32 @@ export default function SettingsPage() {
           </BlockStack>
         </Card>
 
-        {/* Storefront block status */}
+        {/* Storefront block status — verified against the live theme */}
         <Card>
           <BlockStack gap="400">
             <InlineStack align="space-between" blockAlign="center">
               <BlockStack gap="050">
                 <InlineStack gap="200" blockAlign="center">
                   <Text as="h2" variant="headingMd">{t("Storefront block")}</Text>
-                  <Badge tone={embedEnabled ? "success" : "warning"}>
-                    {embedEnabled ? t("Enabled") : t("Disabled")}
-                  </Badge>
+                  {embed.checked ? (
+                    <Badge tone={embed.enabled ? "success" : "critical"}>
+                      {embed.enabled ? t("Enabled") : t("Not enabled")}
+                    </Badge>
+                  ) : (
+                    <Badge tone="attention">{t("Not verified")}</Badge>
+                  )}
                 </InlineStack>
-                <Text as="p" variant="bodySm" tone="subdued">{t("The Preorder button appears automatically on product pages for variants you've put on preorder. No theme code needed.")}</Text>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  {embed.checked
+                    ? embed.enabled
+                      ? t("Encore's app embed is on in your live theme ({theme}). The Preorder button, Notify-me and Low-stock appear automatically next to your add-to-cart button — no theme code needed.").replace("{theme}", embed.themeName)
+                      : t("Encore's app embed is OFF in your live theme ({theme}). Nothing will show on the storefront until it is turned on — click Turn on, then Save in the theme editor.").replace("{theme}", embed.themeName)
+                    : t("Could not read your live theme to confirm the embed is on. Open the theme editor → App embeds and make sure Encore is toggled on.")}
+                </Text>
               </BlockStack>
-              <Button
-                url={`https://${shop}/admin/themes/current/editor?context=apps`}
-                external
-              >{t("Open theme editor")}</Button>
+              <Button url={embedUrl} external variant={embed.checked && !embed.enabled ? "primary" : undefined}>
+                {embed.checked && !embed.enabled ? t("Turn on in theme editor") : t("Open theme editor")}
+              </Button>
             </InlineStack>
           </BlockStack>
         </Card>
