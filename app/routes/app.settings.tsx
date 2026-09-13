@@ -30,7 +30,20 @@ import {
   ChevronDownIcon,
   ChevronUpIcon,
   InfoIcon,
+  LanguageIcon,
+  CartIcon,
+  OrderIcon,
+  InventoryIcon,
+  ButtonIcon,
+  CashDollarIcon,
+  DiscountIcon,
+  PaintBrushFlatIcon,
+  SettingsIcon,
+  MenuHorizontalIcon,
 } from "@shopify/polaris-icons";
+import { IconTile, type TileTone } from "../components/ui";
+
+type IconSource = React.FunctionComponent<React.SVGProps<SVGSVGElement>>;
 import { useAppBridge } from "@shopify/app-bridge-react";
 
 import { authenticate } from "../shopify.server";
@@ -242,18 +255,18 @@ export default function SettingsPage() {
         SAMPLE_SHIP_DATE,
       );
 
-  const SETTINGS_SECTIONS: [string, string][] = [
-    ["sec-language", t("settings.sec.language")],
-    ["sec-defaults", t("settings.sec.defaults")],
-    ["sec-lineitem", t("settings.sec.lineitem")],
-    ["sec-inventory", t("settings.sec.inventory")],
-    ["sec-button", t("settings.sec.button")],
-    ["sec-cart", t("settings.sec.cart")],
-    ["sec-payment", t("settings.sec.payment")],
-    ["sec-discounts", t("Discounts")],
-    ["sec-design", t("settings.sec.design")],
-    ["sec-advanced", t("settings.sec.advanced")],
-    ["sec-more", t("More settings")],
+  const SETTINGS_SECTIONS: [string, string, IconSource, TileTone][] = [
+    ["sec-language", t("settings.sec.language"), LanguageIcon, "sky"],
+    ["sec-defaults", t("settings.sec.defaults"), CartIcon, "violet"],
+    ["sec-lineitem", t("settings.sec.lineitem"), OrderIcon, "teal"],
+    ["sec-inventory", t("settings.sec.inventory"), InventoryIcon, "amber"],
+    ["sec-button", t("settings.sec.button"), ButtonIcon, "violet"],
+    ["sec-cart", t("settings.sec.cart"), CartIcon, "emerald"],
+    ["sec-payment", t("settings.sec.payment"), CashDollarIcon, "emerald"],
+    ["sec-discounts", t("Discounts"), DiscountIcon, "rose"],
+    ["sec-design", t("settings.sec.design"), PaintBrushFlatIcon, "amber"],
+    ["sec-advanced", t("settings.sec.advanced"), SettingsIcon, "slate"],
+    ["sec-more", t("More settings"), MenuHorizontalIcon, "slate"],
   ];
   const [activeSec, setActiveSec] = useState("sec-language");
   const jumpTo = (id: string) => {
@@ -281,7 +294,7 @@ export default function SettingsPage() {
         <div style={{ position: "sticky", top: 16 }}>
           <Card padding="200">
             <BlockStack gap="050">
-              {SETTINGS_SECTIONS.map(([id, label]) => (
+              {SETTINGS_SECTIONS.map(([id, label, icon, tone]) => (
                 <button
                   key={id}
                   type="button"
@@ -289,10 +302,12 @@ export default function SettingsPage() {
                   style={{ all: "unset", outline: "revert", cursor: "pointer", display: "block", width: "100%" }}
                 >
                   <Box
-                    padding="200"
+                    padding="150"
                     borderRadius="200"
                     background={activeSec === id ? "bg-surface-secondary" : undefined}
                   >
+                    <InlineStack gap="200" blockAlign="center" wrap={false}>
+                    <IconTile icon={icon} tone={activeSec === id ? tone : "slate"} size="sm" />
                     <Text
                       as="span"
                       variant="bodyMd"
@@ -300,6 +315,7 @@ export default function SettingsPage() {
                     >
                       {label}
                     </Text>
+                    </InlineStack>
                   </Box>
                 </button>
               ))}

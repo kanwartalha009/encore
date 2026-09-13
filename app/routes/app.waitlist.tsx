@@ -24,7 +24,8 @@ import {
   IndexTable,
   Banner,
 } from "@shopify/polaris";
-import { NotificationIcon, ExportIcon, ImportIcon } from "@shopify/polaris-icons";
+import { NotificationIcon, ExportIcon, ImportIcon, EmailIcon, CartIcon, PackageIcon } from "@shopify/polaris-icons";
+import { StatCard } from "../components/ui";
 import { useAppBridge } from "@shopify/app-bridge-react";
 
 import { authenticate } from "../shopify.server";
@@ -474,48 +475,46 @@ export default function BackInStockPage() {
         )}
 
         {/* ---- Dashboard (always visible) ---- */}
-        <Layout>
-          <Layout.Section variant="oneThird">
-            <Card>
-              <BlockStack gap="100">
-                <Text as="p" variant="bodySm" tone="subdued">{t("Total subscribers")}</Text>
-                <Text as="p" variant="heading2xl">{totalSubs.toLocaleString()}</Text>
-                <Text as="p" variant="bodySm" tone="subdued">{t("across")} {productCount} {productCount === 1 ? t("product") : t("products")}</Text>
-              </BlockStack>
-            </Card>
-          </Layout.Section>
-          <Layout.Section variant="oneThird">
-            <Card>
-              <BlockStack gap="100">
-                <Text as="p" variant="bodySm" tone="subdued">{t("Converted to purchase")}</Text>
-                <Text as="p" variant="heading2xl">{totalConverted.toLocaleString()}</Text>
-                <Text as="p" variant="bodySm" tone="subdued">{conversionRate}% {t("conversion rate")}</Text>
-              </BlockStack>
-            </Card>
-          </Layout.Section>
-          <Layout.Section variant="oneThird">
-            <Card>
-              <BlockStack gap="100">
-                <Text as="p" variant="bodySm" tone="subdued">{t("Products with waitlists")}</Text>
-                <Text as="p" variant="heading2xl">{productCount.toLocaleString()}</Text>
-                <Text as="p" variant="bodySm" tone="subdued">
-                  {t("newest signup")}{" "}
-                  {groups.length && groups.some((g) => g.newestSignupAt)
-                    ? new Date(
-                        Math.max(
-                          ...groups
-                            .filter((g) => g.newestSignupAt)
-                            .map((g) => new Date(g.newestSignupAt as string).getTime()),
-                        ),
-                      )
-                        .toISOString()
-                        .slice(0, 10)
-                    : "—"}
-                </Text>
-              </BlockStack>
-            </Card>
-          </Layout.Section>
-        </Layout>
+        <div className="encore-grid encore-grid--3">
+          <StatCard
+            index={0}
+            label={t("Total subscribers")}
+            value={totalSubs.toLocaleString()}
+            sub={`${t("across")} ${productCount} ${productCount === 1 ? t("product") : t("products")}`}
+            icon={EmailIcon}
+            tone="sky"
+          />
+          <StatCard
+            index={1}
+            label={t("Converted to purchase")}
+            value={totalConverted.toLocaleString()}
+            delta={`${conversionRate}%`}
+            deltaTone={totalConverted > 0 ? "success" : "subdued"}
+            sub={t("conversion rate")}
+            icon={CartIcon}
+            tone="emerald"
+          />
+          <StatCard
+            index={2}
+            label={t("Products with waitlists")}
+            value={productCount.toLocaleString()}
+            sub={`${t("newest signup")} ${
+              groups.length && groups.some((g) => g.newestSignupAt)
+                ? new Date(
+                    Math.max(
+                      ...groups
+                        .filter((g) => g.newestSignupAt)
+                        .map((g) => new Date(g.newestSignupAt as string).getTime()),
+                    ),
+                  )
+                    .toISOString()
+                    .slice(0, 10)
+                : "—"
+            }`}
+            icon={PackageIcon}
+            tone="violet"
+          />
+        </div>
 
         {groups.length === 0 ? (
           <Card>

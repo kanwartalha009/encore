@@ -149,7 +149,7 @@ export async function getDashboard(
       value: String(activeCampaigns),
       delta: campaigns.length ? `${campaigns.length} total` : "—",
       deltaTone: "subdued",
-      sub: campaigns.length === 1 ? "preorder" : "preorders",
+      sub: "including paused and ended",
     },
     {
       label: "Units pre-sold",

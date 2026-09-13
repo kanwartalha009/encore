@@ -1,37 +1,329 @@
-/* Encore admin — global chrome (loaded from app/routes/app.tsx). */
+/* ==========================================================================
+   Encore admin — design layer on top of Polaris (loaded from app/routes/app.tsx)
 
-/* Navigation progress bar: fixed to the top of the app frame, animates while
-   a loader/action is in flight (see NavigationProgress in app.tsx). */
-.encore-nav-progress {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  z-index: 520;
+   Polaris stays the structure (Page / Card / Text / IndexTable) so the app
+   keeps its native feel for App Store review. This file adds:
+     · brand tokens (accent, icon-tile palette, motion curves)
+     · colourful icon tiles + stat cards
+     · calm, purposeful motion (reveal-on-enter, hover lift, count-up)
+     · navigation feedback that doesn't look cheap: the admin's own loading
+       bar (App Bridge) + a soft content fade, no fake progress strips
+   ========================================================================== */
+
+:root {
+  /* Brand */
+  --encore-accent: #5b4fd6;
+  --encore-accent-strong: #4338ca;
+  --encore-accent-soft: #eeedfb;
+  --encore-hero-a: #1f1b4d;
+  --encore-hero-b: #4338ca;
+  --encore-hero-c: #7c5cff;
+
+  /* Icon tile palette — bg tint / foreground */
+  --tile-violet-bg: #efeafe;  --tile-violet-fg: #5b4fd6;
+  --tile-teal-bg:   #e0f5f2;  --tile-teal-fg:   #0f8f7a;
+  --tile-amber-bg:  #fff3d6;  --tile-amber-fg:  #b45309;
+  --tile-rose-bg:   #ffe6ec;  --tile-rose-fg:   #c2255c;
+  --tile-sky-bg:    #e3f1ff;  --tile-sky-fg:    #1d6fd1;
+  --tile-emerald-bg:#e3f7e8;  --tile-emerald-fg:#15803d;
+  --tile-slate-bg:  #eef1f4;  --tile-slate-fg:  #475467;
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --dur-fast: 160ms;
+  --dur-base: 320ms;
+  --dur-slow: 520ms;
+}
+
+/* --------------------------------------------------------------------------
+   Navigation feedback
+   -------------------------------------------------------------------------- */
+.encore-content {
+  transition: opacity var(--dur-fast) ease;
+}
+.encore-content--busy {
+  opacity: 0.62;
   pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.2s ease 0.15s;
+  transition-delay: 120ms; /* ignore sub-120 ms transitions — no flicker */
 }
-.encore-nav-progress--on {
-  opacity: 1;
-  transition-delay: 0s;
+
+/* --------------------------------------------------------------------------
+   Reveal on enter (staggered by --i)
+   -------------------------------------------------------------------------- */
+.encore-reveal {
+  animation: encore-reveal var(--dur-slow) var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 55ms);
 }
-.encore-nav-progress__bar {
-  height: 100%;
-  width: 40%;
-  background: var(--p-color-bg-fill-brand, #303030);
-  border-radius: 0 2px 2px 0;
-  transform: translateX(-100%);
+@keyframes encore-reveal {
+  from { opacity: 0; transform: translateY(10px) scale(0.995); }
+  to   { opacity: 1; transform: none; }
 }
-.encore-nav-progress--on .encore-nav-progress__bar {
-  animation: encore-nav-slide 1.1s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+
+/* --------------------------------------------------------------------------
+   Icon tiles
+   -------------------------------------------------------------------------- */
+.encore-tile {
+  --tile-bg: var(--tile-slate-bg);
+  --tile-fg: var(--tile-slate-fg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--tile-bg);
+  color: var(--tile-fg);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tile-fg) 10%, transparent);
+  transition: transform var(--dur-base) var(--ease-spring), box-shadow var(--dur-base) ease;
 }
-@keyframes encore-nav-slide {
-  0%   { transform: translateX(-100%); width: 30%; }
-  60%  { width: 45%; }
-  100% { transform: translateX(260%); width: 30%; }
+.encore-tile--sm { width: 32px; height: 32px; border-radius: 9px; }
+.encore-tile--lg { width: 52px; height: 52px; border-radius: 16px; }
+.encore-tile svg { width: 20px; height: 20px; fill: currentColor; }
+.encore-tile--sm svg { width: 16px; height: 16px; }
+.encore-tile--lg svg { width: 26px; height: 26px; }
+.encore-tile--violet  { --tile-bg: var(--tile-violet-bg);  --tile-fg: var(--tile-violet-fg); }
+.encore-tile--teal    { --tile-bg: var(--tile-teal-bg);    --tile-fg: var(--tile-teal-fg); }
+.encore-tile--amber   { --tile-bg: var(--tile-amber-bg);   --tile-fg: var(--tile-amber-fg); }
+.encore-tile--rose    { --tile-bg: var(--tile-rose-bg);    --tile-fg: var(--tile-rose-fg); }
+.encore-tile--sky     { --tile-bg: var(--tile-sky-bg);     --tile-fg: var(--tile-sky-fg); }
+.encore-tile--emerald { --tile-bg: var(--tile-emerald-bg); --tile-fg: var(--tile-emerald-fg); }
+.encore-tile--slate   { --tile-bg: var(--tile-slate-bg);   --tile-fg: var(--tile-slate-fg); }
+
+/* --------------------------------------------------------------------------
+   Interactive cards (stat cards, quick actions)
+   -------------------------------------------------------------------------- */
+.encore-lift {
+  transition: transform var(--dur-base) var(--ease-out), box-shadow var(--dur-base) ease;
+  will-change: transform;
 }
+.encore-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px -14px rgba(20, 18, 60, 0.35), 0 2px 6px -2px rgba(20, 18, 60, 0.12);
+}
+.encore-lift:hover .encore-tile {
+  transform: translateY(-1px) scale(1.06);
+}
+
+/* Stat card */
+.encore-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 118px;
+}
+.encore-stat__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.encore-stat__value {
+  font-size: 30px;
+  line-height: 1.1;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--p-color-text, #202223);
+  font-variant-numeric: tabular-nums;
+}
+.encore-stat__foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--p-color-text-secondary, #616161);
+}
+.encore-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 12px;
+  background: var(--tile-slate-bg);
+  color: var(--tile-slate-fg);
+}
+.encore-delta--up   { background: var(--tile-emerald-bg); color: var(--tile-emerald-fg); }
+.encore-delta--down { background: var(--tile-rose-bg);    color: var(--tile-rose-fg); }
+.encore-delta svg { width: 12px; height: 12px; fill: currentColor; }
+
+/* Quick action tile */
+.encore-quick {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--p-color-border, #e3e3e3);
+  border-radius: 12px;
+  background: var(--p-color-bg-surface, #fff);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+.encore-quick:focus-visible { outline: 2px solid var(--encore-accent); outline-offset: 2px; }
+.encore-quick__title { font-weight: 600; font-size: 13px; }
+.encore-quick__sub { font-size: 12px; color: var(--p-color-text-secondary, #616161); margin-top: 2px; }
+.encore-quick__arrow { margin-left: auto; color: var(--p-color-icon-secondary, #8a8a8a); transition: transform var(--dur-base) var(--ease-out); }
+.encore-quick__arrow svg { width: 16px; height: 16px; fill: currentColor; }
+.encore-quick:hover .encore-quick__arrow { transform: translateX(3px); color: var(--encore-accent); }
+
+/* --------------------------------------------------------------------------
+   Hero (dashboard header)
+   -------------------------------------------------------------------------- */
+.encore-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 14px;
+  padding: 26px 28px;
+  color: #fff;
+  background:
+    radial-gradient(900px 300px at 110% -40%, color-mix(in srgb, var(--encore-hero-c) 70%, transparent), transparent 60%),
+    radial-gradient(600px 240px at -10% 120%, color-mix(in srgb, #22d3ee 35%, transparent), transparent 60%),
+    linear-gradient(120deg, var(--encore-hero-a), var(--encore-hero-b) 70%, var(--encore-hero-c));
+  box-shadow: 0 18px 40px -24px rgba(67, 56, 202, 0.6);
+}
+.encore-hero__grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 20px;
+  align-items: center;
+}
+@media (max-width: 760px) { .encore-hero__grid { grid-template-columns: 1fr; } }
+.encore-hero__eyebrow {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+.encore-hero__title {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 6px 0 4px;
+}
+.encore-hero__sub { font-size: 14px; opacity: 0.85; max-width: 52ch; }
+.encore-hero__actions { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+.encore-hero__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.28);
+  background: rgba(255,255,255,0.12);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  transition: background var(--dur-fast) ease, transform var(--dur-base) var(--ease-spring);
+}
+.encore-hero__btn:hover { background: rgba(255,255,255,0.2); transform: translateY(-1px); }
+.encore-hero__btn--primary { background: #fff; color: var(--encore-hero-b); border-color: #fff; }
+.encore-hero__btn--primary:hover { background: #f4f2ff; }
+.encore-hero__btn svg { width: 16px; height: 16px; fill: currentColor; }
+.encore-hero__stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.encore-hero__stat {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.16);
+  backdrop-filter: blur(6px);
+}
+.encore-hero__stat b {
+  display: block;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.encore-hero__stat span { font-size: 12px; opacity: 0.8; }
+/* decorative orbs */
+.encore-hero::before, .encore-hero::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(2px);
+}
+.encore-hero::before { width: 220px; height: 220px; right: -60px; top: -110px; background: rgba(255,255,255,0.08); animation: encore-float 9s ease-in-out infinite; }
+.encore-hero::after  { width: 140px; height: 140px; right: 140px; bottom: -90px; background: rgba(255,255,255,0.06); animation: encore-float 11s ease-in-out infinite reverse; }
+@keyframes encore-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+
+/* --------------------------------------------------------------------------
+   Section headers with a tile
+   -------------------------------------------------------------------------- */
+.encore-section-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.encore-section-head__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+
+/* Progress ring (cohorts) */
+.encore-ring {
+  --p: 0;
+  --ring: var(--encore-accent);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: conic-gradient(var(--ring) calc(var(--p) * 1%), var(--tile-slate-bg) 0);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--p-color-text, #202223);
+  transition: --p var(--dur-slow) var(--ease-out);
+}
+.encore-ring::before {
+  content: "";
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--p-color-bg-surface, #fff);
+}
+.encore-ring > span { position: relative; }
+
+/* Status dot */
+.encore-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 18%, transparent);
+}
+.encore-dot--live { color: #15803d; animation: encore-pulse 2s ease-in-out infinite; }
+@keyframes encore-pulse {
+  0%,100% { box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 18%, transparent); }
+  50%     { box-shadow: 0 0 0 6px color-mix(in srgb, currentColor 8%, transparent); }
+}
+
+/* Reduced motion: keep everything readable, drop movement */
 @media (prefers-reduced-motion: reduce) {
-  .encore-nav-progress--on .encore-nav-progress__bar { animation: none; transform: none; width: 100%; opacity: 0.5; }
+  .encore-reveal { animation: none; }
+  .encore-lift, .encore-tile, .encore-quick__arrow, .encore-hero__btn { transition: none; }
+  .encore-hero::before, .encore-hero::after, .encore-dot--live { animation: none; }
 }
+
+/* Responsive grids (KPIs, quick actions) */
+.encore-grid { display: grid; gap: 16px; }
+.encore-grid--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.encore-grid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 1040px) { .encore-grid--4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 720px)  { .encore-grid--4, .encore-grid--3 { grid-template-columns: 1fr; } }
+.encore-grid > .encore-reveal, .encore-grid > .encore-reveal > .encore-lift, .encore-grid .encore-lift > * { height: 100%; }
+.encore-delta { white-space: nowrap; }
+.encore-stat__foot { flex-wrap: wrap; row-gap: 4px; }
+.encore-stat__top > p { min-height: 2.4em; display: flex; align-items: flex-start; }

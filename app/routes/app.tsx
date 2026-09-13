@@ -71,10 +71,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 /**
  * Navigation feedback: the admin's own top loading bar (App Bridge
- * `shopify.loading`) while any loader / action is in flight, plus a thin
- * in-app progress bar so the merchant always sees that a click registered.
+ * `shopify.loading`) while a loader / action is in flight, and the page
+ * content softens slightly so the merchant sees the click registered.
+ * Nothing fake, nothing flashy.
  */
-function NavigationProgress() {
+function useBusy(): boolean {
   const navigation = useNavigation();
   const shopify = useAppBridge();
   const busy = navigation.state !== "idle";
@@ -92,9 +93,14 @@ function NavigationProgress() {
       }
     };
   }, [busy, shopify]);
+  return busy;
+}
+
+function Content() {
+  const busy = useBusy();
   return (
-    <div className={"encore-nav-progress" + (busy ? " encore-nav-progress--on" : "")} aria-hidden="true">
-      <div className="encore-nav-progress__bar" />
+    <div className={"encore-content" + (busy ? " encore-content--busy" : "")} aria-busy={busy || undefined}>
+      <Outlet />
     </div>
   );
 }
@@ -133,8 +139,7 @@ export default function App() {
       <LocaleProvider defaultLocale={storeLocale}>
         <LocalizedPolarisProvider>
           <AppNav />
-          <NavigationProgress />
-          <Outlet />
+          <Content />
         </LocalizedPolarisProvider>
       </LocaleProvider>
     </AppProvider>
