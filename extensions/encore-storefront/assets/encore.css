@@ -237,3 +237,15 @@
 .encore-badge--tl, .encore-card-badge--overlay { top: 12px; left: 12px; }
 .encore-badge--tr { top: 12px; right: 12px; left: auto; }
 .encore-card-badge--overlay { top: 8px; left: 8px; }
+
+/* R1.5 — direct add-to-cart feedback */
+.encore-btn--busy { opacity: 0.75; cursor: progress; position: relative; }
+.encore-btn--busy::after {
+  content: ""; display: inline-block; width: 0.9em; height: 0.9em; margin-left: 0.5em;
+  border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%;
+  vertical-align: -0.15em; animation: encore-spin 0.7s linear infinite;
+}
+@keyframes encore-spin { to { transform: rotate(360deg); } }
+.encore-pre-error { color: #b42318; font-size: 0.9em; margin: 6px 0; }
+/* `hidden` must always win over our own display rules (notify button, ui slots). */
+.encore[hidden], .encore [hidden], .encore-btn[hidden] { display: none !important; }

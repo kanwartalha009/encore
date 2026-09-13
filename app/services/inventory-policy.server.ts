@@ -137,3 +137,41 @@ export async function syncContinueSellingSafe(
     }
   }
 }
+
+/**
+ * Reconcile every LIVE campaign's variants to CONTINUE (scheduler, hourly +
+ * boot). Self-heals shops that went live before this service existed, and any
+ * merchant who flipped a variant back to DENY by hand while a campaign is
+ * still selling. Only LIVE → CONTINUE is reconciled here; DENY is applied on
+ * explicit status transitions (pause/end) so we never fight a merchant's
+ * deliberate policy on campaigns that are not selling.
+ */
+export async function reconcileLiveCampaignPolicies(
+  getAdmin: (shop: string) => Promise<AdminGraphqlClient>,
+): Promise<{ shops: number; campaigns: number; variants: number }> {
+  const live = (await prisma.campaign.findMany({
+    where: { status: "LIVE", productMode: "SPECIFIC" },
+    select: { id: true, shop: true },
+  })) as { id: string; shop: string }[];
+  const byShop = new Map<string, string[]>();
+  for (const c of live) byShop.set(c.shop, [...(byShop.get(c.shop) ?? []), c.id]);
+  let variants = 0;
+  for (const [shop, ids] of byShop) {
+    let admin: AdminGraphqlClient;
+    try {
+      admin = await getAdmin(shop);
+    } catch (e) {
+      console.error("[inventory-policy/reconcile] no admin session for", shop, e);
+      continue;
+    }
+    for (const id of ids) {
+      try {
+        const r = await syncContinueSelling(admin, shop, id);
+        if (r.status === "synced") variants += r.variants;
+      } catch (e) {
+        console.error("[inventory-policy/reconcile]", shop, id, e);
+      }
+    }
+  }
+  return { shops: byShop.size, campaigns: live.length, variants };
+}

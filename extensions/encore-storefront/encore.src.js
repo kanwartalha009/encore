@@ -215,6 +215,18 @@
     '[class*="price"]:not([class*="compare"]):not([class*="unit"])',
   ];
 
+  // Product-card detection. Deliberately NOT ".grid__item" — Debut, Dawn and
+  // most OS 2.0 themes use grid__item for page-layout columns too, which would
+  // rule out the main product price and image. Cards are lists / articles /
+  // explicit card classes / recommendation sections.
+  var CARD_SELECTOR =
+    "li, article, .card, .card-wrapper, .product-card, .product-item, .grid-product, " +
+    ".product-grid-item, .grid__item--collection, [class*='recommend'], [class*='recently'], " +
+    "[class*='related'], [class*='upsell'], [class*='cross-sell']";
+  function inCard(el) {
+    return !!(el.closest && el.closest(CARD_SELECTOR));
+  }
+
   function isVisible(el) {
     if (!el) return false;
     var r = el.getBoundingClientRect();
@@ -229,11 +241,13 @@
         var n = nodes[j];
         if (root.contains(n) || !isVisible(n)) continue;
         if (n.closest && n.closest("header, footer, nav, [data-encore-preorder]")) continue;
-        // Prefer a price that sits BEFORE the buy form in document order (the
-        // main product price) and skip ones inside product cards (recommendations).
-        if (form && form.compareDocumentPosition(n) & Node.DOCUMENT_POSITION_FOLLOWING) continue;
-        if (n.closest && n.closest("li, .card, .grid__item, .product-card, [class*='recommend']")) continue;
-        best = n; // last match preceding the form = closest to it
+        // Prefer the price that sits BEFORE the Encore block in document order
+        // (the main product price — many themes render it INSIDE the buy form,
+        // e.g. Debut, so we anchor on the block, not the form) and skip prices
+        // inside product cards (recommendations / recently viewed).
+        if (root.compareDocumentPosition(n) & Node.DOCUMENT_POSITION_FOLLOWING) continue;
+        if (inCard(n)) continue;
+        best = n; // last match preceding the block = closest to it
       }
       if (best) return best;
     }
@@ -247,7 +261,8 @@
     for (var i = 0; i < imgs.length; i++) {
       var im = imgs[i];
       if (root.contains(im) || !isVisible(im)) continue;
-      if (im.closest && im.closest("header, footer, nav, li, .card, .grid__item, .product-card, [class*='recommend'], [class*='thumb']")) continue;
+      if (im.closest && im.closest("header, footer, nav, [class*='thumb']")) continue;
+      if (inCard(im)) continue;
       var r = im.getBoundingClientRect();
       if (r.width < 200) continue;
       var area = r.width * r.height;
@@ -363,14 +378,84 @@
         hideThemeBuyButtons(form, root);
       }
 
+      // Add to cart directly (R1.5 E2E fix). Themes attach their own submit
+      // handler to the product form and many (Debut, Brooklyn, Venture…)
+      // swallow the submit when their Add-to-cart button is disabled — which
+      // is exactly the sold-out state a preorder lives in. Posting the form's
+      // own fields to /cart/add.js sidesteps that and keeps every property,
+      // the selling plan and the chosen variant intact.
       btn.addEventListener("click", function () {
-        if (!form) return;
-        if (form.requestSubmit) form.requestSubmit();
-        else form.submit();
+        if (!form || btn.__busy) return;
+        addPreorderToCart(form, btn, note, p);
       });
 
       ui.hidden = false;
     });
+  }
+
+  function addPreorderToCart(form, btn, note, p) {
+    var idEl = form.querySelector('[name="id"]');
+    if (!idEl || !idEl.value) return;
+    var body = new FormData(form);
+    if (!body.get("quantity")) body.set("quantity", "1");
+    var idle = btn.textContent;
+    var errEl = form.querySelector("[data-encore-pre-error]");
+    if (!errEl) {
+      errEl = document.createElement("div");
+      errEl.setAttribute("data-encore-pre-error", "1");
+      errEl.className = "encore encore-pre-error";
+      errEl.setAttribute("role", "alert");
+      errEl.hidden = true;
+      if (note && note.parentNode) note.parentNode.insertBefore(errEl, note);
+      else btn.parentNode.appendChild(errEl);
+    }
+    errEl.hidden = true;
+    btn.__busy = true;
+    btn.setAttribute("aria-busy", "true");
+    btn.classList.add("encore-btn--busy");
+    btn.textContent = p.addingLabel || "Adding…";
+
+    fetch("/cart/add.js", {
+      method: "POST",
+      body: body,
+      credentials: "same-origin",
+      headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
+    })
+      .then(function (r) {
+        return r.json().then(function (j) {
+          return { ok: r.ok, status: r.status, json: j };
+        });
+      })
+      .then(function (res) {
+        if (!res.ok) {
+          var msg = (res.json && (res.json.description || res.json.message)) || "Could not add to cart.";
+          errEl.textContent = msg;
+          errEl.hidden = false;
+          reset();
+          return;
+        }
+        btn.textContent = p.addedLabel || "Added ✓";
+        try {
+          document.dispatchEvent(new CustomEvent("encore:added", { detail: res.json }));
+          // Let themes with a cart drawer refresh their count.
+          document.dispatchEvent(new CustomEvent("cart:refresh", { bubbles: true }));
+        } catch (e) {}
+        window.setTimeout(function () {
+          window.location.href = "/cart";
+        }, 250);
+      })
+      .catch(function () {
+        errEl.textContent = "Network error — please try again.";
+        errEl.hidden = false;
+        reset();
+      });
+
+    function reset() {
+      btn.__busy = false;
+      btn.removeAttribute("aria-busy");
+      btn.classList.remove("encore-btn--busy");
+      btn.textContent = idle;
+    }
   }
 
   // ---------- Countdown (R1) ----------
@@ -442,6 +527,9 @@
 
     var links = document.querySelectorAll('a[href*="/products/"]');
     if (!links.length) return;
+    // On a product page the page's own product is handled by the preorder
+    // block — never badge its breadcrumb / share / canonical links.
+    var currentHandle = productHandleFromHref(window.location.pathname);
 
     // handle → [best anchor per card]
     var byHandle = {};
@@ -450,8 +538,19 @@
       var a = links[i];
       // Skip links inside an Encore product-page block (that page has its own UI).
       if (a.closest && a.closest("[data-encore-preorder]")) continue;
-      var h = productHandleFromHref(a.getAttribute("href"));
-      if (!h) continue;
+      // Only same-store product links (share buttons embed the product URL in
+      // a pinterest/facebook href and would otherwise match).
+      var href = a.getAttribute("href") || "";
+      var resolved;
+      try {
+        resolved = new URL(href, window.location.href);
+      } catch (e) {
+        continue;
+      }
+      if (resolved.host !== window.location.host) continue;
+      var h = productHandleFromHref(resolved.pathname);
+      if (!h || h === currentHandle) continue;
+      if (a.closest && a.closest("header, footer, nav, [class*='share'], [class*='breadcrumb']")) continue;
       if (!byHandle[h]) {
         byHandle[h] = [];
         handles.push(h);
@@ -484,7 +583,7 @@
             // One badge per card: mark the closest card container.
             var card =
               (anchors[j].closest &&
-                anchors[j].closest("li, article, .card, .grid__item, .product-card")) ||
+                anchors[j].closest("li, article, .card, .card-wrapper, .grid__item, .product-card, .product-item, .grid-product")) ||
               anchors[j];
             if (card.getAttribute("data-encore-badged")) continue;
             card.setAttribute("data-encore-badged", "1");
@@ -748,7 +847,10 @@
         var available = v ? v.available : root.getAttribute("data-available") === "true";
         // Also offer notify-me when the preorder has hit its cap (sold out).
         var preorderSoldOut = !!(cfg.preorder && cfg.preorder.soldOut);
-        if (available && !preorderSoldOut) {
+        // A live preorder owns the buy box: the Preorder button IS the call to
+        // action, so never stack "Notify me" next to it (R1.5 E2E fix).
+        var preorderActive = !!(cfg.preorder && cfg.preorder.active && !preorderSoldOut);
+        if ((available && !preorderSoldOut) || preorderActive) {
           btn.hidden = true;
         } else {
           btn.hidden = false;

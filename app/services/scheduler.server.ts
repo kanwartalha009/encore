@@ -16,6 +16,8 @@ import prisma from "../db.server";
 import { flushOutbox } from "../lib/nova.server";
 import { remindBalancesDue } from "./notify-events.server";
 import { purgeShopData } from "./gdpr.server";
+import { reconcileLiveCampaignPolicies } from "./inventory-policy.server";
+import { unauthenticated } from "../shopify.server";
 
 const OUTBOX_EVERY_MS = 2 * 60 * 1000; // matches the "every 2 minutes" ops spec
 const HOURLY_EVERY_MS = 60 * 60 * 1000; // daily jobs run hourly — idempotent, so
@@ -103,6 +105,17 @@ async function purgeTick(): Promise<void> {
   }
 }
 
+async function policyReconcileTick(): Promise<void> {
+  try {
+    const r = await reconcileLiveCampaignPolicies(async (shop) => (await unauthenticated.admin(shop)).admin);
+    if (r.variants > 0) {
+      console.log(`[scheduler/inventory-policy] CONTINUE on ${r.variants} variant(s) across ${r.campaigns} live campaign(s) / ${r.shops} shop(s)`);
+    }
+  } catch (e) {
+    console.error("[scheduler/inventory-policy]", e);
+  }
+}
+
 export function startScheduler(): void {
   if (process.env.ENCORE_DISABLE_INTERNAL_CRON === "1") {
     console.log("[scheduler] internal cron disabled via ENCORE_DISABLE_INTERNAL_CRON");
@@ -116,11 +129,13 @@ export function startScheduler(): void {
     void outboxTick();
     void balanceRemindersTick();
     void purgeTick();
+    void policyReconcileTick();
     setInterval(() => void outboxTick(), OUTBOX_EVERY_MS);
     setInterval(() => {
       void balanceRemindersTick();
       void purgeTick();
+      void policyReconcileTick();
     }, HOURLY_EVERY_MS);
-    console.log("[scheduler] started — outbox every 2min, reminders/purge hourly");
+    console.log("[scheduler] started — outbox every 2min, reminders/purge/policy-reconcile hourly");
   }, BOOT_DELAY_MS);
 }
