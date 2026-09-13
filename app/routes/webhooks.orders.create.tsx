@@ -3,6 +3,7 @@ import { authenticate } from "../shopify.server";
 import {
   applyPreorderOrderMetadata,
   processOrderCreate,
+  syncPolicyAfterOrder,
   refreshCapsForOrder,
   type ShopifyOrderPayload,
 } from "../services/orders.server";
@@ -58,6 +59,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       // Function. Best-effort — caps are also recomputed live in the proxy.
       await refreshCapsForOrder(shop, result.variantsByCampaign).catch((e) =>
         console.error("[webhook] orders/create: cap refresh failed", e),
+      );
+      // Variants whose preorder cap this order just exhausted go back to
+      // DENY → theme shows Sold out, Shopify rejects further adds.
+      await syncPolicyAfterOrder(shop, Object.keys(result.variantsByCampaign)).catch((e) =>
+        console.error("[webhook] orders/create: policy sync failed", e),
       );
 
       // §8 reliability: we only reach here after the tag + ship-date metafield

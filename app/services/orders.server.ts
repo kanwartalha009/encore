@@ -27,6 +27,7 @@ import prisma from "../db.server";
 import { unauthenticated } from "../shopify.server";
 import { getSettings } from "../models/settings.server";
 import { refreshVariantRemaining } from "../models/preorder-cap.server";
+import { syncContinueSellingSafe } from "./inventory-policy.server";
 
 // ---------- Shopify webhook payload (subset we use) ----------
 export type ShopifyMoney = string; // "54.00"
@@ -351,6 +352,13 @@ export async function refreshCapsForOrder(
     });
     if (c) await refreshVariantRemaining(admin, shop, c, variantGids);
   }
+}
+
+/** Re-evaluate continue-selling per variant for the campaigns an order touched. */
+export async function syncPolicyAfterOrder(shop: string, campaignIds: string[]): Promise<void> {
+  if (!campaignIds.length) return;
+  const { admin } = await unauthenticated.admin(shop);
+  await syncContinueSellingSafe(admin, shop, campaignIds);
 }
 
 // ---------- Public: tag the order + write the ship-date metafield ----------

@@ -236,13 +236,53 @@ export async function getPreorderBadgeHandles(
     return { enabled, label, handles: [] };
   }
 
-  const campaignIds = new Set(
-    campaigns.flatMap((c) => jsonArr(c.productIds).map(gidNum)),
-  );
-  const out = resolved
-    .filter((p) => campaignIds.has(gidNum(p.id)))
-    .map((p) => p.handle.toLowerCase());
+  // product id → its campaign (first match wins, same order as the PDP config).
+  const byProduct = new Map<string, (typeof campaigns)[number]>();
+  for (const c of campaigns) {
+    for (const pid of jsonArr(c.productIds).map(gidNum)) {
+      if (!byProduct.has(pid)) byProduct.set(pid, c);
+    }
+  }
+  const out: string[] = [];
+  for (const p of resolved) {
+    const c = byProduct.get(gidNum(p.id));
+    if (!c) continue;
+    // No badge once the product's preorder allocation is exhausted — the
+    // PDP shows Sold out at that point, so the collection card must agree.
+    if (!(await productHasPreorderCapacity(shop, c, p.id))) continue;
+    out.push(p.handle.toLowerCase());
+  }
   return { enabled, label, handles: out };
+}
+
+/**
+ * True while at least one unit of the product can still be preordered:
+ * campaign-level cap not exhausted AND (no per-variant caps for this product,
+ * or at least one configured variant still has units).
+ */
+async function productHasPreorderCapacity(
+  shop: string,
+  campaign: { id: string; maxPerCampaign: number | null; variantConfigs: string },
+  productGid: string,
+): Promise<boolean> {
+  const whole = await getCampaignCapacity(shop, campaign, null);
+  if (whole.soldOut) return false;
+  let cfgs: { productId?: string; variantId?: string; unitsOffered?: number | null }[] = [];
+  try {
+    cfgs = JSON.parse(campaign.variantConfigs) as typeof cfgs;
+  } catch {
+    return true;
+  }
+  const pid = gidNum(productGid);
+  const mine = cfgs.filter(
+    (v) => v.variantId && gidNum(v.productId ?? "") === pid && typeof v.unitsOffered === "number" && v.unitsOffered > 0,
+  );
+  if (!mine.length) return true;
+  for (const v of mine) {
+    const cap = await getCampaignCapacity(shop, campaign, v.variantId!);
+    if (!cap.soldOut) return true;
+  }
+  return false;
 }
 
 export async function getStorefrontConfig(

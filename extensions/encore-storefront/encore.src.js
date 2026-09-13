@@ -316,12 +316,22 @@
       var skel = root.querySelector("[data-encore-pre-skeleton]");
       if (skel && skel.parentNode) skel.parentNode.removeChild(skel);
 
-      if (!cfg || !cfg.preorder || !cfg.preorder.active) return;
+      if (!cfg || !cfg.preorder) return;
       var p = cfg.preorder;
 
       // Auto-mounted shells carry no per-block placement choice — follow the
       // placement configured in the Encore admin instead.
       if (root.hasAttribute("data-encore-auto") && p.placement) placement = p.placement;
+
+      // Cap reached: the campaign is live but this variant's allocation is
+      // gone. Show a real Sold out state right away (the app also flips the
+      // variant back to DENY, but that lands a few seconds after the order),
+      // no badge, and let Notify-me take over the buy box.
+      if (p.soldOut || !p.active) {
+        var stocked = root.getAttribute("data-in-stock") === "true";
+        if (p.soldOut && !stocked) renderSoldOut(root, closestForm(root), ui, btn, note, p);
+        return;
+      }
 
       // R0.1 — honor the campaign's trigger:
       //   "stock"  → preorder only when the product/variant is NOT in stock
@@ -396,6 +406,17 @@
 
       ui.hidden = false;
     });
+  }
+
+  function renderSoldOut(root, form, ui, btn, note, p) {
+    if (!btn) return;
+    hideThemeBuyButtons(form, root);
+    btn.textContent = p.soldOutLabel || "Sold out";
+    btn.disabled = true;
+    btn.setAttribute("aria-disabled", "true");
+    btn.classList.add("encore-btn--soldout");
+    if (note) note.textContent = p.soldOutMessage || "";
+    ui.hidden = false;
   }
 
   function addPreorderToCart(form, btn, note, p) {

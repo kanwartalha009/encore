@@ -18,6 +18,7 @@
  */
 import prisma from "../db.server";
 import { getSettings } from "../models/settings.server";
+import { getCampaignCapacity } from "../models/capacity.server";
 import type { AdminGraphqlClient } from "../models/selling-plan.server";
 
 const toGid = (id: string, kind: "Product" | "ProductVariant") =>
@@ -33,15 +34,25 @@ function parseJson<T>(raw: string | null | undefined, fallback: T): T {
 }
 
 type Row = {
+  id: string;
   status: string;
   productMode: string;
   productIds: string;
   variantConfigs: string;
+  maxPerCampaign: number | null;
 };
 
 export type PolicySyncResult =
   | { status: "skipped"; reason: string }
-  | { status: "synced"; policy: "CONTINUE" | "DENY"; products: number; variants: number; errors: string[] };
+  | {
+      status: "synced";
+      policy: "CONTINUE" | "DENY" | "MIXED";
+      products: number;
+      variants: number;
+      /** Variants forced back to DENY because their preorder cap is exhausted. */
+      cappedVariants: number;
+      errors: string[];
+    };
 
 export async function syncContinueSelling(
   admin: AdminGraphqlClient,
@@ -54,12 +65,19 @@ export async function syncContinueSelling(
 
   const row = (await prisma.campaign.findFirst({
     where: { shop, id: campaignId },
-    select: { status: true, productMode: true, productIds: true, variantConfigs: true },
+    select: {
+      id: true,
+      status: true,
+      productMode: true,
+      productIds: true,
+      variantConfigs: true,
+      maxPerCampaign: true,
+    },
   })) as Row | null;
   if (!row) return { status: "skipped", reason: "campaign not found" };
   if (row.productMode !== "SPECIFIC") return { status: "skipped", reason: `productMode ${row.productMode}` };
 
-  const policy: "CONTINUE" | "DENY" = row.status === "LIVE" ? "CONTINUE" : "DENY";
+  const livePolicy: "CONTINUE" | "DENY" = row.status === "LIVE" ? "CONTINUE" : "DENY";
   const productIds = parseJson<string[]>(row.productIds, []).map((p) => toGid(String(p), "Product"));
   const explicitVariants = parseJson<{ variantId?: string }[]>(row.variantConfigs, [])
     .map((v) => v.variantId)
@@ -84,11 +102,29 @@ export async function syncContinueSelling(
   const errors: string[] = [];
   let products = 0;
   let variants = 0;
+  let cappedVariants = 0;
   for (const node of body.data?.nodes ?? []) {
     if (!node?.id) continue;
     const all = node.variants?.nodes ?? [];
-    const targets = (explicitVariants.length ? all.filter((v) => explicitVariants.includes(v.id)) : all)
-      .filter((v) => v.inventoryPolicy !== policy);
+    const scoped = explicitVariants.length ? all.filter((v) => explicitVariants.includes(v.id)) : all;
+
+    // Per-variant policy: a LIVE campaign sells "past zero" only while the
+    // app-side cap (unitsOffered / maxPerCampaign) has units left. Once a
+    // variant's cap is exhausted it goes back to DENY, so the theme shows
+    // Sold out natively and Shopify rejects any further add-to-cart — the
+    // storefront never oversells the merchant's preorder allocation.
+    const targets: { id: string; inventoryPolicy: "CONTINUE" | "DENY" }[] = [];
+    for (const v of scoped) {
+      let want: "CONTINUE" | "DENY" = livePolicy;
+      if (want === "CONTINUE") {
+        const cap = await getCampaignCapacity(shop, row, v.id);
+        if (cap.soldOut) {
+          want = "DENY";
+          cappedVariants += 1;
+        }
+      }
+      if (v.inventoryPolicy !== want) targets.push({ id: v.id, inventoryPolicy: want });
+    }
     if (!targets.length) continue;
     const upd = await admin.graphql(
       `#graphql
@@ -97,12 +133,7 @@ export async function syncContinueSelling(
           userErrors { field message }
         }
       }`,
-      {
-        variables: {
-          productId: node.id,
-          variants: targets.map((v) => ({ id: v.id, inventoryPolicy: policy })),
-        },
-      },
+      { variables: { productId: node.id, variants: targets } },
     );
     const ub = (await upd.json()) as {
       data?: { productVariantsBulkUpdate?: { userErrors?: { message: string }[] } };
@@ -118,9 +149,15 @@ export async function syncContinueSelling(
       variants += targets.length;
     }
   }
+  const policy: "CONTINUE" | "DENY" | "MIXED" =
+    livePolicy === "DENY" ? "DENY" : cappedVariants > 0 ? "MIXED" : "CONTINUE";
   if (errors.length) console.error(`[inventory-policy] ${shop} ${campaignId} → ${policy}:`, errors);
-  else if (variants) console.log(`[inventory-policy] ${shop} ${campaignId} → ${policy} on ${variants} variant(s) / ${products} product(s)`);
-  return { status: "synced", policy, products, variants, errors };
+  else if (variants)
+    console.log(
+      `[inventory-policy] ${shop} ${campaignId} → ${policy} on ${variants} variant(s) / ${products} product(s)` +
+        (cappedVariants ? ` (${cappedVariants} at cap → DENY)` : ""),
+    );
+  return { status: "synced", policy, products, variants, cappedVariants, errors };
 }
 
 /** Best-effort wrapper for route handlers: never throws. */
@@ -139,8 +176,9 @@ export async function syncContinueSellingSafe(
 }
 
 /**
- * Reconcile every LIVE campaign's variants to CONTINUE (scheduler, hourly +
- * boot). Self-heals shops that went live before this service existed, and any
+ * Reconcile every LIVE campaign's variants (scheduler, hourly + boot):
+ * CONTINUE while the variant's preorder cap has units left, DENY once it is
+ * exhausted. Self-heals shops that went live before this service existed, and any
  * merchant who flipped a variant back to DENY by hand while a campaign is
  * still selling. Only LIVE → CONTINUE is reconciled here; DENY is applied on
  * explicit status transitions (pause/end) so we never fight a merchant's

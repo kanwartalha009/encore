@@ -436,7 +436,7 @@ export default function SettingsPage() {
             />
             <Checkbox
               label={'Auto-manage "Continue selling when out of stock"'}
-              helpText={t("Encore toggles this on products based on inventory levels.")}
+              helpText={t("While a campaign is live, Encore turns this on for its variants so shoppers can buy past zero stock. When a variant's preorder allocation sells out, or the campaign pauses or ends, Encore turns it back off — the product shows Sold out and Shopify rejects further orders.")}
               checked={autoManageContinueSelling}
               onChange={setAutoManageContinueSelling}
             />
