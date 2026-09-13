@@ -21,6 +21,8 @@ import {
   TextField,
   Box,
 } from "@shopify/polaris";
+import { GlobeIcon } from "@shopify/polaris-icons";
+import { PageHero } from "../components/ui";
 import { useAppBridge } from "@shopify/app-bridge-react";
 
 import { authenticate } from "../shopify.server";
@@ -116,7 +118,8 @@ export default function MarketsPage() {
 
   if (markets.length <= 1) {
     return (
-      <Page title={t("Per-market rules")}>
+      <Page>
+        <PageHero icon={GlobeIcon} tone="sky" title={t("Per-market rules")} />
         <Card>
           <EmptyState
             heading={t("You sell in one market")}

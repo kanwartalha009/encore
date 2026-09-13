@@ -277,3 +277,54 @@ export function HeroButton({
     </button>
   );
 }
+
+/**
+ * Compact page hero used by every page except the dashboard: icon tile,
+ * title (+ optional badge), subtitle, actions on the right and optional stat
+ * chips underneath. Replaces the Polaris Page title/subtitle/actions props so
+ * the whole app shares one visual language.
+ */
+export function PageHero({
+  icon,
+  tone = "violet",
+  title,
+  sub,
+  badge,
+  actions,
+  stats,
+}: {
+  icon: IconSource;
+  tone?: TileTone;
+  title: ReactNode;
+  sub?: ReactNode;
+  badge?: ReactNode;
+  actions?: ReactNode;
+  stats?: { value: string; label: string }[];
+}) {
+  return (
+    <Reveal>
+      <header className={`encore-page-hero encore-page-hero--${tone}`}>
+        <div className="encore-page-hero__main">
+          <IconTile icon={icon} tone={tone} size="lg" />
+          <div className="encore-page-hero__text">
+            <h1 className="encore-page-hero__title">
+              <span>{title}</span>
+              {badge}
+            </h1>
+            {sub && <p className="encore-page-hero__sub">{sub}</p>}
+          </div>
+        </div>
+        {actions && <div className="encore-page-hero__actions">{actions}</div>}
+        {stats && stats.length > 0 && (
+          <div className="encore-page-hero__stats">
+            {stats.map((s) => (
+              <span key={s.label} className="encore-page-hero__chip">
+                <b>{s.value}</b> {s.label}
+              </span>
+            ))}
+          </div>
+        )}
+      </header>
+    </Reveal>
+  );
+}

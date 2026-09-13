@@ -23,6 +23,8 @@ import {
   Box,
   Banner,
 } from "@shopify/polaris";
+import { CreditCardIcon } from "@shopify/polaris-icons";
+import { PageHero } from "../components/ui";
 
 import { authenticate } from "../shopify.server";
 import { useLocale } from "../lib/i18n";
@@ -85,10 +87,8 @@ export default function PlansPage() {
     limit == null ? 0 : Math.min(100, Math.round((used / Math.max(1, limit)) * 100));
 
   return (
-    <Page
-      title={t("Plans & billing")}
-      subtitle={t("Limits reset monthly. Save 20% on annual.")}
-    >
+    <Page>
+      <PageHero icon={CreditCardIcon} tone="emerald" title={t("Plans & billing")} sub={t("Limits reset monthly. Save 20% on annual.")} />
       <BlockStack gap="500">
         {err && <Banner tone="critical">{err}</Banner>}
         {comped && <Banner tone="success">{t("Your plan is comped — no charge.")}</Banner>}

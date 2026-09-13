@@ -18,6 +18,8 @@ import {
   Select,
   Divider,
 } from "@shopify/polaris";
+import { InventoryIcon } from "@shopify/polaris-icons";
+import { PageHero } from "../components/ui";
 import { useAppBridge } from "@shopify/app-bridge-react";
 
 import { authenticate } from "../shopify.server";
@@ -241,11 +243,14 @@ export default function LowStockPage() {
   };
 
   return (
-    <Page
-      title={t("lowstock.title")}
-      subtitle={t("lowstock.subtitle")}
-      primaryAction={{ content: t("common.save"), onAction: () => save() }}
-    >
+    <Page>
+      <PageHero
+        icon={InventoryIcon}
+        tone="amber"
+        title={t("lowstock.title")}
+        sub={t("lowstock.subtitle")}
+        actions={<Button variant="primary" onClick={() => save()}>{t("common.save")}</Button>}
+      />
       {!enabled ? (
         // ----- Enable-first guide -----
         <Card>

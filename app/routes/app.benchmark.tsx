@@ -22,6 +22,8 @@ import {
   Box,
   Banner,
 } from "@shopify/polaris";
+import { ChartLineIcon } from "@shopify/polaris-icons";
+import { PageHero } from "../components/ui";
 
 import { authenticate } from "../shopify.server";
 import { useLocale } from "../lib/i18n";
@@ -113,11 +115,14 @@ export default function BenchmarkPage() {
   };
 
   return (
-    <Page
-      title={t("Benchmark")}
-      subtitle={t("How much demand Encore recovers for your store — at a glance.")}
-      secondaryActions={[{ content: t("Export CSV"), onAction: exportCsv }]}
-    >
+    <Page>
+      <PageHero
+        icon={ChartLineIcon}
+        tone="emerald"
+        title={t("Benchmark")}
+        sub={t("How much demand Encore recovers for your store — at a glance.")}
+        actions={<Button onClick={exportCsv}>{t("Export CSV")}</Button>}
+      />
       <BlockStack gap="500">
         {noData ? (
           <Card>

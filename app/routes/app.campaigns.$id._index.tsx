@@ -22,11 +22,9 @@ import {
   Tabs,
   Divider,
   ProgressBar,
-  Icon,
   IndexTable,
   Banner,
   EmptyState,
-  ButtonGroup,
 } from "@shopify/polaris";
 import {
   EditIcon,
@@ -38,7 +36,11 @@ import {
   CartIcon,
   PackageIcon,
   ClockIcon,
+  ChartLineIcon,
+  SettingsIcon,
+  WandIcon,
 } from "@shopify/polaris-icons";
+import { PageHero, StatCard, SectionHead, ProgressRing } from "../components/ui";
 
 import { authenticate } from "../shopify.server";
 import { useLocale } from "../lib/i18n";
@@ -57,8 +59,8 @@ const PAYMENT_LABEL: Record<string, string> = {
   PAY_LATER: "Pay later",
 };
 const CART_LABEL: Record<string, string> = {
-  SPLIT: "Hard split",
-  WARNING: "Warning only",
+  SPLIT: "Ships separately",
+  WARNING: "Mixed cart allowed",
 };
 const PAYMENT_STATUS_LABEL: Record<
   string,
@@ -145,7 +147,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
                 : campaign.name)),
       trigger: TRIGGER_LABEL[campaign.triggerType] ?? campaign.triggerType,
       payment: PAYMENT_LABEL[campaign.paymentMode] ?? campaign.paymentMode,
-      cartMode: CART_LABEL[campaign.cartMode] ?? "Hard split",
+      cartMode: CART_LABEL[campaign.cartMode] ?? "Ships separately",
       unitsSold: campaign.unitsSold,
       unitsTarget,
       runRate,
@@ -159,8 +161,10 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       gmv: formatGmv(campaign.gmvCents, currency),
       depositCollected: formatGmv(campaign.depositCollectedCents, currency),
       balancePending: formatGmv(campaign.balancePendingCents, currency),
-      shipDate: cohort?.shipDate
-        ? cohort.shipDate.toISOString().slice(0, 10)
+      // Cohort date first, the campaign's own ship date otherwise — a live
+      // preorder with a ship date must never read "TBD".
+      shipDate: (cohort?.shipDate ?? campaign.shipDate)
+        ? (cohort?.shipDate ?? campaign.shipDate)!.toISOString().slice(0, 10)
         : "TBD",
       status: ((): "Live" | "Paused" | "Scheduled" | "Ended" | "Draft" => {
         switch (campaign.status) {
@@ -377,20 +381,34 @@ export default function CampaignDetail() {
   };
 
   return (
-    <Page
-      backAction={{ content: t("Preorders"), url: "/app/campaigns" }}
-      title={c.name}
-      titleMetadata={<Badge tone={statusToTone(c.status)}>{t(c.status)}</Badge>}
-      subtitle={`${c.product} · ${t("Updated")} ${relativeTime(c.updatedAt, locale)}`}
-      primaryAction={{
-        content: t("Edit preorder"),
-        icon: EditIcon,
-        disabled: busy,
-        onAction: () => navigate(`/app/campaigns/${id}/edit`),
-      }}
-      secondaryActions={secondaryActions}
-    >
+    <Page backAction={{ content: t("Preorders"), url: "/app/campaigns" }}>
       <BlockStack gap="500">
+        <PageHero
+          icon={CartIcon}
+          tone={c.status === "Live" ? "emerald" : c.status === "Paused" ? "amber" : c.status === "Ended" ? "slate" : "violet"}
+          title={c.name}
+          badge={<Badge tone={statusToTone(c.status)}>{t(c.status)}</Badge>}
+          sub={`${c.product} · ${t("Updated")} ${relativeTime(c.updatedAt, locale)}`}
+          actions={
+            <>
+              {secondaryActions.map((a) => (
+                <Button
+                  key={a.content}
+                  icon={(a as { icon?: typeof EditIcon }).icon}
+                  tone={(a as { destructive?: boolean }).destructive ? "critical" : undefined}
+                  loading={a.loading}
+                  disabled={a.disabled}
+                  onClick={(a as { onAction?: () => void }).onAction}
+                >
+                  {a.content}
+                </Button>
+              ))}
+              <Button variant="primary" icon={EditIcon} disabled={busy} onClick={() => navigate(`/app/campaigns/${id}/edit`)}>
+                {t("Edit preorder")}
+              </Button>
+            </>
+          }
+        />
         {showWelcome && (
           <Banner
             tone="success"
@@ -411,47 +429,47 @@ export default function CampaignDetail() {
         )}
 
         {/* KPI tiles */}
-        <Layout>
-          <Layout.Section variant="oneThird">
-            <KpiTile
-              icon={CashDollarIcon}
-              label={t("Total GMV")}
-              value={c.gmv}
-              sub={`across ${c.unitsSold} units`}
-            />
-          </Layout.Section>
-          <Layout.Section variant="oneThird">
-            <KpiTile
-              icon={CashDollarIcon}
-              label={t("Deposit collected")}
-              value={c.depositCollected}
-              sub={
-                c.paymentMode === "DEPOSIT"
-                  ? c.depositKind === "PERCENT"
-                    ? `${c.depositAmount}% ${t("of total")}`
-                    : t("Fixed deposit per unit")
-                  : undefined
-              }
-              tone="info"
-            />
-          </Layout.Section>
-          <Layout.Section variant="oneThird">
-            <KpiTile
-              icon={ClockIcon}
-              label={t("Balance pending")}
-              value={c.balancePending}
-              sub={
-                // Pay-now preorders never have a balance — claim nothing.
-                c.paymentMode === "PAY_NOW"
-                  ? undefined
-                  : c.autoCharge && c.shipDate !== "TBD"
-                    ? `${t("auto-charge")} ${c.shipDate}`
-                    : `${t("balance due")} ${c.shipDate}`
-              }
-              tone="attention"
-            />
-          </Layout.Section>
-        </Layout>
+        <div className="encore-grid encore-grid--3">
+          <StatCard
+            index={1}
+            icon={CashDollarIcon}
+            tone="emerald"
+            label={t("Total GMV")}
+            value={c.gmv}
+            sub={`${t("across")} ${c.unitsSold} ${t("units")}`}
+          />
+          <StatCard
+            index={2}
+            icon={CashDollarIcon}
+            tone="sky"
+            label={t("Deposit collected")}
+            value={c.depositCollected}
+            delta={c.paymentMode === "DEPOSIT" ? t("Collected") : undefined}
+            sub={
+              c.paymentMode === "DEPOSIT"
+                ? c.depositKind === "PERCENT"
+                  ? `${c.depositAmount}% ${t("of total")}`
+                  : t("Fixed deposit per unit")
+                : t("Customers pay in full at checkout")
+            }
+          />
+          <StatCard
+            index={3}
+            icon={ClockIcon}
+            tone="amber"
+            label={t("Balance pending")}
+            value={c.balancePending}
+            delta={c.paymentMode === "PAY_NOW" ? undefined : t("Pending")}
+            sub={
+              // Pay-now preorders never have a balance — claim nothing.
+              c.paymentMode === "PAY_NOW"
+                ? t("No balance — pay-now preorder")
+                : c.autoCharge && c.shipDate !== "TBD"
+                  ? `${t("auto-charge")} ${c.shipDate}`
+                  : `${t("balance due")} ${c.shipDate}`
+            }
+          />
+        </div>
 
         {/* Tabs container */}
         <Card padding="0">
@@ -499,48 +517,6 @@ export default function CampaignDetail() {
 }
 
 // ---------- Sub-components ----------
-function KpiTile({
-  icon,
-  label,
-  value,
-  sub,
-  tone,
-}: {
-  icon: typeof CashDollarIcon;
-  label: string;
-  value: string;
-  sub?: string;
-  tone?: "info" | "attention";
-}) {
-  const { t } = useLocale();
-  return (
-    <Card>
-      <BlockStack gap="200">
-        <InlineStack align="space-between" blockAlign="center">
-          <Text as="p" variant="bodySm" tone="subdued">
-            {label}
-          </Text>
-          <Icon source={icon} tone="subdued" />
-        </InlineStack>
-        <InlineStack gap="200" blockAlign="center">
-          <Text as="p" variant="heading2xl">
-            {value}
-          </Text>
-          {tone && (
-            <Badge tone={tone}>
-              {tone === "info" ? "Collected" : "Pending"}
-            </Badge>
-          )}
-        </InlineStack>
-        {sub && (
-          <Text as="p" variant="bodySm" tone="subdued">
-            {sub}
-          </Text>
-        )}
-      </BlockStack>
-    </Card>
-  );
-}
 
 function OverviewTab({
   campaign,
@@ -561,24 +537,17 @@ function OverviewTab({
           {/* Cohort progress */}
           <Card>
             <BlockStack gap="400">
-              <InlineStack align="space-between" blockAlign="center">
-                <BlockStack gap="050">
-                  <Text as="h2" variant="headingMd">{t("Cohort progress")}</Text>
-                  <Text as="p" variant="bodySm" tone="subdued">
-                    {campaign.unitsTarget != null ? (
-                      <>
-                        {t("Units sold toward this cohort's goal of")}{" "}
-                        {campaign.unitsTarget} {t("units")}.
-                      </>
-                    ) : (
-                      <>{t("Units sold for this cohort so far.")}</>
-                    )}
-                  </Text>
-                </BlockStack>
-                {progressPct != null && (
-                  <Badge tone="info">{`${progressPct}%`}</Badge>
-                )}
-              </InlineStack>
+              <SectionHead
+                icon={PackageIcon}
+                tone="violet"
+                title={t("Cohort progress")}
+                sub={
+                  campaign.unitsTarget != null
+                    ? `${t("Units sold toward this cohort's goal of")} ${campaign.unitsTarget} ${t("units")}.`
+                    : t("Units sold for this cohort so far.")
+                }
+                action={progressPct != null ? <ProgressRing percent={progressPct} tone="violet" /> : undefined}
+              />
               {campaign.unitsTarget != null && progressPct != null ? (
                 <>
                   <ProgressBar progress={progressPct} tone="primary" />
@@ -603,10 +572,7 @@ function OverviewTab({
           {/* Sales pace — real numbers from this preorder's own orders */}
           <Card>
             <BlockStack gap="400">
-              <BlockStack gap="050">
-                <Text as="h2" variant="headingMd">{t("Sales pace")}</Text>
-                <Text as="p" variant="bodySm" tone="subdued">{t("avg units/day since launch")}</Text>
-              </BlockStack>
+              <SectionHead icon={ChartLineIcon} tone="teal" title={t("Sales pace")} sub={t("avg units/day since launch")} />
               <InlineStack gap="600" wrap={false}>
                 <BlockStack gap="050">
                   <Text as="p" variant="bodySm" tone="subdued">{t("Run rate")}</Text>
@@ -627,7 +593,9 @@ function OverviewTab({
                 )}
               </InlineStack>
               <Text as="p" variant="bodySm" tone="subdued">
-                {t("Conversion analytics coming soon.")}
+                {campaign.runRate != null
+                  ? t("Based on orders recorded for this preorder since launch.")
+                  : t("Updates automatically as preorders come in.")}
               </Text>
             </BlockStack>
           </Card>
@@ -638,7 +606,7 @@ function OverviewTab({
         <BlockStack gap="400">
           <Card>
             <BlockStack gap="300">
-              <Text as="h2" variant="headingMd">{t("Configuration")}</Text>
+              <SectionHead icon={SettingsIcon} tone="slate" title={t("Configuration")} />
               <Divider />
               <SummaryRow label={t("Trigger")} value={campaign.trigger} />
               <SummaryRow label={t("Payment")} value={campaign.payment} />
@@ -651,12 +619,12 @@ function OverviewTab({
 
           <Card>
             <BlockStack gap="300">
-              <Text as="h2" variant="headingMd">{t("Quick actions")}</Text>
+              <SectionHead icon={WandIcon} tone="amber" title={t("Quick actions")} />
               <Divider />
-              <ButtonGroup>
-                <Button icon={PackageIcon} onClick={onMarkCohortReady}>{t("Mark cohort ready")}</Button>
-                <Button icon={CartIcon} onClick={onViewStorefront}>{t("View on storefront")}</Button>
-              </ButtonGroup>
+              <BlockStack gap="200">
+                <Button icon={PackageIcon} onClick={onMarkCohortReady} fullWidth textAlign="left">{t("Mark cohort ready")}</Button>
+                <Button icon={CartIcon} onClick={onViewStorefront} fullWidth textAlign="left">{t("View on storefront")}</Button>
+              </BlockStack>
             </BlockStack>
           </Card>
         </BlockStack>

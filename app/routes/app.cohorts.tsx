@@ -15,7 +15,8 @@ import {
   EmptyState,
   Layout,
 } from "@shopify/polaris";
-import { ExportIcon } from "@shopify/polaris-icons";
+import { ExportIcon, DeliveryIcon } from "@shopify/polaris-icons";
+import { PageHero } from "../components/ui";
 import { useAppBridge } from "@shopify/app-bridge-react";
 
 import { authenticate } from "../shopify.server";
@@ -145,15 +146,20 @@ export default function OrdersPage() {
   });
 
   return (
-    <Page
-      title={t("orders.title")}
-      subtitle={t("orders.subtitle")}
-      primaryAction={
-        tab === 0
-          ? { content: t("Export orders"), icon: ExportIcon, onAction: exportOrders, disabled: orders.length === 0 }
-          : undefined
-      }
-    >
+    <Page>
+      <PageHero
+        icon={DeliveryIcon}
+        tone="violet"
+        title={t("orders.title")}
+        sub={t("orders.subtitle")}
+        actions={
+          tab === 0 ? (
+            <Button variant="primary" icon={ExportIcon} onClick={exportOrders} disabled={orders.length === 0}>
+              {t("Export orders")}
+            </Button>
+          ) : undefined
+        }
+      />
       <BlockStack gap="400">
         <Layout>
           <Layout.Section variant="oneThird">

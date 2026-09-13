@@ -15,7 +15,8 @@ import {
   Box,
   Divider,
 } from "@shopify/polaris";
-import { ExportIcon } from "@shopify/polaris-icons";
+import { ExportIcon, ChartVerticalIcon } from "@shopify/polaris-icons";
+import { PageHero } from "../components/ui";
 import { useAppBridge } from "@shopify/app-bridge-react";
 
 import { authenticate } from "../shopify.server";
@@ -86,7 +87,8 @@ export default function DemandPage() {
 
   if (demand.length === 0) {
     return (
-      <Page title={t("Demand signal")}>
+      <Page>
+        <PageHero icon={ChartVerticalIcon} tone="teal" title={t("Demand signal")} />
         <Card>
           <EmptyState
             heading={t("No demand captured yet")}

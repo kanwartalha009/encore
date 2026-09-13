@@ -24,7 +24,8 @@ import {
   Banner,
 } from "@shopify/polaris";
 import type { TabProps } from "@shopify/polaris";
-import { PlusIcon } from "@shopify/polaris-icons";
+import { PlusIcon, CartIcon } from "@shopify/polaris-icons";
+import { PageHero } from "../components/ui";
 
 import { authenticate } from "../shopify.server";
 import { listCampaigns, formatGmv } from "../models/campaign.server";
@@ -371,20 +372,29 @@ export default function CampaignsIndex() {
   });
 
   return (
-    <Page
-      title={t("Preorders")}
-      subtitle={t("Variant-level preorder rules with units, ship date, and payment.")}
-      primaryAction={{
-        content: t("New preorder"),
-        icon: PlusIcon,
-        onAction: () => navigate("/app/campaigns/new"),
-      }}
-      secondaryActions={[
-        { content: t("Cohorts"), onAction: () => navigate("/app/cohorts") },
-        { content: t("Settings"), onAction: () => navigate("/app/settings") },
-      ]}
-    >
+    <Page>
       <BlockStack gap="400">
+        <PageHero
+          icon={CartIcon}
+          tone="violet"
+          title={t("Preorders")}
+          sub={t("Variant-level preorder rules with units, ship date, and payment.")}
+          actions={
+            <>
+              <Button onClick={() => navigate("/app/cohorts")}>{t("Cohorts")}</Button>
+              <Button onClick={() => navigate("/app/settings")}>{t("Settings")}</Button>
+              <Button variant="primary" icon={PlusIcon} onClick={() => navigate("/app/campaigns/new")}>
+                {t("New preorder")}
+              </Button>
+            </>
+          }
+          stats={[
+            { value: String(CAMPAIGNS.filter((c) => c.status === "Live").length), label: t("live") },
+            { value: String(CAMPAIGNS.filter((c) => c.status === "Scheduled").length), label: t("scheduled") },
+            { value: String(CAMPAIGNS.filter((c) => c.status === "Paused").length), label: t("paused") },
+            { value: String(CAMPAIGNS.length), label: t("total") },
+          ]}
+        />
         {filteredCampaigns.length === 0 && CAMPAIGNS.length === 0 ? (
           <Layout>
             <Layout.Section>

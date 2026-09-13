@@ -8,6 +8,8 @@ import type { HeadersFunction, LoaderFunctionArgs, ActionFunctionArgs } from "re
 import { useFetcher } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { Page, Card, BlockStack, TextField, Button, Banner } from "@shopify/polaris";
+import { QuestionCircleIcon } from "@shopify/polaris-icons";
+import { PageHero } from "../components/ui";
 
 import { authenticate } from "../shopify.server";
 import { useLocale } from "../lib/i18n";
@@ -47,10 +49,8 @@ export default function HelpPage() {
   const failed = fetcher.data?.ok === false;
 
   return (
-    <Page
-      title={t("Get help")}
-      subtitle={t("Send us a message — we usually reply within a day.")}
-    >
+    <Page>
+      <PageHero icon={QuestionCircleIcon} tone="sky" title={t("Get help")} sub={t("Send us a message — we usually reply within a day.")} />
       <Card>
         <BlockStack gap="400">
           {sent && <Banner tone="success">{t("Thanks — your message is on its way.")}</Banner>}

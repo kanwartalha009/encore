@@ -327,3 +327,55 @@
 .encore-delta { white-space: nowrap; }
 .encore-stat__foot { flex-wrap: wrap; row-gap: 4px; }
 .encore-stat__top > p { min-height: 2.4em; display: flex; align-items: flex-start; }
+
+/* --------------------------------------------------------------------------
+   Page hero (every page except the dashboard): light tinted band with a
+   large icon tile, title, subtitle, actions and optional inline stats.
+   -------------------------------------------------------------------------- */
+.encore-page-hero {
+  --hero-tint: var(--tile-violet-bg);
+  --hero-fg: var(--tile-violet-fg);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 18px 20px;
+  border-radius: 14px;
+  background:
+    radial-gradient(520px 180px at 100% 0%, color-mix(in srgb, var(--hero-fg) 14%, transparent), transparent 70%),
+    linear-gradient(120deg, var(--p-color-bg-surface, #fff), var(--hero-tint));
+  border: 1px solid color-mix(in srgb, var(--hero-fg) 14%, var(--p-color-border, #e3e3e3));
+  box-shadow: 0 12px 30px -24px color-mix(in srgb, var(--hero-fg) 60%, transparent);
+}
+.encore-page-hero--violet  { --hero-tint: var(--tile-violet-bg);  --hero-fg: var(--tile-violet-fg); }
+.encore-page-hero--teal    { --hero-tint: var(--tile-teal-bg);    --hero-fg: var(--tile-teal-fg); }
+.encore-page-hero--amber   { --hero-tint: var(--tile-amber-bg);   --hero-fg: var(--tile-amber-fg); }
+.encore-page-hero--rose    { --hero-tint: var(--tile-rose-bg);    --hero-fg: var(--tile-rose-fg); }
+.encore-page-hero--sky     { --hero-tint: var(--tile-sky-bg);     --hero-fg: var(--tile-sky-fg); }
+.encore-page-hero--emerald { --hero-tint: var(--tile-emerald-bg); --hero-fg: var(--tile-emerald-fg); }
+.encore-page-hero--slate   { --hero-tint: var(--tile-slate-bg);   --hero-fg: var(--tile-slate-fg); }
+.encore-page-hero__main { display: flex; align-items: center; gap: 14px; min-width: 0; flex: 1 1 320px; }
+.encore-page-hero__text { min-width: 0; }
+.encore-page-hero__title {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  font-size: 20px; font-weight: 700; letter-spacing: -0.015em; margin: 0;
+  color: var(--p-color-text, #202223);
+}
+.encore-page-hero__sub { margin: 3px 0 0; font-size: 13px; color: var(--p-color-text-secondary, #616161); max-width: 64ch; }
+.encore-page-hero__actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.encore-page-hero__stats { display: flex; gap: 8px; flex-wrap: wrap; width: 100%; }
+.encore-page-hero__chip {
+  display: inline-flex; align-items: baseline; gap: 6px;
+  padding: 6px 10px; border-radius: 10px;
+  background: color-mix(in srgb, var(--p-color-bg-surface, #fff) 70%, transparent);
+  border: 1px solid color-mix(in srgb, var(--hero-fg) 16%, transparent);
+  font-size: 12px; color: var(--p-color-text-secondary, #616161);
+}
+.encore-page-hero__chip b { font-size: 15px; font-weight: 700; color: var(--p-color-text, #202223); font-variant-numeric: tabular-nums; }
+.encore-page-hero .encore-tile--lg { box-shadow: 0 6px 16px -8px color-mix(in srgb, var(--hero-fg) 55%, transparent); }
+.encore-page-hero { margin-bottom: 4px; }
+.Polaris-Page > .Polaris-Page__Content > .encore-reveal:first-child > .encore-page-hero,
+.Polaris-Page__Content > .encore-reveal:first-child > .encore-page-hero { margin-bottom: 16px; }

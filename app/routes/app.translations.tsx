@@ -19,6 +19,8 @@ import {
   Divider,
   Banner,
 } from "@shopify/polaris";
+import { LanguageIcon } from "@shopify/polaris-icons";
+import { PageHero } from "../components/ui";
 import { useAppBridge } from "@shopify/app-bridge-react";
 
 import { authenticate } from "../shopify.server";
@@ -97,11 +99,14 @@ export default function TranslationsPage() {
   };
 
   return (
-    <Page
-      title={t("translations.title")}
-      subtitle={t("Translate the text Encore adds to your storefront. Switches with the shopper's language — set once, not per market.")}
-      primaryAction={{ content: t("common.save"), onAction: save }}
-    >
+    <Page>
+      <PageHero
+        icon={LanguageIcon}
+        tone="violet"
+        title={t("translations.title")}
+        sub={t("Translate the text Encore adds to your storefront. Switches with the shopper's language — set once, not per market.")}
+        actions={<Button variant="primary" onClick={save}>{t("common.save")}</Button>}
+      />
       <BlockStack gap="500">
         <Banner tone="info">
           <Text as="span">{t("The admin language follows your Shopify account automatically. Below you translate the storefront text we add (button, badge, cart, popup, low-stock) — these register with Shopify so they switch with the buyer's language alongside Translate & Adapt.")}</Text>

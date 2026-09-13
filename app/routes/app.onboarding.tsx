@@ -23,6 +23,8 @@ import {
   Box,
   ProgressBar,
 } from "@shopify/polaris";
+import { WandIcon } from "@shopify/polaris-icons";
+import { PageHero } from "../components/ui";
 
 import { authenticate } from "../shopify.server";
 import { useLocale } from "../lib/i18n";
@@ -132,7 +134,8 @@ export default function OnboardingWizard() {
   const canNext = step === 0 ? products.length > 0 : step === 1 ? mode !== "date" || !!startDate : true;
 
   return (
-    <Page title={t("Set up your first preorder")} narrowWidth>
+    <Page narrowWidth>
+      <PageHero icon={WandIcon} tone="violet" title={t("Set up your first preorder")} />
       <BlockStack gap="500">
         <ProgressBar progress={((step + 1) / 3) * 100} size="small" tone="primary" />
 

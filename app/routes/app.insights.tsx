@@ -23,6 +23,8 @@ import {
   InlineGrid,
   Divider,
 } from "@shopify/polaris";
+import { ChartLineIcon } from "@shopify/polaris-icons";
+import { PageHero } from "../components/ui";
 
 import { authenticate } from "../shopify.server";
 import { useLocale } from "../lib/i18n";
@@ -115,7 +117,8 @@ export default function InsightsPage() {
   const lift = d.benchmark.lift == null ? "—" : `${d.benchmark.lift} pts`;
 
   return (
-    <Page title={t("Insights")} subtitle={t("Demand, recovery, cohorts and low-stock in one place.")}>
+    <Page>
+      <PageHero icon={ChartLineIcon} tone="teal" title={t("Insights")} sub={t("Demand, recovery, cohorts and low-stock in one place.")} />
       <Card>
         <Tabs tabs={tabs} selected={selected} onSelect={setSelected}>
           <BlockStack gap="400">

@@ -45,7 +45,10 @@ import {
   PlusIcon,
   DeleteIcon,
   XIcon,
+  EditIcon,
+  ViewIcon,
 } from "@shopify/polaris-icons";
+import { PageHero, SectionHead } from "./ui";
 
 
 // ---------- View-state shape ----------
@@ -608,14 +611,35 @@ export default function CampaignForm({
         ];
 
   return (
-    <Page
-      backAction={{ content: t("Preorders"), url: backTo }}
-      title={pageTitle}
-      subtitle={pageSubtitle}
-      primaryAction={primaryAction}
-      secondaryActions={secondaryActions}
-    >
+    <Page backAction={{ content: t("Preorders"), url: backTo }}>
       <BlockStack gap="500">
+        <PageHero
+          icon={mode === "create" ? PlusIcon : EditIcon}
+          tone={mode === "create" ? "violet" : "sky"}
+          title={pageTitle}
+          sub={pageSubtitle}
+          actions={
+            <>
+              {secondaryActions.map((a) => (
+                <Button
+                  key={a.content}
+                  tone={(a as { destructive?: boolean }).destructive ? "critical" : undefined}
+                  onClick={a.onAction}
+                >
+                  {a.content}
+                </Button>
+              ))}
+              <Button
+                variant="primary"
+                onClick={primaryAction.onAction}
+                loading={primaryAction.loading}
+                disabled={(primaryAction as { disabled?: boolean }).disabled}
+              >
+                {primaryAction.content}
+              </Button>
+            </>
+          }
+        />
         {dispatchError && (
           <Banner
             tone="critical"
@@ -919,13 +943,21 @@ export default function CampaignForm({
               {/* Storefront preview */}
               <Card>
                 <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">{t("Storefront preview")}</Text>
+                  <SectionHead icon={ViewIcon} tone="teal" title={t("Storefront preview")} sub={t("How the buy box will look on your product page.")} />
                   <Divider />
                   <Box padding="400" borderWidth="025" borderColor="border" borderRadius="300" background="bg-surface">
                     <BlockStack gap="200">
                       <div><Badge tone="warning">{t("Preorder")}</Badge></div>
-                      <Text as="span" variant="bodyMd" fontWeight="semibold">{t("Aurora Hoodie — Indigo")}</Text>
-                      <Text as="span" tone="subdued">$54.00</Text>
+                      <Text as="span" variant="bodyMd" fontWeight="semibold">
+                        {selectedVariants[0]
+                          ? `${selectedVariants[0].productTitle}${selectedVariants[0].variantTitle && selectedVariants[0].variantTitle !== "Default Title" ? ` — ${selectedVariants[0].variantTitle}` : ""}`
+                          : t("Your product")}
+                      </Text>
+                      {selectedVariants.length > 1 && (
+                        <Text as="span" variant="bodySm" tone="subdued">
+                          {`+${selectedVariants.length - 1} ${t("more variants")}`}
+                        </Text>
+                      )}
                       <button
                         type="button"
                         tabIndex={-1}

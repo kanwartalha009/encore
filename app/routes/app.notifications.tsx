@@ -24,6 +24,8 @@ import {
   Box,
   Divider,
 } from "@shopify/polaris";
+import { EmailIcon } from "@shopify/polaris-icons";
+import { PageHero } from "../components/ui";
 
 import { authenticate } from "../shopify.server";
 import { useLocale } from "../lib/i18n";
@@ -130,10 +132,8 @@ export default function NotificationsPage() {
   };
 
   return (
-    <Page
-      title={t("Notifications")}
-      subtitle={t("Choose how customer emails are sent, and edit the copy per language.")}
-    >
+    <Page>
+      <PageHero icon={EmailIcon} tone="sky" title={t("Notifications")} sub={t("Choose how customer emails are sent, and edit the copy per language.")} />
       <BlockStack gap="500">
         <Text as="p" tone="subdued">
           {t("Encore delivers customer emails through Klaviyo or Shopify Flow — pick whichever your store already uses, then tailor the copy for each message and language below.")}
