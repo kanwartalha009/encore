@@ -249,3 +249,8 @@
 .encore-pre-error { color: #b42318; font-size: 0.9em; margin: 6px 0; }
 /* `hidden` must always win over our own display rules (notify button, ui slots). */
 .encore[hidden], .encore [hidden], .encore-btn[hidden] { display: none !important; }
+.encore-mixed-note { font-size: 0.85em; opacity: 0.8; margin-top: 4px; }
+.encore-mixed-notice {
+  margin: 0 0 16px; padding: 10px 14px; border-radius: var(--encore-radius, 6px);
+  background: #fff8e6; border: 1px solid #f0d48a; color: #5c4a00; font-size: 0.95em;
+}

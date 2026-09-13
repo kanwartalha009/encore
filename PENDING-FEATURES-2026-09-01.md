@@ -24,7 +24,7 @@ Verified live on 2026-09-04: deploy `/health` green (db ok, scheduler ticking, o
 | # | Item | Owner |
 |---|---|---|
 | 9 | Nova platform: bring it up, or approve `NOVA_DISABLED=1` toggle (11 outbox rows are DEAD from Nova being offline; billing/pricing run on hardcoded fallbacks today) | Kanwar decision |
-| 10 | Add a DB unique index on `PreOrder(shop, shopifyOrderId, orderRef)` — makes order-capture idempotency bulletproof under concurrent redelivery (needs a migration run against Railway Postgres) | Claude writes, Kanwar runs migrate |
+| 10 | Add a DB unique index on `PreOrder(shop, shopifyOrderId, orderRef)` — makes order-capture idempotency bulletproof under concurrent redelivery (BLOCKED until the DB moves off SQLite-on-volume: `prisma db push` refused the index on 2026-09-13 and `--accept-data-loss` is not an acceptable production flag. Do together with the Postgres + `prisma migrate` move) | Claude writes, Kanwar provisions Postgres + runs migrate |
 | 11 | Admin in-frame click verification (bulk actions, pickers, tabs) — every page renders and all nav links work; in-frame buttons can only be human-clicked until the platform test-mode token exists | Kanwar spot-check or platform item 16 |
 
 ## C. Polish (post-submission fine)

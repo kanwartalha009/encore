@@ -345,13 +345,18 @@
         ? interpolate(p.message, { date: p.shipText })
         : p.fallback || "";
 
-      // R0.5 — mixed-cart notice: merchants configure this message in admin;
-      // render it so shoppers actually see it (previously configured-but-unused).
-      if (p.mixedCartMessage && note.parentNode) {
-        var mixed = document.createElement("div");
-        mixed.textContent = p.mixedCartMessage;
-        mixed.style.cssText = "font-size:.85em;opacity:.75;margin-top:4px;";
-        note.parentNode.insertBefore(mixed, note.nextSibling);
+      // Mixed-cart notice on the PDP: only when the cart ALREADY holds
+      // in-stock items, i.e. adding this preorder would make it mixed
+      // (R1.5 — previously an unconditional line under the button).
+      var mixedCopy = mixedCartCopy(cfg, p);
+      if (mixedCopy && note.parentNode) {
+        cartState().then(function (st) {
+          if (!st || !st.regular) return;
+          var mixed = document.createElement("div");
+          mixed.className = "encore encore-mixed-note";
+          mixed.textContent = mixedCopy;
+          note.parentNode.insertBefore(mixed, note.nextSibling);
+        });
       }
 
       // Line-item properties → follow the item into cart + checkout.
@@ -878,6 +883,101 @@
     });
   }
 
+  // ---------- Mixed cart ----------
+  function mixedCartCopy(cfg, p) {
+    var c = cfg && cfg.cart;
+    if (c && c.mixedCartWarning === false) return "";
+    return (c && c.mixedCartMessage) || (p && p.mixedCartMessage) || "";
+  }
+
+  // { preorder: n, regular: n } from /cart.js — null on any failure.
+  function cartState() {
+    return fetch("/cart.js", { headers: { Accept: "application/json" }, credentials: "same-origin" })
+      .then(function (r) {
+        return r.ok ? r.json() : null;
+      })
+      .then(function (cart) {
+        if (!cart || !cart.items) return null;
+        var pre = 0;
+        var reg = 0;
+        for (var i = 0; i < cart.items.length; i++) {
+          var props = cart.items[i].properties || {};
+          if (String(props._preorder) === "true") pre++;
+          else reg++;
+        }
+        return { preorder: pre, regular: reg };
+      })
+      .catch(function () {
+        return null;
+      });
+  }
+
+  // On the cart page: one notice above the cart form when the cart holds
+  // both preorder and in-stock lines. Re-evaluated on cart:refresh so ajax
+  // quantity changes / removals keep it honest.
+  function initMixedCartNotice() {
+    var cartForm =
+      document.querySelector('form[action$="/cart"], form[action*="/cart?"], form[action="/cart"]') ||
+      document.querySelector("[data-encore-cart-notice]");
+    if (!cartForm && !/^\/cart\/?$/.test(window.location.pathname)) return;
+    var host = cartForm || document.querySelector("main") || document.body;
+
+    function render() {
+      cartState().then(function (st) {
+        var existing = document.querySelector("[data-encore-mixed-notice]");
+        var mixed = st && st.preorder > 0 && st.regular > 0;
+        if (!mixed) {
+          if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+          return;
+        }
+        if (existing) return;
+        fetchConfig("", (document.documentElement.lang || "en").slice(0, 2), pageMarket()).then(function (cfg) {
+          var copy = mixedCartCopy(cfg, cfg && cfg.preorder);
+          if (!copy || document.querySelector("[data-encore-mixed-notice]")) return;
+          var el = document.createElement("div");
+          el.className = "encore encore-mixed-notice";
+          el.setAttribute("data-encore-mixed-notice", "1");
+          el.setAttribute("role", "status");
+          el.textContent = copy;
+          if (cartForm && cartForm.parentNode) cartForm.parentNode.insertBefore(el, cartForm);
+          else host.insertBefore(el, host.firstChild);
+        });
+      });
+    }
+    render();
+    hidePrivateProps();
+    document.addEventListener("cart:refresh", render);
+    document.addEventListener("encore:added", render);
+    // Ajax carts re-render lines; keep the private rows hidden.
+    if (window.MutationObserver) {
+      new MutationObserver(function () {
+        hidePrivateProps();
+      }).observe(host, { childList: true, subtree: true });
+    }
+  }
+
+  // Shopify's convention is that themes hide line-item properties whose name
+  // starts with "_". OS 2.0 themes do; vintage themes (Debut, Brooklyn…)
+  // print them ("_preorder: true"). Hide just those rows, never merchant-
+  // facing ones like "Preorder: Ships …".
+  function hidePrivateProps() {
+    var labels = document.querySelectorAll(
+      "[data-cart-item-property-name], .product-details__item-label, .cart__property-label, dt, strong, span, b",
+    );
+    for (var i = 0; i < labels.length; i++) {
+      var el = labels[i];
+      if (el.children.length || el.__encoreHidden) continue;
+      var txt = (el.textContent || "").trim();
+      if (!/^_preorder(_ship_date|_market)?\s*:?$/.test(txt)) continue;
+      el.__encoreHidden = true;
+      var row =
+        (el.closest &&
+          el.closest("li, tr, dl > div, .product-details__item, .cart__property, [data-cart-item-property]")) ||
+        el.parentNode;
+      if (row && row !== document.body) row.style.display = "none";
+    }
+  }
+
   // ---------- bootstrap ----------
   function initAll(scope) {
     var s = scope || document;
@@ -895,6 +995,7 @@
     autoMount(); // must run before initAll so relocated shells init in place
     initAll();
     initCollectionBadges();
+    initMixedCartNotice();
   }
 
   if (document.readyState === "loading") {

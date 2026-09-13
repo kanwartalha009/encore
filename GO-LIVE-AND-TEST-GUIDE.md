@@ -11,7 +11,7 @@ Everything you need to take Encore from "deployed on Railway" to "live on a real
 | Piece | Status |
 |---|---|
 | App deployed on Railway | ✅ `encore-production-7c8f.up.railway.app` |
-| Postgres on Railway | ✅ (`DATABASE_URL` set) |
+| Database | ⚠️ **SQLite on a Railway volume** (`DATABASE_URL=file:/data/encore.sqlite`), not Postgres. `docker-start` runs `prisma db push`, which cannot add constraints/indexes to a live table without `--accept-data-loss` (the 2026-09-13 unique-index hotfix). Before public listing: move to Postgres + real `prisma migrate` (priority item, see PENDING-FEATURES) |
 | App installed on dev store | ✅ `dev-novasolutions.myshopify.com` |
 | Billing (3 plans + 14-day trial) | ✅ Test-mode charges on dev store |
 | Webhooks (orders, inventory, GDPR, uninstall) | ✅ Registered; delivery verified live 2026-09-01 (`inventory_levels/update` + `products/update` → 200) |

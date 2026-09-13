@@ -134,6 +134,8 @@ export type StorefrontConfig = {
     textColor: string;
     customCss: string;
   };
+  /** Cart-level copy (independent of any product) — used on /cart and the PDP. */
+  cart: { mixedCartWarning: boolean; mixedCartMessage: string };
   backInStock: {
     enabled: boolean;
     buttonText: string;
@@ -402,6 +404,12 @@ export async function getStorefrontConfig(
       bgColor: s(ls, "bgColor", "#F1F1F1"),
       textColor: s(ls, "textColor", "#6B6B6B"),
       customCss: s(ls, "customCss", ""),
+    },
+    cart: {
+      mixedCartWarning: b(g, "mixedCartWarning", true),
+      mixedCartMessage:
+        tv("mixed_cart_message") ||
+        s(g, "mixedCartMessage", "Your cart has both in-stock and preorder items — they may ship separately."),
     },
     backInStock: {
       // Default ON to match the admin UI (Back in stock page shows the toggle
