@@ -13,8 +13,11 @@ vi.mock("../app/models/settings.server", () => ({
   getSettings: vi.fn(async () => ({ general: {}, lowStock: {}, backInStock: {} })),
   getTranslations: vi.fn(async () => ({})),
 }));
+const capacity = vi.fn<(shop: string, c: unknown, vid?: string | null) => Promise<{ soldOut: boolean; remaining: number | null }>>(
+  async () => ({ soldOut: false, remaining: null }),
+);
 vi.mock("../app/models/capacity.server", () => ({
-  getCampaignCapacity: vi.fn(async () => ({ soldOut: false, remaining: null })),
+  getCampaignCapacity: (shop: string, c: unknown, vid?: string | null) => capacity(shop, c, vid),
 }));
 vi.mock("../app/models/markets.server", () => ({
   getMarketRule: vi.fn(async () => ({ scope: "ALL", markets: [], perMarketOverrides: {} })),
@@ -45,7 +48,11 @@ const campaign = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-beforeEach(() => campaignFindMany.mockReset());
+beforeEach(() => {
+  campaignFindMany.mockReset();
+  capacity.mockReset();
+  capacity.mockResolvedValue({ soldOut: false, remaining: null });
+});
 
 describe("getStorefrontConfig", () => {
   it("serves trigger 'stock' for STOCK campaigns and 'always' otherwise", async () => {
@@ -75,6 +82,42 @@ describe("getStorefrontConfig", () => {
     expect(hit.preorder?.campaignId).toBe("c1");
     const miss = await getStorefrontConfig("s.myshopify.com", "43", "", "en");
     expect(miss.preorder).toBeNull();
+  });
+
+  it("scopes the offer to the campaign's variant rows and carries per-variant caps", async () => {
+    campaignFindMany.mockResolvedValue([
+      campaign({
+        productMode: "SPECIFIC",
+        productIds: '["gid://shopify/Product/42"]',
+        variantConfigs: JSON.stringify([
+          { productId: "gid://shopify/Product/42", variantId: "gid://shopify/ProductVariant/1", unitsOffered: 5 },
+          { productId: "gid://shopify/Product/42", variantId: "gid://shopify/ProductVariant/2", unitsOffered: 5 },
+        ]),
+      }),
+    ]);
+    capacity.mockImplementation(async (_s: string, _c: unknown, vid?: string | null) =>
+      vid === "gid://shopify/ProductVariant/2" ? { soldOut: true, remaining: 0 } : { soldOut: false, remaining: 3 },
+    );
+    const cfg = await getStorefrontConfig("s.myshopify.com", "42", "", "en");
+    expect(cfg.preorder?.variantScoped).toBe(true);
+    expect(cfg.preorder?.variants).toEqual({ "1": { soldOut: false, remaining: 3 }, "2": { soldOut: true, remaining: 0 } });
+    expect(cfg.preorder?.active).toBe(true); // variant 1 still offerable
+  });
+
+  it("reports the product sold out once every configured variant is at cap", async () => {
+    campaignFindMany.mockResolvedValue([
+      campaign({
+        productMode: "SPECIFIC",
+        productIds: '["gid://shopify/Product/42"]',
+        variantConfigs: JSON.stringify([{ productId: "gid://shopify/Product/42", variantId: "gid://shopify/ProductVariant/1", unitsOffered: 1 }]),
+      }),
+    ]);
+    capacity.mockImplementation(async (_s: string, _c: unknown, vid?: string | null) =>
+      vid ? { soldOut: true, remaining: 0 } : { soldOut: false, remaining: null },
+    );
+    const cfg = await getStorefrontConfig("s.myshopify.com", "42", "", "en");
+    expect(cfg.preorder?.soldOut).toBe(true);
+    expect(cfg.preorder?.active).toBe(false);
   });
 
   it("serves the campaign window as ISO strings for the countdown block", async () => {

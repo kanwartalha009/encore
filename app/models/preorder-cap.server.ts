@@ -50,6 +50,17 @@ async function gql(
   await admin.graphql(query, { variables });
 }
 
+async function gqlData<T>(
+  admin: AdminGraphqlClient,
+  query: string,
+  variables: Record<string, unknown>,
+): Promise<T> {
+  const res = await admin.graphql(query, { variables });
+  const body = (await res.json()) as { data?: T; errors?: { message: string }[] };
+  if (body.errors?.length) throw new Error(body.errors.map((e) => e.message).join("; "));
+  return (body.data ?? {}) as T;
+}
+
 async function soldForVariant(
   shop: string,
   campaignId: string,
@@ -107,6 +118,75 @@ export async function ensureCapDefinitions(admin: AdminGraphqlClient): Promise<v
   }
 }
 
+const VALIDATIONS_Q = `#graphql
+query EncoreCapValidations {
+  validations(first: 25) {
+    nodes { id title enabled shopifyFunction { id app { handle } } }
+  }
+}`;
+
+const VALIDATION_CREATE = `#graphql
+mutation EncoreCapValidationCreate($validation: ValidationCreateInput!) {
+  validationCreate(validation: $validation) {
+    validation { id enabled }
+    userErrors { field message }
+  }
+}`;
+
+const VALIDATION_UPDATE = `#graphql
+mutation EncoreCapValidationEnable($id: ID!, $validation: ValidationUpdateInput!) {
+  validationUpdate(id: $id, validation: $validation) {
+    validation { id enabled }
+    userErrors { field message }
+  }
+}`;
+
+export const CAP_FUNCTION_HANDLE = "encore-preorder-cap";
+const CAP_VALIDATION_TITLE = "Encore preorder cap";
+
+/**
+ * A deployed Cart & Checkout Validation Function does NOTHING until a
+ * Validation object is created for it (validationCreate — needs the
+ * write_validations scope). Idempotent: reuses the existing validation
+ * (re-enabling it if a merchant switched it off by mistake), creates it
+ * otherwise. blockOnFailure=false: a Function runtime error must never lock
+ * a merchant's checkout — the offer-level cap + DENY policy still apply.
+ * Best-effort: never throws.
+ */
+export async function ensureCapValidation(
+  admin: AdminGraphqlClient,
+): Promise<{ status: "exists" | "created" | "enabled" | "error"; detail?: string }> {
+  try {
+    const q = await gqlData<{
+      validations?: { nodes?: { id: string; title: string; enabled: boolean; shopifyFunction?: { app?: { handle?: string } } }[] };
+    }>(admin, VALIDATIONS_Q, {});
+    const mine = (q.validations?.nodes ?? []).find(
+      (v) => v.title === CAP_VALIDATION_TITLE || v.shopifyFunction?.app?.handle === "encore",
+    );
+    if (mine) {
+      if (mine.enabled) return { status: "exists" };
+      const u = await gqlData<{ validationUpdate?: { userErrors?: { message: string }[] } }>(
+        admin, VALIDATION_UPDATE, { id: mine.id, validation: { enable: true } },
+      );
+      const errs = u.validationUpdate?.userErrors ?? [];
+      return errs.length ? { status: "error", detail: errs.map((e) => e.message).join("; ") } : { status: "enabled" };
+    }
+    const c = await gqlData<{ validationCreate?: { userErrors?: { message: string }[] } }>(admin, VALIDATION_CREATE, {
+      validation: { functionHandle: CAP_FUNCTION_HANDLE, title: CAP_VALIDATION_TITLE, enable: true, blockOnFailure: false },
+    });
+    const errs = c.validationCreate?.userErrors ?? [];
+    if (errs.length) {
+      console.error("[preorder-cap] validationCreate:", errs);
+      return { status: "error", detail: errs.map((e) => e.message).join("; ") };
+    }
+    console.log("[preorder-cap] checkout validation created + enabled");
+    return { status: "created" };
+  } catch (e) {
+    console.error("[preorder-cap] ensureCapValidation failed", e);
+    return { status: "error", detail: String((e as Error)?.message ?? e) };
+  }
+}
+
 /** Write remaining + cap for every capped variant in the campaign. */
 export async function syncVariantCaps(
   admin: AdminGraphqlClient,
@@ -135,6 +215,7 @@ export async function syncVariantCaps(
   }
   if (metafields.length) {
     await ensureCapDefinitions(admin);
+    await ensureCapValidation(admin);
     await gql(admin, MF_SET, { metafields });
   }
 }

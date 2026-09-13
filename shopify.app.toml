@@ -9,8 +9,9 @@ embedded = true
 
 [access_scopes]
 # Products/selling-plans, orders tagging, customers, markets/inventory, theme embed,
-# plus metaobjects (Novafied stores per-variant pre-order config as metaobjects/metafields).
-scopes = "read_products,write_products,write_purchase_options,read_inventory,read_locations,read_orders,write_orders,read_markets,read_customers,read_themes,read_discounts,write_metaobjects,write_metaobject_definitions"
+# plus metaobjects (Novafied stores per-variant pre-order config as metaobjects/metafields),
+# write_validations: activate the preorder-cap Cart & Checkout Validation (validationCreate).
+scopes = "read_products,write_products,write_purchase_options,read_inventory,read_locations,read_orders,write_orders,read_markets,read_customers,read_themes,read_discounts,write_metaobjects,write_metaobject_definitions,write_validations"
 
 [auth]
 redirect_urls = [ "https://encore-production-7c8f.up.railway.app/auth/callback" ]

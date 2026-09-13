@@ -123,6 +123,13 @@ export type StorefrontConfig = {
         sellingPlanId: string | null;
         /** This market is flagged no-local-stock → offer preorder even if in stock. */
         forcePreorder: boolean;
+        /**
+         * Campaigns are configured per variant. When this product has variant
+         * rows in the campaign, only those variants are on preorder and each
+         * carries its own cap — the storefront re-evaluates on the picker.
+         */
+        variantScoped: boolean;
+        variants: Record<string, { soldOut: boolean; remaining: number | null }>;
       };
   lowStock: {
     enabled: boolean;
@@ -364,12 +371,31 @@ export async function getStorefrontConfig(
   if (match) {
     // No-oversell: hide the offer once the campaign/variant cap is reached.
     const cap = await getCampaignCapacity(shop, match, variantId);
+    // Per-variant map for this product (units offered live on variant rows).
+    const variants: Record<string, { soldOut: boolean; remaining: number | null }> = {};
+    let cfgs: { productId?: string; variantId?: string; unitsOffered?: number | null }[] = [];
+    try {
+      cfgs = JSON.parse(match.variantConfigs) as typeof cfgs;
+    } catch {
+      cfgs = [];
+    }
+    const mine = cfgs.filter((v) => v.variantId && (!v.productId || gidNum(v.productId) === pid));
+    for (const v of mine) {
+      const vc = await getCampaignCapacity(shop, match, v.variantId!);
+      variants[gidNum(v.variantId!)] = { soldOut: vc.soldOut, remaining: vc.remaining };
+    }
+    const variantScoped = mine.length > 0;
+    // Product-level sold out = campaign cap hit, or every configured variant gone.
+    const allVariantsGone = variantScoped && mine.every((v) => variants[gidNum(v.variantId!)].soldOut);
+    const soldOut = cap.soldOut || allVariantsGone;
     const shipDate = match.shipDate ? match.shipDate.toISOString() : null;
     const shipText = match.shipDate ? fmtDate(match.shipDate, locale) : "";
     preorder = {
-      active: !cap.soldOut,
-      soldOut: cap.soldOut,
+      active: !soldOut,
+      soldOut,
       remaining: cap.remaining,
+      variantScoped,
+      variants,
       label:
         tv("preorder_button") ||
         match.ctaLabel ||

@@ -76,21 +76,33 @@
     return m ? m[1] : fallback;
   }
 
-  // Fire cb whenever the shopper changes variant. Generic across themes:
-  // listens for changes to the hidden id input, option selectors and history.
+  // Fire cb whenever the shopper changes variant. Themes differ wildly here:
+  // some use named selects (id / options[]), Debut/Brooklyn use unnamed
+  // `data-single-option-selector`s and update the hidden master select
+  // programmatically (no event), OS 2.0 themes swap sections in place and
+  // rewrite the URL. So: any change inside the form, the common custom
+  // events, popstate, AND a cheap watch on the master variant id.
   function onVariantChange(form, cb) {
-    var handler = function (e) {
-      var t = e && e.target;
-      if (!t) return;
-      var name = t.name || "";
-      if (name === "id" || name === "options[]" || /option/i.test(name)) {
-        window.setTimeout(cb, 60);
+    var last = currentVariantId(form, null);
+    function check() {
+      var now = currentVariantId(form, null);
+      if (now !== last) {
+        last = now;
+        cb();
       }
+    }
+    var later = function () {
+      window.setTimeout(check, 60);
     };
-    document.addEventListener("change", handler, true);
-    window.addEventListener("popstate", function () {
-      window.setTimeout(cb, 60);
-    });
+    document.addEventListener("change", later, true);
+    document.addEventListener("variant:change", later);
+    document.addEventListener("variantChange", later);
+    document.addEventListener("variant:changed", later);
+    window.addEventListener("popstate", later);
+    if (form && window.MutationObserver) {
+      new MutationObserver(later).observe(form, { subtree: true, attributes: true, childList: true });
+    }
+    window.setInterval(check, 400);
   }
 
   function setProp(form, name, value) {
@@ -124,21 +136,67 @@
     input.value = id;
   }
 
+  var THEME_BUY_SELECTORS = [
+    '[name="add"]',
+    ".product-form__submit",
+    ".shopify-payment-button",
+    'button[type="submit"]',
+  ];
+
   function hideThemeBuyButtons(form, root) {
     if (!form) return;
-    var sels = [
-      '[name="add"]',
-      ".product-form__submit",
-      ".shopify-payment-button",
-      'button[type="submit"]',
-    ];
-    sels.forEach(function (s) {
+    THEME_BUY_SELECTORS.forEach(function (s) {
       var nodes = form.querySelectorAll(s);
       for (var i = 0; i < nodes.length; i++) {
         if (root.contains(nodes[i])) continue;
+        if (nodes[i].__encoreDisplay == null) nodes[i].__encoreDisplay = nodes[i].style.display || "";
         nodes[i].style.display = "none";
       }
     });
+  }
+
+  function showThemeBuyButtons(form, root) {
+    if (!form) return;
+    THEME_BUY_SELECTORS.forEach(function (s) {
+      var nodes = form.querySelectorAll(s);
+      for (var i = 0; i < nodes.length; i++) {
+        if (root.contains(nodes[i])) continue;
+        if (nodes[i].__encoreDisplay != null) {
+          nodes[i].style.display = nodes[i].__encoreDisplay;
+          nodes[i].__encoreDisplay = null;
+        }
+      }
+    });
+  }
+
+  function clearEncoreFields(form) {
+    if (!form) return;
+    var nodes = form.querySelectorAll('input[data-encore="1"]');
+    for (var i = 0; i < nodes.length; i++) nodes[i].parentNode.removeChild(nodes[i]);
+  }
+
+  // Per-variant offer state from the config, ignoring stock:
+  //   "none"     → this variant is not part of the campaign
+  //   "soldout"  → its preorder allocation is exhausted
+  //   "offer"    → preorder can be offered
+  function variantOffer(p, vid) {
+    if (!p) return "none";
+    if (p.variants && p.variantScoped) {
+      var v = p.variants[String(vid)];
+      if (!v) return "none";
+      return v.soldOut ? "soldout" : "offer";
+    }
+    if (p.soldOut || !p.active) return p.soldOut ? "soldout" : "none";
+    return "offer";
+  }
+
+  // Variant-level stock from the embed's inventory JSON; falls back to the
+  // block's product-level attribute. Untracked variants are always in stock.
+  function variantInStock(root, productId, vid) {
+    var inv = readJSON('[data-encore-inventory="' + productId + '"]');
+    var row = inv && inv[String(vid)];
+    if (row) return row.tracked ? Number(row.qty) > 0 : true;
+    return root.getAttribute("data-in-stock") === "true";
   }
 
   // ---------- Universal auto-mount (works on ANY theme, vintage included) ----
@@ -318,79 +376,105 @@
 
       if (!cfg || !cfg.preorder) return;
       var p = cfg.preorder;
+      var form = closestForm(root);
 
       // Auto-mounted shells carry no per-block placement choice — follow the
       // placement configured in the Encore admin instead.
       if (root.hasAttribute("data-encore-auto") && p.placement) placement = p.placement;
+      var replaceTheme = placement === "replace" || !!p.hideBuyNow;
+      var idleLabel = p.label || btn.textContent;
+      var badge = null;
+      var mixedEl = null;
+      var current = null;
 
-      // Cap reached: the campaign is live but this variant's allocation is
-      // gone. Show a real Sold out state right away (the app also flips the
-      // variant back to DENY, but that lands a few seconds after the order),
-      // no badge, and let Notify-me take over the buy box.
-      if (p.soldOut || !p.active) {
-        var stocked = root.getAttribute("data-in-stock") === "true";
-        if (p.soldOut && !stocked) renderSoldOut(root, closestForm(root), ui, btn, note, p);
-        return;
-      }
-
-      // R0.1 — honor the campaign's trigger:
-      //   "stock"  → preorder only when the product/variant is NOT in stock
-      //   "always" → presale mode: show even while in stock
-      // forcePreorder (market flagged no-local-stock) overrides either way.
-      var inStock = root.getAttribute("data-in-stock") === "true";
-      if (inStock && p.trigger !== "always" && !p.forcePreorder) return;
-      var form = closestForm(root);
-
-      if (p.label) btn.textContent = p.label;
-
-      if (showBadge && p.showBadge !== false) {
-        var badge = document.createElement("span");
+      function ensureBadge() {
+        if (badge || !showBadge || p.showBadge === false) return;
+        badge = document.createElement("span");
         badge.className = "encore encore-badge encore-badge--" + (p.badgeStyle || "pill");
         badge.textContent = p.badge || "Preorder";
         badge.setAttribute("data-encore-badge", "1");
         placeBadge(badge, root, form, ui, p.badgePosition || root.getAttribute("data-badge-position") || "auto");
       }
 
-      note.textContent = p.shipText
-        ? interpolate(p.message, { date: p.shipText })
-        : p.fallback || "";
-
-      // Mixed-cart notice on the PDP: only when the cart ALREADY holds
-      // in-stock items, i.e. adding this preorder would make it mixed
-      // (R1.5 — previously an unconditional line under the button).
-      var mixedCopy = mixedCartCopy(cfg, p);
-      if (mixedCopy && note.parentNode) {
-        cartState().then(function (st) {
-          if (!st || !st.regular) return;
-          var mixed = document.createElement("div");
-          mixed.className = "encore encore-mixed-note";
-          mixed.textContent = mixedCopy;
-          note.parentNode.insertBefore(mixed, note.nextSibling);
-        });
+      // Everything the cart line needs: properties + selling plan + market.
+      function armForm() {
+        if (!form) return;
+        if (p.lineItem && p.lineItem.enabled) {
+          setProp(form, "_preorder", "true");
+          if (p.shipDate) setProp(form, "_preorder_ship_date", p.shipDate);
+          var label = p.lineItem.preorderLabel || "Preorder";
+          var value = p.shipText
+            ? (p.lineItem.shipLabel || "Ships") + " " + p.shipText
+            : p.fallback || "Preorder";
+          setProp(form, label, value);
+        }
+        if (p.sellingPlanId) setSellingPlan(form, p.sellingPlanId);
+        if (market) setProp(form, "_preorder_market", market);
       }
 
-      // Line-item properties → follow the item into cart + checkout.
-      if (form && p.lineItem && p.lineItem.enabled) {
-        setProp(form, "_preorder", "true");
-        if (p.shipDate) setProp(form, "_preorder_ship_date", p.shipDate);
-        var label = p.lineItem.preorderLabel || "Preorder";
-        var value = p.shipText
-          ? (p.lineItem.shipLabel || "Ships") + " " + p.shipText
-          : p.fallback || "Preorder";
-        setProp(form, label, value);
+      function showPreorder() {
+        armForm();
+        btn.textContent = idleLabel;
+        btn.disabled = false;
+        btn.removeAttribute("aria-disabled");
+        btn.classList.remove("encore-btn--soldout");
+        note.textContent = p.shipText ? interpolate(p.message, { date: p.shipText }) : p.fallback || "";
+        ensureBadge();
+        if (badge) badge.hidden = false;
+        if (replaceTheme) hideThemeBuyButtons(form, root);
+        ui.hidden = false;
+        // Mixed-cart hint: only when the cart ALREADY holds in-stock items.
+        var mixedCopy = mixedCartCopy(cfg, p);
+        if (mixedCopy && !mixedEl && note.parentNode) {
+          cartState().then(function (st) {
+            if (!st || !st.regular || mixedEl) return;
+            mixedEl = document.createElement("div");
+            mixedEl.className = "encore encore-mixed-note";
+            mixedEl.textContent = mixedCopy;
+            note.parentNode.insertBefore(mixedEl, note.nextSibling);
+          });
+        }
+        if (mixedEl) mixedEl.hidden = false;
       }
 
-      // Selling plan → makes Shopify apply the deposit / pay-later billing at
-      // checkout. Without it the item is added as a plain (pay-now) line.
-      if (form && p.sellingPlanId) {
-        setSellingPlan(form, p.sellingPlanId);
-      }
-
-      // Capture the buyer's market on the line → demand signal market dimension.
-      if (form && market) setProp(form, "_preorder_market", market);
-
-      if (placement === "replace" || p.hideBuyNow) {
+      function showSoldOut() {
+        clearEncoreFields(form);
         hideThemeBuyButtons(form, root);
+        btn.textContent = p.soldOutLabel || "Sold out";
+        btn.disabled = true;
+        btn.setAttribute("aria-disabled", "true");
+        btn.classList.add("encore-btn--soldout");
+        note.textContent = p.soldOutMessage || "";
+        if (badge) badge.hidden = true;
+        if (mixedEl) mixedEl.hidden = true;
+        ui.hidden = false;
+      }
+
+      function showNothing() {
+        clearEncoreFields(form);
+        showThemeBuyButtons(form, root);
+        if (badge) badge.hidden = true;
+        if (mixedEl) mixedEl.hidden = true;
+        ui.hidden = true;
+      }
+
+      // Re-evaluated for the selected variant: campaigns are configured per
+      // variant (units offered), so the button, badge, selling plan and
+      // properties must follow the picker, not the product.
+      function apply() {
+        var vid = currentVariantId(form, root.getAttribute("data-variant-id"));
+        var offer = variantOffer(p, vid);
+        var stocked = variantInStock(root, productId, vid);
+        var next;
+        if (offer === "none") next = "none";
+        else if (offer === "soldout") next = stocked ? "none" : "soldout";
+        else if (stocked && p.trigger !== "always" && !p.forcePreorder) next = "none";
+        else next = "preorder";
+        if (next === current) return;
+        current = next;
+        if (next === "preorder") showPreorder();
+        else if (next === "soldout") showSoldOut();
+        else showNothing();
       }
 
       // Add to cart directly (R1.5 E2E fix). Themes attach their own submit
@@ -400,23 +484,13 @@
       // own fields to /cart/add.js sidesteps that and keeps every property,
       // the selling plan and the chosen variant intact.
       btn.addEventListener("click", function () {
-        if (!form || btn.__busy) return;
+        if (!form || btn.__busy || current !== "preorder") return;
         addPreorderToCart(form, btn, note, p);
       });
 
-      ui.hidden = false;
+      onVariantChange(form, apply);
+      apply();
     });
-  }
-
-  function renderSoldOut(root, form, ui, btn, note, p) {
-    if (!btn) return;
-    hideThemeBuyButtons(form, root);
-    btn.textContent = p.soldOutLabel || "Sold out";
-    btn.disabled = true;
-    btn.setAttribute("aria-disabled", "true");
-    btn.classList.add("encore-btn--soldout");
-    if (note) note.textContent = p.soldOutMessage || "";
-    ui.hidden = false;
   }
 
   function addPreorderToCart(form, btn, note, p) {
@@ -871,11 +945,12 @@
         var vid = currentVariantId(form, root.getAttribute("data-variant-id"));
         var v = variantById(vid);
         var available = v ? v.available : root.getAttribute("data-available") === "true";
-        // Also offer notify-me when the preorder has hit its cap (sold out).
-        var preorderSoldOut = !!(cfg.preorder && cfg.preorder.soldOut);
-        // A live preorder owns the buy box: the Preorder button IS the call to
-        // action, so never stack "Notify me" next to it (R1.5 E2E fix).
-        var preorderActive = !!(cfg.preorder && cfg.preorder.active && !preorderSoldOut);
+        // Per-variant: notify-me steps in when the variant is out of stock and
+        // either not on preorder or its preorder allocation is sold out. A live
+        // preorder owns the buy box — never stack "Notify me" next to it.
+        var offer = variantOffer(cfg.preorder, vid);
+        var preorderSoldOut = offer === "soldout";
+        var preorderActive = offer === "offer";
         if ((available && !preorderSoldOut) || preorderActive) {
           btn.hidden = true;
         } else {
