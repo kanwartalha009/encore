@@ -161,6 +161,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       gmv: formatGmv(campaign.gmvCents, currency),
       depositCollected: formatGmv(campaign.depositCollectedCents, currency),
       balancePending: formatGmv(campaign.balancePendingCents, currency),
+      awaitingPayment: campaign.awaitingPaymentCount,
       // Cohort date first, the campaign's own ship date otherwise — a live
       // preorder with a ship date must never read "TBD".
       shipDate: (cohort?.shipDate ?? campaign.shipDate)
@@ -224,6 +225,7 @@ type CampaignDetail = {
   gmv: string;
   depositCollected: string;
   balancePending: string;
+  awaitingPayment: number;
   shipDate: string;
   status: "Live" | "Paused" | "Scheduled" | "Ended" | "Draft";
   createdAt: string;
@@ -442,7 +444,7 @@ export default function CampaignDetail() {
             index={2}
             icon={CashDollarIcon}
             tone="sky"
-            label={t("Deposit collected")}
+            label={c.paymentMode === "DEPOSIT" ? t("Deposit collected") : t("Collected")}
             value={c.depositCollected}
             delta={c.paymentMode === "DEPOSIT" ? t("Collected") : undefined}
             sub={
@@ -450,20 +452,25 @@ export default function CampaignDetail() {
                 ? c.depositKind === "PERCENT"
                   ? `${c.depositAmount}% ${t("of total")}`
                   : t("Fixed deposit per unit")
-                : t("Customers pay in full at checkout")
+                : c.awaitingPayment > 0
+                  ? `${c.awaitingPayment} ${c.awaitingPayment === 1 ? t("order awaiting payment") : t("orders awaiting payment")}`
+                  : t("Customers pay in full at checkout")
             }
           />
           <StatCard
             index={3}
             icon={ClockIcon}
             tone="amber"
-            label={t("Balance pending")}
+            label={c.paymentMode === "PAY_NOW" ? t("Awaiting payment") : t("Balance pending")}
             value={c.balancePending}
             delta={c.paymentMode === "PAY_NOW" ? undefined : t("Pending")}
             sub={
-              // Pay-now preorders never have a balance — claim nothing.
+              // Pay-now preorders have no balance plan — only orders Shopify
+              // has not marked paid yet (cash on delivery, pending gateways).
               c.paymentMode === "PAY_NOW"
-                ? t("No balance — pay-now preorder")
+                ? c.awaitingPayment > 0
+                  ? t("Unpaid or cash-on-delivery orders")
+                  : t("No balance — pay-now preorder")
                 : c.autoCharge && c.shipDate !== "TBD"
                   ? `${t("auto-charge")} ${c.shipDate}`
                   : `${t("balance due")} ${c.shipDate}`

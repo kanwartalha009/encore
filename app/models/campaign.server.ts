@@ -244,6 +244,38 @@ export async function listCampaigns(shop: string): Promise<CampaignWithStats[]> 
   });
 }
 
+
+// ---------- Money, by payment status (pure; exported for tests) ----------
+// Money actually received — never the order value. Orders #1018/#1019 (COD,
+// "Payment pending") showed "Deposit collected PKR 200 / Balance pending
+// PKR 0" because the deposit column held the full pay-now amount regardless
+// of whether Shopify had been paid.
+export type PreOrderMoneyRow = {
+  amount: number;
+  depositAmount: number | null;
+  paymentStatus: string;
+};
+
+export function campaignMoney(rows: PreOrderMoneyRow[]) {
+  const collectedOf = (p: PreOrderMoneyRow) =>
+    p.paymentStatus === "BALANCE_PAID"
+      ? p.amount
+      : p.paymentStatus === "DEPOSIT_PAID"
+        ? (p.depositAmount ?? 0)
+        : 0;
+  const depositCollectedCents = Math.round(rows.reduce((a, p) => a + collectedOf(p), 0) * 100);
+  const balancePendingCents = Math.round(
+    rows
+      .filter((p) => p.paymentStatus !== "REFUNDED")
+      .reduce((a, p) => a + Math.max(0, p.amount - collectedOf(p)), 0) * 100,
+  );
+  // Orders Shopify has not marked paid at all (COD, pending, failed).
+  const awaitingPaymentCount = rows.filter(
+    (p) => p.paymentStatus === "BALANCE_PENDING" || p.paymentStatus === "BALANCE_FAILED",
+  ).length;
+  return { depositCollectedCents, balancePendingCents, awaitingPaymentCount };
+}
+
 export type CampaignDetail = Campaign & {
   cohort: {
     id: string;
@@ -256,6 +288,7 @@ export type CampaignDetail = Campaign & {
   gmvCents: number;
   depositCollectedCents: number;
   balancePendingCents: number;
+  awaitingPaymentCount: number;
 };
 
 export async function getCampaign(
@@ -283,14 +316,7 @@ export async function getCampaign(
   const gmvCents = Math.round(
     row.preOrders.reduce((a, p) => a + p.amount, 0) * 100,
   );
-  const depositCollectedCents = Math.round(
-    row.preOrders.reduce((a, p) => a + (p.depositAmount ?? 0), 0) * 100,
-  );
-  const balancePendingCents = Math.round(
-    row.preOrders
-      .filter((p) => p.paymentStatus !== "BALANCE_PAID" && p.paymentStatus !== "REFUNDED")
-      .reduce((a, p) => a + (p.balanceAmount ?? 0), 0) * 100,
-  );
+  const { depositCollectedCents, balancePendingCents, awaitingPaymentCount } = campaignMoney(row.preOrders);
 
   const cohort = row.cohorts[0]
     ? {
@@ -309,6 +335,7 @@ export async function getCampaign(
     gmvCents,
     depositCollectedCents,
     balancePendingCents,
+    awaitingPaymentCount,
   };
 }
 
