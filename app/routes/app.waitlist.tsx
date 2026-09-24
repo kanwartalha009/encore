@@ -6,26 +6,9 @@ import type {
 } from "react-router";
 import { useFetcher, useLoaderData, useSubmit } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import {
-  Page,
-  Layout,
-  Card,
-  BlockStack,
-  InlineStack,
-  Text,
-  Badge,
-  Button,
-  Box,
-  TextField,
-  Select,
-  Checkbox,
-  Divider,
-  EmptyState,
-  IndexTable,
-  Banner,
-} from "@shopify/polaris";
-import { NotificationIcon, ExportIcon, ImportIcon, EmailIcon, CartIcon, PackageIcon } from "@shopify/polaris-icons";
-import { StatCard } from "../components/ui";
+import { NotificationIcon, EmailIcon, CartIcon, PackageIcon } from "@shopify/polaris-icons";
+import { StatCard, PageHero } from "../components/ui";
+import { flag, isChecked, val } from "../components/wc";
 import { useAppBridge } from "@shopify/app-bridge-react";
 
 import { authenticate } from "../shopify.server";
@@ -109,7 +92,6 @@ export default function BackInStockPage() {
   };
 
   const [showSettings, setShowSettings] = useState(false);
-  const [busy, setBusy] = useState(false);
 
   // ----- Storefront settings -----
   const [enabled, setEnabled] = useState(v.enabled ?? true);
@@ -248,208 +230,205 @@ export default function BackInStockPage() {
   const totalFailed = groups.reduce((a, g) => a + g.failed, 0);
 
   const rows = groups.map((g, index) => (
-    <IndexTable.Row id={`${g.productId}::${g.variantTitle ?? ""}`} key={index} position={index}>
-      <IndexTable.Cell>
-        <BlockStack gap="050">
-          <Text as="span" variant="bodyMd" fontWeight="semibold">{g.productTitle}</Text>
-          {g.variantTitle && <Text as="span" variant="bodySm" tone="subdued">{g.variantTitle}</Text>}
-          {(g.notified > 0 || g.failed > 0) && (
-            <InlineStack gap="150">
-              {g.notified > 0 && <Badge tone="success">{`${g.notified} notified`}</Badge>}
-              {g.failed > 0 && <Badge tone="critical">{`${g.failed} failed`}</Badge>}
-            </InlineStack>
+    <s-table-row key={index}>
+      <s-table-cell>
+        <s-stack direction="block" gap="none">
+          <s-text type="strong">{g.productTitle}</s-text>
+          {g.variantTitle && (
+            <s-text color="subdued" fontSize="small">
+              {g.variantTitle}
+            </s-text>
           )}
-        </BlockStack>
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        <Text as="span" alignment="end" variant="bodyMd" fontWeight="semibold" numeric>
-          {g.subscribers.toLocaleString()}
-        </Text>
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        <InlineStack gap="150">
-          {g.email > 0 && <Badge tone="info">{`Email · ${g.email}`}</Badge>}
-          {g.sms > 0 && <Badge tone="success">{`SMS · ${g.sms}`}</Badge>}
-          {g.both > 0 && <Badge tone="attention">{`Both · ${g.both}`}</Badge>}
-        </InlineStack>
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        <Text as="span" alignment="end" numeric>{g.convertedCount.toLocaleString()}</Text>
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        <Text as="span" variant="bodySm" tone="subdued">
+          {(g.notified > 0 || g.failed > 0) && (
+            <s-stack direction="inline" gap="small-200">
+              {g.notified > 0 && <s-badge tone="success">{`${g.notified} notified`}</s-badge>}
+              {g.failed > 0 && <s-badge tone="critical">{`${g.failed} failed`}</s-badge>}
+            </s-stack>
+          )}
+        </s-stack>
+      </s-table-cell>
+      <s-table-cell>
+        <s-text type="strong">{g.subscribers.toLocaleString()}</s-text>
+      </s-table-cell>
+      <s-table-cell>
+        <s-stack direction="inline" gap="small-200">
+          {g.email > 0 && <s-badge tone="info">{`Email · ${g.email}`}</s-badge>}
+          {g.sms > 0 && <s-badge tone="success">{`SMS · ${g.sms}`}</s-badge>}
+          {g.both > 0 && <s-badge tone="caution">{`Both · ${g.both}`}</s-badge>}
+        </s-stack>
+      </s-table-cell>
+      <s-table-cell>{g.convertedCount.toLocaleString()}</s-table-cell>
+      <s-table-cell>
+        <s-text color="subdued" fontSize="small">
           {g.newestSignupAt ? new Date(g.newestSignupAt).toISOString().slice(0, 10) : "—"}
-        </Text>
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        <Button icon={NotificationIcon} onClick={() => notify(g.productId, g.variantTitle)} loading={notifyBusy}>{t("Notify")}</Button>
-      </IndexTable.Cell>
-    </IndexTable.Row>
+        </s-text>
+      </s-table-cell>
+      <s-table-cell>
+        <s-button icon="notification" onClick={() => notify(g.productId, g.variantTitle)} loading={flag(notifyBusy)}>
+          {t("Notify")}
+        </s-button>
+      </s-table-cell>
+    </s-table-row>
   ));
 
+  const inputBox = (text: string) => (
+    <div style={{ border: "1px solid var(--s-color-border, #e3e3e3)", borderRadius: 8, padding: "8px 10px", color: "var(--s-color-text-secondary, #616161)", fontSize: 13 }}>
+      {text}
+    </div>
+  );
+
   return (
-    <Page
-      title={t("backinstock.title")}
-      subtitle={t("backinstock.subtitle")}
-      primaryAction={
-        showSettings
-          ? { content: t("common.save"), onAction: save }
-          : { content: t("Customize storefront"), onAction: () => setShowSettings(true) }
-      }
-      secondaryActions={[
-        { content: t("common.export"), icon: ExportIcon, onAction: exportCsv, disabled: groups.length === 0 },
-        { content: t("Import CSV"), icon: ImportIcon, onAction: () => fileInputRef.current?.click(), loading: importBusy },
-        ...(totalFailed > 0
-          ? [{ content: `Retry ${totalFailed} failed`, onAction: retryAllFailed }]
-          : []),
-      ]}
-    >
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".csv,text/csv"
-        style={{ display: "none" }}
-        onChange={onImportFile}
-      />
-      <BlockStack gap="500">
+    <s-page inlineSize="large">
+      <input ref={fileInputRef} type="file" accept=".csv,text/csv" style={{ display: "none" }} onChange={onImportFile} />
+      <div className="encore-stack">
+        <PageHero
+          icon={NotificationIcon}
+          tone="sky"
+          title={t("backinstock.title")}
+          sub={t("backinstock.subtitle")}
+          actions={
+            <>
+              {totalFailed > 0 && (
+                <s-button tone="critical" onClick={retryAllFailed} loading={flag(notifyBusy)}>
+                  {`Retry ${totalFailed} failed`}
+                </s-button>
+              )}
+              <s-button icon="import" onClick={() => fileInputRef.current?.click()} loading={flag(importBusy)}>
+                {t("Import CSV")}
+              </s-button>
+              <s-button icon="export" onClick={exportCsv} disabled={flag(groups.length === 0)}>
+                {t("common.export")}
+              </s-button>
+              {showSettings ? (
+                <s-button variant="primary" onClick={save}>
+                  {t("common.save")}
+                </s-button>
+              ) : (
+                <s-button variant="primary" onClick={() => setShowSettings(true)}>
+                  {t("Customize storefront")}
+                </s-button>
+              )}
+            </>
+          }
+        />
         {importResult && (
-          <Banner
+          <s-banner
             tone={importResult.ok ? "success" : "critical"}
-            title={
-              importResult.ok
-                ? t("Import finished")
-                : t("Import failed")
-            }
+            heading={importResult.ok ? t("Import finished") : t("Import failed")}
+            dismissible
             onDismiss={() => setImportResult(undefined)}
           >
-            <Text as="p">
+            <s-paragraph>
               {importResult.ok
                 ? `${importResult.imported ?? 0} ${t("subscribers imported")}` +
                   ((importResult.duplicates ?? 0) > 0 ? ` · ${importResult.duplicates} ${t("already existed")}` : "") +
                   ((importResult.skipped ?? 0) > 0 ? ` · ${importResult.skipped} ${t("rows skipped")}` : "")
                 : importErrorText(importResult.error)}
-            </Text>
+            </s-paragraph>
             {importResult.ok === false && (
-              <Text as="p" tone="subdued">
+              <s-paragraph color="subdued">
                 {t("Expected columns: email, product_id or product_handle, and optionally variant_id, locale.")}
-              </Text>
+              </s-paragraph>
             )}
-          </Banner>
+          </s-banner>
         )}
+
         {/* ---- Storefront customization (opens on demand) ---- */}
         {showSettings && (
-          <BlockStack gap="500">
-            <Card>
-              <BlockStack gap="400">
-                <InlineStack align="space-between" blockAlign="center">
-                  <Text as="h2" variant="headingMd">{t("Notify-me button")}</Text>
-                  <Button variant="tertiary" onClick={() => setShowSettings(false)}>{t("Close")}</Button>
-                </InlineStack>
-                <Divider />
-                <Checkbox
+          <div className="encore-stack">
+            <s-section>
+              <s-stack direction="block" gap="base">
+                <div className="encore-row-between">
+                  <s-heading>{t("Notify-me button")}</s-heading>
+                  <s-button variant="tertiary" onClick={() => setShowSettings(false)}>
+                    {t("Close")}
+                  </s-button>
+                </div>
+                <s-divider />
+                <s-checkbox
                   label={t("Show “Notify me” on out-of-stock products")}
-                  helpText={t("Only when the product isn't in a live preorder — preorder wins.")}
-                  checked={enabled}
-                  onChange={setEnabled}
+                  details={t("Only when the product isn't in a live preorder — preorder wins.")}
+                  checked={flag(enabled)}
+                  onChange={(e) => setEnabled(isChecked(e))}
                 />
-                <Checkbox
+                <s-checkbox
                   label={t("Hide the “Buy it now” button on these products")}
-                  checked={hideBuyNow}
-                  onChange={setHideBuyNow}
+                  checked={flag(hideBuyNow)}
+                  onChange={(e) => setHideBuyNow(isChecked(e))}
                 />
-                <Divider />
-                <TextField label={t("Button text")} value={buttonText} onChange={setButtonText} autoComplete="off" />
-                <Select
-                  label={t("Button position")}
-                  options={NOTIFY_POSITIONS.map((p) => ({ label: p.label, value: p.value }))}
-                  value={position}
-                  onChange={setPosition}
-                />
-                <InlineStack gap="300" blockAlign="end">
-                  <Box minWidth="200px">
-                    <TextField label={t("Button colour (hex)")} value={buttonColor} onChange={setButtonColor} autoComplete="off" />
-                  </Box>
-                  <div style={{ width: 36, height: 36, borderRadius: 8, background: buttonColor, border: "1px solid var(--p-color-border)" }} />
-                </InlineStack>
-              </BlockStack>
-            </Card>
+                <s-divider />
+                <s-text-field label={t("Button text")} value={buttonText} onInput={(e) => setButtonText(val(e))} />
+                <s-select label={t("Button position")} value={position} onChange={(e) => setPosition(val(e))}>
+                  {NOTIFY_POSITIONS.map((p) => (
+                    <s-option key={p.value} value={p.value}>
+                      {p.label}
+                    </s-option>
+                  ))}
+                </s-select>
+                <s-color-field label={t("Button colour (hex)")} value={buttonColor} onInput={(e) => setButtonColor(val(e))} />
+              </s-stack>
+            </s-section>
 
-            <Card>
-              <BlockStack gap="400">
-                <Text as="h2" variant="headingMd">{t("Sign-up popup")}</Text>
-                <Divider />
-                <Layout>
-                  <Layout.Section>
-                    <BlockStack gap="300">
-                      <TextField label={t("Popup title")} value={popupTitle} onChange={setPopupTitle} autoComplete="off" />
-                      <TextField label={t("Consent text")} value={consentText} onChange={setConsentText} autoComplete="off" multiline={2} />
-                      <Checkbox label={t("Also collect phone number (SMS)")} checked={collectPhone} onChange={setCollectPhone} />
-                      <Checkbox label={t("Show product image & title in popup")} checked={showProductInfo} onChange={setShowProductInfo} />
-                      <Checkbox
-                        label={t("Require email confirmation (double opt-in)")}
-                        helpText={t("Off = one tap (recommended). On = stricter consent (EU).")}
-                        checked={doubleOptIn}
-                        onChange={setDoubleOptIn}
-                      />
-                    </BlockStack>
-                  </Layout.Section>
-                  <Layout.Section variant="oneThird">
-                    <Box padding="400" borderWidth="025" borderColor="border" borderRadius="300" background="bg-surface">
-                      <BlockStack gap="200">
-                        <Text as="span" variant="headingSm">{popupTitle}</Text>
-                        {showProductInfo && (
-                          <InlineStack gap="200" blockAlign="center">
-                            <div style={{ width: 36, height: 36, borderRadius: 6, background: "var(--p-color-bg-fill-tertiary)" }} />
-                            <Text as="span" variant="bodySm" tone="subdued">{t("Aurora Hoodie — Indigo")}</Text>
-                          </InlineStack>
-                        )}
-                        <div style={{ border: "1px solid var(--p-color-border)", borderRadius: 8, padding: "8px 10px", color: "var(--p-color-text-secondary)", fontSize: 13 }}>you@email.com</div>
-                        {collectPhone && (
-                          <div style={{ border: "1px solid var(--p-color-border)", borderRadius: 8, padding: "8px 10px", color: "var(--p-color-text-secondary)", fontSize: 13 }}>+1 555 000 0000</div>
-                        )}
-                        <button type="button" tabIndex={-1} aria-hidden="true" style={{ background: buttonColor, color: "#fff", border: "none", borderRadius: 8, padding: "10px 14px", fontWeight: 600, cursor: "default" }}>
-                          {buttonText}
-                        </button>
-                        <Text as="span" variant="bodySm" tone="subdued">{consentText}</Text>
-                      </BlockStack>
-                    </Box>
-                  </Layout.Section>
-                </Layout>
-              </BlockStack>
-            </Card>
+            <s-section heading={t("Sign-up popup")}>
+              <div className="encore-layout">
+                <s-stack direction="block" gap="base">
+                  <s-text-field label={t("Popup title")} value={popupTitle} onInput={(e) => setPopupTitle(val(e))} />
+                  <s-text-area label={t("Consent text")} value={consentText} rows={2} onInput={(e) => setConsentText(val(e))} />
+                  <s-checkbox label={t("Also collect phone number (SMS)")} checked={flag(collectPhone)} onChange={(e) => setCollectPhone(isChecked(e))} />
+                  <s-checkbox label={t("Show product image & title in popup")} checked={flag(showProductInfo)} onChange={(e) => setShowProductInfo(isChecked(e))} />
+                  <s-checkbox
+                    label={t("Require email confirmation (double opt-in)")}
+                    details={t("Off = one tap (recommended). On = stricter consent (EU).")}
+                    checked={flag(doubleOptIn)}
+                    onChange={(e) => setDoubleOptIn(isChecked(e))}
+                  />
+                </s-stack>
+                <s-box padding="base" border="base" borderRadius="base" background="base">
+                  <s-stack direction="block" gap="small">
+                    <s-text type="strong">{popupTitle}</s-text>
+                    {showProductInfo && (
+                      <s-stack direction="inline" gap="small" alignItems="center">
+                        <div style={{ width: 36, height: 36, borderRadius: 6, background: "var(--s-color-bg-fill-tertiary, #e3e3e3)" }} />
+                        <s-text color="subdued" fontSize="small">
+                          {t("Aurora Hoodie — Indigo")}
+                        </s-text>
+                      </s-stack>
+                    )}
+                    {inputBox("you@email.com")}
+                    {collectPhone && inputBox("+1 555 000 0000")}
+                    <button type="button" tabIndex={-1} aria-hidden="true" style={{ background: buttonColor, color: "#fff", border: "none", borderRadius: 8, padding: "10px 14px", fontWeight: 600, cursor: "default" }}>
+                      {buttonText}
+                    </button>
+                    <s-text color="subdued" fontSize="small">
+                      {consentText}
+                    </s-text>
+                  </s-stack>
+                </s-box>
+              </div>
+            </s-section>
 
-            <Card>
-              <BlockStack gap="400">
-                <Text as="h2" variant="headingMd">{t("Where subscribers are saved")}</Text>
-                <Divider />
-                <Select
-                  label={t("Sync subscribers to")}
-                  options={[
-                    { label: t("Klaviyo (recommended — flows send the email)"), value: "klaviyo" },
-                    { label: t("Shopify customers (tag + segment)"), value: "shopify" },
-                    { label: t("Keep in Encore only"), value: "none" },
-                  ]}
-                  value={syncTarget}
-                  onChange={setSyncTarget}
-                />
+            <s-section heading={t("Where subscribers are saved")}>
+              <s-stack direction="block" gap="base">
+                <s-select label={t("Sync subscribers to")} value={syncTarget} onChange={(e) => setSyncTarget(val(e))}>
+                  <s-option value="klaviyo">{t("Klaviyo (recommended — flows send the email)")}</s-option>
+                  <s-option value="shopify">{t("Shopify customers (tag + segment)")}</s-option>
+                  <s-option value="none">{t("Keep in Encore only")}</s-option>
+                </s-select>
                 {syncTarget === "shopify" && (
-                  <Banner tone="warning">
-                    <Text as="span">{t("Shopify Email has no automatic back-in-stock trigger, so we'll send the restock email for you and tag the customer.")}</Text>
-                  </Banner>
+                  <s-banner tone="warning">
+                    {t("Shopify Email has no automatic back-in-stock trigger, so we'll send the restock email for you and tag the customer.")}
+                  </s-banner>
                 )}
-              </BlockStack>
-            </Card>
+              </s-stack>
+            </s-section>
 
-            <Card>
-              <BlockStack gap="400">
-                <Text as="h2" variant="headingMd">{t("Exclusions")}</Text>
-                <Divider />
-                <TextField
+            <s-section heading={t("Exclusions")}>
+              <s-stack direction="block" gap="base">
+                <s-text-field
                   label={t("Exclude products with these tags")}
                   value={excludeTags}
-                  onChange={setExcludeTags}
-                  autoComplete="off"
-                  helpText={t("Comma-separated, e.g. archived, discontinued.")}
+                  onInput={(e) => setExcludeTags(val(e))}
+                  details={t("Comma-separated, e.g. archived, discontinued.")}
                 />
                 <CollectionPicker
                   collections={collections}
@@ -458,20 +437,22 @@ export default function BackInStockPage() {
                   label={t("Exclude collections")}
                 />
                 {collections.length === 0 && (
-                  <Text as="p" variant="bodySm" tone="subdued">
+                  <s-text color="subdued" fontSize="small">
                     {t("No collections found in your store.")}
-                  </Text>
+                  </s-text>
                 )}
-              </BlockStack>
-            </Card>
+              </s-stack>
+            </s-section>
 
-            <InlineStack align="end" gap="200">
-              <Button onClick={() => setShowSettings(false)}>{t("common.cancel")}</Button>
-              <Button variant="primary" onClick={save}>{t("common.save")}</Button>
-            </InlineStack>
+            <s-stack direction="inline" justifyContent="end" gap="small">
+              <s-button onClick={() => setShowSettings(false)}>{t("common.cancel")}</s-button>
+              <s-button variant="primary" onClick={save}>
+                {t("common.save")}
+              </s-button>
+            </s-stack>
 
-            <Divider />
-          </BlockStack>
+            <s-divider />
+          </div>
         )}
 
         {/* ---- Dashboard (always visible) ---- */}
@@ -517,41 +498,32 @@ export default function BackInStockPage() {
         </div>
 
         {groups.length === 0 ? (
-          <Card>
-            <EmptyState
-              heading="No subscribers yet"
-              action={{ content: t("Customize storefront"), onAction: () => setShowSettings(true) }}
-              image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
-            >
-              <p>{t("Once the theme block is added, shoppers can subscribe on out-of-stock products.")}</p>
-            </EmptyState>
-          </Card>
+          <s-section>
+            <s-empty-state heading={t("No subscribers yet")}>
+              <s-paragraph slot="subheading">
+                {t("Once the theme block is added, shoppers can subscribe on out-of-stock products.")}
+              </s-paragraph>
+              <s-button slot="primary-action" variant="primary" onClick={() => setShowSettings(true)}>
+                {t("Customize storefront")}
+              </s-button>
+            </s-empty-state>
+          </s-section>
         ) : (
-          <>
-            <InlineStack align="space-between" blockAlign="center">
-              <Text as="h2" variant="headingMd">{t("Subscribers")}</Text>
-              <Button icon={ExportIcon} onClick={exportCsv}>{t("Export CSV")}</Button>
-            </InlineStack>
-            <Card padding="0">
-              <IndexTable
-                resourceName={{ singular: "subscriber group", plural: "subscriber groups" }}
-                itemCount={groups.length}
-                selectable={false}
-                headings={[
-                  { title: t("Product · variant") },
-                  { title: t("Subscribers"), alignment: "end" },
-                  { title: t("Channels") },
-                  { title: t("Converted"), alignment: "end" },
-                  { title: t("Newest signup") },
-                  { title: t("Action") },
-                ]}
-              >
-                {rows}
-              </IndexTable>
-            </Card>
-          </>
+          <s-section heading={t("Subscribers")} padding="none">
+            <s-table>
+              <s-table-header-row>
+                <s-table-header listSlot="primary">{t("Product · variant")}</s-table-header>
+                <s-table-header format="numeric">{t("Subscribers")}</s-table-header>
+                <s-table-header listSlot="inline">{t("Channels")}</s-table-header>
+                <s-table-header format="numeric">{t("Converted")}</s-table-header>
+                <s-table-header>{t("Newest signup")}</s-table-header>
+                <s-table-header>{t("Action")}</s-table-header>
+              </s-table-header-row>
+              <s-table-body>{rows}</s-table-body>
+            </s-table>
+          </s-section>
         )}
-      </BlockStack>
-    </Page>
+      </div>
+    </s-page>
   );
 }

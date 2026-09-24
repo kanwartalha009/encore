@@ -1,30 +1,9 @@
 import { useState, useCallback, useMemo } from "react";
+import { Tabs, badgeTone, flag, isChecked, val, vals, useLinkProps } from "../components/wc";
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { useFetcher, useLoaderData, useNavigate } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import {
-  Page,
-  Layout,
-  Card,
-  BlockStack,
-  InlineStack,
-  Text,
-  Badge,
-  Button,
-  Box,
-  EmptyState,
-  IndexTable,
-  IndexFilters,
-  useSetIndexFiltersMode,
-  ChoiceList,
-  RangeSlider,
-  TextField,
-  Tooltip,
-  useIndexResourceState,
-  Banner,
-} from "@shopify/polaris";
-import type { TabProps } from "@shopify/polaris";
-import { PlusIcon, CartIcon } from "@shopify/polaris-icons";
+import { CartIcon } from "@shopify/polaris-icons";
 import { PageHero } from "../components/ui";
 
 import { authenticate } from "../shopify.server";
@@ -141,25 +120,25 @@ function paymentBadgeTone(
 // ---------- Page ----------
 export default function CampaignsIndex() {
   const navigate = useNavigate();
+  const link = useLinkProps();
   const { t, locale } = useLocale();
   const { campaigns: CAMPAIGNS } = useLoaderData<typeof loader>();
 
-  // Tab + filters state (Shopify "saved views" pattern)
+  // Status views (Shopify "saved views" pattern) + filters
   const [selectedTab, setSelectedTab] = useState(0);
-  const tabs: TabProps[] = [
-    { id: "all", content: t("All"), panelID: "all-panel" },
-    { id: "live", content: t("Live"), panelID: "live-panel" },
-    { id: "scheduled", content: t("Scheduled"), panelID: "scheduled-panel" },
-    { id: "paused", content: t("Paused"), panelID: "paused-panel" },
-    { id: "ended", content: t("Ended"), panelID: "ended-panel" },
+  const tabs = [
+    { id: "all", content: t("All") },
+    { id: "live", content: t("Live") },
+    { id: "scheduled", content: t("Scheduled") },
+    { id: "paused", content: t("Paused") },
+    { id: "ended", content: t("Ended") },
   ];
 
   const [queryValue, setQueryValue] = useState("");
   const [paymentFilter, setPaymentFilter] = useState<string[]>([]);
   const [cartModeFilter, setCartModeFilter] = useState<string[]>([]);
   const [unitsRange, setUnitsRange] = useState<[number, number]>([0, 1000]);
-
-  const { mode, setMode } = useSetIndexFiltersMode();
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const handleFiltersClearAll = useCallback(() => {
     setQueryValue("");
@@ -176,204 +155,97 @@ export default function CampaignsIndex() {
       if (tabKey === "scheduled" && c.status !== "Scheduled") return false;
       if (tabKey === "paused" && c.status !== "Paused") return false;
       if (tabKey === "ended" && c.status !== "Ended") return false;
-      if (
-        queryValue &&
-        !`${c.name} ${c.product}`
-          .toLowerCase()
-          .includes(queryValue.toLowerCase())
-      )
-        return false;
-      if (paymentFilter.length && !paymentFilter.includes(c.payment))
-        return false;
-      if (cartModeFilter.length && !cartModeFilter.includes(c.cartMode))
-        return false;
-      if (c.unitsSold < unitsRange[0] || c.unitsSold > unitsRange[1])
-        return false;
+      if (queryValue && !`${c.name} ${c.product}`.toLowerCase().includes(queryValue.toLowerCase())) return false;
+      if (paymentFilter.length && !paymentFilter.includes(c.payment)) return false;
+      if (cartModeFilter.length && !cartModeFilter.includes(c.cartMode)) return false;
+      if (c.unitsSold < unitsRange[0] || c.unitsSold > unitsRange[1]) return false;
       return true;
     });
-  }, [
-    selectedTab,
-    queryValue,
-    paymentFilter,
-    cartModeFilter,
-    unitsRange,
-    tabs,
-    CAMPAIGNS,
-  ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTab, queryValue, paymentFilter, cartModeFilter, unitsRange, CAMPAIGNS]);
 
-  const filters = [
-    {
-      key: "payment",
-      label: t("Payment mode"),
-      filter: (
-        <ChoiceList
-          title={t("Payment mode")}
-          titleHidden
-          choices={[
-            { label: t("Pay now"), value: "Pay now" },
-            { label: t("Deposit + balance"), value: "Deposit + balance" },
-            { label: t("Pay later"), value: "Pay later" },
-            { label: t("Minimum to confirm"), value: "Minimum to confirm" },
-          ]}
-          selected={paymentFilter}
-          onChange={setPaymentFilter}
-          allowMultiple
-        />
-      ),
-      shortcut: true,
-    },
-    {
-      key: "cartMode",
-      label: t("Cart behavior"),
-      filter: (
-        <ChoiceList
-          title={t("Cart behavior")}
-          titleHidden
-          choices={[
-            { label: t("Ships separately"), value: "Ships separately" },
-            { label: t("Mixed cart allowed"), value: "Mixed cart allowed" },
-          ]}
-          selected={cartModeFilter}
-          onChange={setCartModeFilter}
-          allowMultiple
-        />
-      ),
-    },
-    {
-      key: "units",
-      label: t("Units sold"),
-      filter: (
-        <RangeSlider
-          label={t("Units sold")}
-          labelHidden
-          value={unitsRange}
-          min={0}
-          max={1000}
-          step={10}
-          onChange={(v) => setUnitsRange(v as [number, number])}
-          output
-        />
-      ),
-    },
-  ];
+  const activeFilters =
+    (paymentFilter.length ? 1 : 0) + (cartModeFilter.length ? 1 : 0) + (unitsRange[0] !== 0 || unitsRange[1] !== 1000 ? 1 : 0);
 
-  const appliedFilters: {
-    key: string;
-    label: string;
-    onRemove: () => void;
-  }[] = [];
-  if (paymentFilter.length) {
-    appliedFilters.push({
-      key: "payment",
-      label: `${t("Payment")}: ${paymentFilter.join(", ")}`,
-      onRemove: () => setPaymentFilter([]),
-    });
-  }
-  if (cartModeFilter.length) {
-    appliedFilters.push({
-      key: "cartMode",
-      label: `${t("Cart")}: ${cartModeFilter.join(", ")}`,
-      onRemove: () => setCartModeFilter([]),
-    });
-  }
-  if (unitsRange[0] !== 0 || unitsRange[1] !== 1000) {
-    appliedFilters.push({
-      key: "units",
-      label: `${t("Units")}: ${unitsRange[0]}–${unitsRange[1]}`,
-      onRemove: () => setUnitsRange([0, 1000]),
-    });
-  }
-
-  // Selection
-  const resourceName = { singular: t("preorder"), plural: t("preorders") };
-  const { selectedResources, allResourcesSelected, handleSelectionChange } =
-    useIndexResourceState(
-      filteredCampaigns.map((c) => ({ id: c.id })) as never,
-    );
+  // Selection (bulk actions)
+  const [selected, setSelected] = useState<string[]>([]);
+  const visibleIds = filteredCampaigns.map((c) => c.id);
+  const selectedVisible = selected.filter((id) => visibleIds.includes(id));
+  const allSelected = visibleIds.length > 0 && selectedVisible.length === visibleIds.length;
+  const toggleAll = () => setSelected(allSelected ? [] : visibleIds);
+  const toggleOne = (id: string, on: boolean) =>
+    setSelected((prev) => (on ? [...new Set([...prev, id])] : prev.filter((x) => x !== id)));
 
   // Bulk action handler — fires the campaign mutations resource route.
   const fetcher = useFetcher();
+  const bulkBusy = fetcher.state !== "idle";
   const submitBulk = (intent: string) => {
-    if (selectedResources.length === 0) return;
+    if (selectedVisible.length === 0) return;
     const fd = new FormData();
     fd.set("intent", intent);
-    fd.set("ids", JSON.stringify(selectedResources));
+    fd.set("ids", JSON.stringify(selectedVisible));
     fd.set("redirectTo", "/app/campaigns");
-    fetcher.submit(fd, {
-      method: "post",
-      action: "/app/campaigns/actions",
-    });
+    fetcher.submit(fd, { method: "post", action: "/app/campaigns/actions" });
+    setSelected([]);
   };
   const [confirmEndOpen, setConfirmEndOpen] = useState(false);
-  const promotedBulkActions = [
-    { content: t("Pause"), onAction: () => submitBulk("pause") },
-    { content: t("Resume"), onAction: () => submitBulk("resume") },
-    { content: t("Duplicate"), onAction: () => submitBulk("duplicate") },
-    {
-      content: t("End preorder"),
-      onAction: () => setConfirmEndOpen(true),
-    },
-  ];
 
   // Rows
-  const rows = filteredCampaigns.map((c, index) => {
-    const progressLabel =
-      c.unitsTarget != null
-        ? `${c.unitsSold} / ${c.unitsTarget}`
-        : `${c.unitsSold}`;
+  const rows = filteredCampaigns.map((c) => {
+    const progressLabel = c.unitsTarget != null ? `${c.unitsSold} / ${c.unitsTarget}` : `${c.unitsSold}`;
+    const linkId = `campaign-link-${c.id}`;
     return (
-      <IndexTable.Row
-        id={c.id}
-        key={c.id}
-        position={index}
-        selected={selectedResources.includes(c.id)}
-        onClick={() => navigate(`/app/campaigns/${c.id}`)}
-      >
-        <IndexTable.Cell>
-          <BlockStack gap="050">
-            <Text as="span" variant="bodyMd" fontWeight="semibold">
-              {c.name}
-            </Text>
-            <Text as="span" variant="bodySm" tone="subdued">
+      <s-table-row key={c.id} clickDelegate={linkId}>
+        <s-table-cell>
+          <s-checkbox
+            label={c.name}
+            labelAccessibilityVisibility="exclusive"
+            checked={flag(selectedVisible.includes(c.id))}
+            onChange={(e) => toggleOne(c.id, isChecked(e))}
+          />
+        </s-table-cell>
+        <s-table-cell>
+          <s-stack direction="block" gap="none">
+            <s-link id={linkId} {...link(`/app/campaigns/${c.id}`)}>
+              <s-text type="strong">{c.name}</s-text>
+            </s-link>
+            <s-text color="subdued" fontSize="small">
               {c.product}
-            </Text>
-          </BlockStack>
-        </IndexTable.Cell>
-        <IndexTable.Cell>
-          <Badge tone={statusToTone(c.status)}>{t(c.status)}</Badge>
-        </IndexTable.Cell>
-        <IndexTable.Cell>{t(c.trigger)}</IndexTable.Cell>
-        <IndexTable.Cell>
-          <Badge tone={paymentBadgeTone(c.payment)}>{t(c.payment)}</Badge>
-        </IndexTable.Cell>
-        <IndexTable.Cell>
-          <Tooltip content={c.cartMode === "Ships separately" ? t("Preorder items are split into their own order at checkout") : t("Shoppers see a mixed-cart notice; one order ships together")}>
-            <Text as="span" variant="bodySm">{t(c.cartMode)}</Text>
-          </Tooltip>
-        </IndexTable.Cell>
-        <IndexTable.Cell>
-          <Text as="span" variant="bodyMd" alignment="end" numeric>
-            {progressLabel}
-          </Text>
-        </IndexTable.Cell>
-        <IndexTable.Cell>
-          <Text as="span" variant="bodyMd" alignment="end" numeric>
-            {c.gmv}
-          </Text>
-        </IndexTable.Cell>
-        <IndexTable.Cell>{c.shipDate}</IndexTable.Cell>
-        <IndexTable.Cell>
-          <Text as="span" variant="bodySm" tone="subdued">
+            </s-text>
+          </s-stack>
+        </s-table-cell>
+        <s-table-cell>
+          <s-badge tone={badgeTone(statusToTone(c.status))}>{t(c.status)}</s-badge>
+        </s-table-cell>
+        <s-table-cell>{t(c.trigger)}</s-table-cell>
+        <s-table-cell>
+          <s-badge tone={badgeTone(paymentBadgeTone(c.payment))}>{t(c.payment)}</s-badge>
+        </s-table-cell>
+        <s-table-cell>
+          <s-text fontSize="small" interestFor={`cart-tip-${c.id}`}>
+            {t(c.cartMode)}
+          </s-text>
+          <s-tooltip id={`cart-tip-${c.id}`}>
+            {c.cartMode === "Ships separately"
+              ? t("Preorder items are split into their own order at checkout")
+              : t("Shoppers see a mixed-cart notice; one order ships together")}
+          </s-tooltip>
+        </s-table-cell>
+        <s-table-cell>{progressLabel}</s-table-cell>
+        <s-table-cell>{c.gmv}</s-table-cell>
+        <s-table-cell>{c.shipDate}</s-table-cell>
+        <s-table-cell>
+          <s-text color="subdued" fontSize="small">
             {relativeTime(c.updatedAt, locale)}
-          </Text>
-        </IndexTable.Cell>
-      </IndexTable.Row>
+          </s-text>
+        </s-table-cell>
+      </s-table-row>
     );
   });
 
   return (
-    <Page>
-      <BlockStack gap="400">
+    <s-page inlineSize="large">
+      <div className="encore-stack">
         <PageHero
           icon={CartIcon}
           tone="violet"
@@ -381,11 +253,11 @@ export default function CampaignsIndex() {
           sub={t("Variant-level preorder rules with units, ship date, and payment.")}
           actions={
             <>
-              <Button onClick={() => navigate("/app/cohorts")}>{t("Cohorts")}</Button>
-              <Button onClick={() => navigate("/app/settings")}>{t("Settings")}</Button>
-              <Button variant="primary" icon={PlusIcon} onClick={() => navigate("/app/campaigns/new")}>
+              <s-button onClick={() => navigate("/app/cohorts")}>{t("Cohorts")}</s-button>
+              <s-button onClick={() => navigate("/app/settings")}>{t("Settings")}</s-button>
+              <s-button variant="primary" icon="plus" onClick={() => navigate("/app/campaigns/new")}>
                 {t("New preorder")}
-              </Button>
+              </s-button>
             </>
           }
           stats={[
@@ -395,96 +267,155 @@ export default function CampaignsIndex() {
             { value: String(CAMPAIGNS.length), label: t("total") },
           ]}
         />
-        {filteredCampaigns.length === 0 && CAMPAIGNS.length === 0 ? (
-          <Layout>
-            <Layout.Section>
-              <Card>
-                <EmptyState
-                  heading={t("Set up your first preorder in 30 seconds")}
-                  action={{
-                    content: t("New preorder"),
-                    onAction: () => navigate("/app/campaigns/new"),
-                  }}
-                  secondaryAction={{
-                    content: t("Get help"),
-                    url: "/app/help",
-                  }}
-                  image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
-                >
-                  <p>{t("Pick the variants you want to pre-sell, set how many units, pick a ship date — that's it. Customers pay in full at checkout by default.")}</p>
-                </EmptyState>
-              </Card>
-            </Layout.Section>
-          </Layout>
+        {CAMPAIGNS.length === 0 ? (
+          <s-section>
+            <s-empty-state heading={t("Set up your first preorder in 30 seconds")}>
+              <s-paragraph slot="subheading">
+                {t("Pick the variants you want to pre-sell, set how many units, pick a ship date — that's it. Customers pay in full at checkout by default.")}
+              </s-paragraph>
+              <s-button slot="primary-action" variant="primary" onClick={() => navigate("/app/campaigns/new")}>
+                {t("New preorder")}
+              </s-button>
+              <s-button slot="secondary-actions" {...link("/app/help")}>
+                {t("Get help")}
+              </s-button>
+            </s-empty-state>
+          </s-section>
         ) : (
           <>
-            <Banner tone="info">
-              <Text as="span" variant="bodyMd">
-                <Text as="span" variant="bodyMd" fontWeight="semibold">{t("Tip:")}</Text>{" "}{t("Click any row to drill into the cohort, customers, and balance status.")}
-              </Text>
-            </Banner>
+            <s-banner tone="info">
+              <s-text type="strong">{t("Tip:")}</s-text> {t("Click any row to drill into the cohort, customers, and balance status.")}
+            </s-banner>
 
-            <Card padding="0">
-              <IndexFilters
-                queryValue={queryValue}
-                queryPlaceholder={t("Search preorders by name or product")}
-                onQueryChange={setQueryValue}
-                onQueryClear={() => setQueryValue("")}
-                tabs={tabs}
-                selected={selectedTab}
-                onSelect={setSelectedTab}
-                canCreateNewView={false}
-                filters={filters}
-                appliedFilters={appliedFilters}
-                onClearAll={handleFiltersClearAll}
-                mode={mode}
-                setMode={setMode}
-              />
-              <IndexTable
-                resourceName={resourceName}
-                itemCount={filteredCampaigns.length}
-                selectedItemsCount={
-                  allResourcesSelected ? "All" : selectedResources.length
-                }
-                onSelectionChange={handleSelectionChange}
-                promotedBulkActions={promotedBulkActions}
-                headings={[
-                  { title: t("Preorder") },
-                  { title: t("Status") },
-                  { title: t("Trigger") },
-                  { title: t("Payment") },
-                  { title: t("Cart") },
-                  { title: t("Units"), alignment: "end" },
-                  { title: t("GMV"), alignment: "end" },
-                  { title: t("Ship date") },
-                  { title: t("Updated") },
-                ]}
-              >
-                {rows}
-              </IndexTable>
-              {filteredCampaigns.length === 0 && (
-                <Box padding="600">
-                  <EmptyState
-                    heading={t("No preorders match your filters")}
-                    action={{
-                      content: t("Clear filters"),
-                      onAction: handleFiltersClearAll,
-                    }}
-                    image=""
-                  >
-                    <p>{t("Try a different search term or clear the active filters to see more preorders.")}</p>
-                  </EmptyState>
-                </Box>
+            <s-section padding="none">
+              <Tabs tabs={tabs} selected={selectedTab} onSelect={setSelectedTab} />
+
+              {/* Filters bar */}
+              <s-box padding="base">
+                <s-stack direction="block" gap="base">
+                  <s-stack direction="inline" gap="base" alignItems="end">
+                    <div style={{ flex: 1, minWidth: 220 }}>
+                      <s-search-field
+                        label={t("Search preorders by name or product")}
+                        labelAccessibilityVisibility="exclusive"
+                        placeholder={t("Search preorders by name or product")}
+                        value={queryValue}
+                        onInput={(e) => setQueryValue(val(e))}
+                      />
+                    </div>
+                    <s-button icon="filter" onClick={() => setFiltersOpen((o) => !o)}>
+                      {activeFilters > 0 ? `${t("Filters")} (${activeFilters})` : t("Filters")}
+                    </s-button>
+                    {(activeFilters > 0 || queryValue) && (
+                      <s-button variant="tertiary" onClick={handleFiltersClearAll}>
+                        {t("Clear filters")}
+                      </s-button>
+                    )}
+                  </s-stack>
+
+                  {filtersOpen && (
+                    <s-box padding="base" background="subdued" borderRadius="base">
+                      <s-grid gridTemplateColumns="repeat(3, minmax(0, 1fr))" gap="large">
+                        <s-choice-list label={t("Payment mode")} multiple name="payment" onChange={(e) => setPaymentFilter(vals(e))}>
+                          {["Pay now", "Deposit + balance", "Pay later", "Minimum to confirm"].map((v) => (
+                            <s-choice key={v} value={v} selected={flag(paymentFilter.includes(v))}>
+                              {t(v)}
+                            </s-choice>
+                          ))}
+                        </s-choice-list>
+                        <s-choice-list label={t("Cart behavior")} multiple name="cartMode" onChange={(e) => setCartModeFilter(vals(e))}>
+                          {["Ships separately", "Mixed cart allowed"].map((v) => (
+                            <s-choice key={v} value={v} selected={flag(cartModeFilter.includes(v))}>
+                              {t(v)}
+                            </s-choice>
+                          ))}
+                        </s-choice-list>
+                        <s-stack direction="block" gap="small">
+                          <s-text type="strong">{t("Units sold")}</s-text>
+                          <s-grid gridTemplateColumns="1fr 1fr" gap="small">
+                            <s-number-field
+                              label={t("Min")}
+                              min={0}
+                              value={String(unitsRange[0])}
+                              onChange={(e) => setUnitsRange([Math.max(0, Number(val(e)) || 0), unitsRange[1]])}
+                            />
+                            <s-number-field
+                              label={t("Max")}
+                              min={0}
+                              value={String(unitsRange[1])}
+                              onChange={(e) => setUnitsRange([unitsRange[0], Math.max(unitsRange[0], Number(val(e)) || 0)])}
+                            />
+                          </s-grid>
+                        </s-stack>
+                      </s-grid>
+                    </s-box>
+                  )}
+
+                  {/* Bulk actions */}
+                  {selectedVisible.length > 0 && (
+                    <s-stack direction="inline" gap="small" alignItems="center">
+                      <s-text type="strong">{`${selectedVisible.length} ${t("selected")}`}</s-text>
+                      <s-button onClick={() => submitBulk("pause")} loading={flag(bulkBusy)}>
+                        {t("Pause")}
+                      </s-button>
+                      <s-button onClick={() => submitBulk("resume")} loading={flag(bulkBusy)}>
+                        {t("Resume")}
+                      </s-button>
+                      <s-button onClick={() => submitBulk("duplicate")} loading={flag(bulkBusy)}>
+                        {t("Duplicate")}
+                      </s-button>
+                      <s-button tone="critical" onClick={() => setConfirmEndOpen(true)}>
+                        {t("End preorder")}
+                      </s-button>
+                    </s-stack>
+                  )}
+                </s-stack>
+              </s-box>
+
+              {filteredCampaigns.length === 0 ? (
+                <s-box padding="large">
+                  <s-empty-state heading={t("No preorders match your filters")}>
+                    <s-paragraph slot="subheading">
+                      {t("Try a different search term or clear the active filters to see more preorders.")}
+                    </s-paragraph>
+                    <s-button slot="primary-action" onClick={handleFiltersClearAll}>
+                      {t("Clear filters")}
+                    </s-button>
+                  </s-empty-state>
+                </s-box>
+              ) : (
+                <s-table>
+                  <s-table-header-row>
+                    <s-table-header>
+                      <s-checkbox
+                        label={t("Select all")}
+                        labelAccessibilityVisibility="exclusive"
+                        checked={flag(allSelected)}
+                        onChange={toggleAll}
+                      />
+                    </s-table-header>
+                    <s-table-header listSlot="primary">{t("Preorder")}</s-table-header>
+                    <s-table-header listSlot="inline">{t("Status")}</s-table-header>
+                    <s-table-header>{t("Trigger")}</s-table-header>
+                    <s-table-header listSlot="kicker">{t("Payment")}</s-table-header>
+                    <s-table-header>{t("Cart")}</s-table-header>
+                    <s-table-header format="numeric">{t("Units")}</s-table-header>
+                    <s-table-header format="currency">{t("GMV")}</s-table-header>
+                    <s-table-header listSlot="secondary">{t("Ship date")}</s-table-header>
+                    <s-table-header>{t("Updated")}</s-table-header>
+                  </s-table-header-row>
+                  <s-table-body>{rows}</s-table-body>
+                </s-table>
               )}
-            </Card>
+            </s-section>
           </>
         )}
-      </BlockStack>
+      </div>
       <ConfirmModal
         open={confirmEndOpen}
         title={t("End preorder")}
         message={
-          selectedResources.length === 1
+          selectedVisible.length === 1
             ? t("End this preorder? Existing customer orders are kept; new ones are blocked.")
             : t("End the selected preorders? Existing customer orders are kept; new ones are blocked.")
         }
@@ -495,9 +426,6 @@ export default function CampaignsIndex() {
         }}
         onCancel={() => setConfirmEndOpen(false)}
       />
-    </Page>
+    </s-page>
   );
 }
-
-// Suppress unused-warning for TextField (placeholder for future search-by-id input)
-void TextField;

@@ -10,28 +10,6 @@ import {
   formatGmv,
 } from "../models/campaign.server";
 import {
-  Page,
-  Layout,
-  Card,
-  BlockStack,
-  InlineStack,
-  Text,
-  Badge,
-  Button,
-  Box,
-  Tabs,
-  Divider,
-  ProgressBar,
-  IndexTable,
-  Banner,
-  EmptyState,
-} from "@shopify/polaris";
-import {
-  EditIcon,
-  DuplicateIcon,
-  PauseCircleIcon,
-  PlayCircleIcon,
-  DeleteIcon,
   CashDollarIcon,
   CartIcon,
   PackageIcon,
@@ -41,6 +19,7 @@ import {
   WandIcon,
 } from "@shopify/polaris-icons";
 import { PageHero, StatCard, SectionHead, ProgressRing, IconTile } from "../components/ui";
+import { Tabs, badgeTone, flag, useLinkProps } from "../components/wc";
 
 import { authenticate } from "../shopify.server";
 import { useLocale } from "../lib/i18n";
@@ -298,6 +277,7 @@ function paymentStatusTone(
 export default function CampaignDetail() {
   const { t, locale } = useLocale();
   const navigate = useNavigate();
+  const link = useLinkProps();
   const shopify = useAppBridge();
   const fetcher = useFetcher();
   // Onboarding hand-off: /app/onboarding redirects here with ?welcome=1.
@@ -314,10 +294,10 @@ export default function CampaignDetail() {
 
   const [tabIndex, setTabIndex] = useState(0);
   const tabs = [
-    { id: "overview", content: t("Overview"), panelID: "overview-panel" },
-    { id: "orders", content: `${t("Orders")} (${ORDERS.length})`, panelID: "orders-panel" },
-    { id: "customers", content: `${t("Customers")} (${CUSTOMERS.length})`, panelID: "customers-panel" },
-    { id: "activity", content: t("Activity"), panelID: "activity-panel" },
+    { id: "overview", content: t("Overview") },
+    { id: "orders", content: `${t("Orders")} (${ORDERS.length})` },
+    { id: "customers", content: `${t("Customers")} (${CUSTOMERS.length})` },
+    { id: "activity", content: t("Activity") },
   ];
 
   // Only meaningful when the merchant actually set a target.
@@ -363,7 +343,12 @@ export default function CampaignDetail() {
   //   Ended            → Reactivate · Delete
   //   Draft            → Publish · Delete
   // Duplicate and Edit are always available.
-  const act = (intent: string, content: string, extra: Record<string, unknown> = {}) => ({
+  type ActionIcon = "pause-circle" | "play-circle" | "duplicate" | "delete";
+  const act = (
+    intent: string,
+    content: string,
+    extra: { icon?: ActionIcon; destructive?: boolean; onAction: () => void },
+  ) => ({
     content,
     loading: busy && pendingIntent === intent,
     disabled: busy && pendingIntent !== intent,
@@ -371,23 +356,23 @@ export default function CampaignDetail() {
   });
   const secondaryActions = [
     ...(c.status === "Live" || c.status === "Scheduled"
-      ? [act("pause", t("Pause"), { icon: PauseCircleIcon, onAction: () => run("pause", here) })]
+      ? [act("pause", t("Pause"), { icon: "pause-circle", onAction: () => run("pause", here) })]
       : []),
     ...(c.status === "Paused"
-      ? [act("resume", t("Resume"), { icon: PlayCircleIcon, onAction: () => run("resume", here) })]
+      ? [act("resume", t("Resume"), { icon: "play-circle", onAction: () => run("resume", here) })]
       : []),
     ...(c.status === "Ended"
-      ? [act("publish", t("Reactivate"), { icon: PlayCircleIcon, onAction: () => run("publish", here) })]
+      ? [act("publish", t("Reactivate"), { icon: "play-circle", onAction: () => run("publish", here) })]
       : []),
     ...(c.status === "Draft"
-      ? [act("publish", t("Publish"), { icon: PlayCircleIcon, onAction: () => run("publish", here) })]
+      ? [act("publish", t("Publish"), { icon: "play-circle", onAction: () => run("publish", here) })]
       : []),
-    act("duplicate", t("Duplicate"), { icon: DuplicateIcon, onAction: handleDuplicate }),
+    act("duplicate", t("Duplicate"), { icon: "duplicate", onAction: handleDuplicate }),
     ...(c.status === "Live" || c.status === "Scheduled" || c.status === "Paused"
       ? [act("end", t("End preorder"), { destructive: true, onAction: handleEnd })]
       : []),
     ...(c.status === "Paused" || c.status === "Ended" || c.status === "Draft"
-      ? [act("delete", t("Delete"), { destructive: true, icon: DeleteIcon, onAction: () => setConfirmDeleteOpen(true) })]
+      ? [act("delete", t("Delete"), { destructive: true, icon: "delete", onAction: () => setConfirmDeleteOpen(true) })]
       : []),
   ];
   // Toast only once the mutation actually completed (fetcher back to idle).
@@ -409,51 +394,46 @@ export default function CampaignDetail() {
   };
 
   return (
-    <Page backAction={{ content: t("Preorders"), url: "/app/campaigns" }}>
-      <BlockStack gap="500">
+    <s-page inlineSize="large">
+      <s-button slot="breadcrumb-actions" icon="arrow-left" accessibilityLabel={t("Preorders")} {...link("/app/campaigns")} />
+      <div className="encore-stack">
         <PageHero
           icon={CartIcon}
           tone={c.status === "Live" ? "emerald" : c.status === "Paused" ? "amber" : c.status === "Ended" ? "slate" : "violet"}
           title={c.name}
-          badge={<Badge tone={statusToTone(c.status)}>{t(c.status)}</Badge>}
+          badge={<s-badge tone={badgeTone(statusToTone(c.status))}>{t(c.status)}</s-badge>}
           sub={`${c.product} · ${t("Updated")} ${relativeTime(c.updatedAt, locale)}`}
           actions={
             <>
               {secondaryActions.map((a) => (
-                <Button
+                <s-button
                   key={a.content}
-                  icon={(a as { icon?: typeof EditIcon }).icon}
-                  tone={(a as { destructive?: boolean }).destructive ? "critical" : undefined}
-                  loading={a.loading}
-                  disabled={a.disabled}
-                  onClick={(a as { onAction?: () => void }).onAction}
+                  icon={a.icon}
+                  tone={a.destructive ? "critical" : "auto"}
+                  loading={flag(a.loading)}
+                  disabled={flag(a.disabled)}
+                  onClick={a.onAction}
                 >
                   {a.content}
-                </Button>
+                </s-button>
               ))}
-              <Button variant="primary" icon={EditIcon} disabled={busy} onClick={() => navigate(`/app/campaigns/${id}/edit`)}>
+              <s-button variant="primary" icon="edit" disabled={flag(busy)} onClick={() => navigate(`/app/campaigns/${id}/edit`)}>
                 {t("Edit preorder")}
-              </Button>
+              </s-button>
             </>
           }
         />
         {showWelcome && (
-          <Banner
-            tone="success"
-            title={t("Your first preorder is live!")}
-            onDismiss={dismissWelcome}
-          >
-            <Text as="p">
-              {t(
-                "Shoppers on the selected products can now preorder. Add the Encore blocks in your theme editor if you haven't yet, then place a test order to see it end to end.",
-              )}
-            </Text>
-          </Banner>
+          <s-banner tone="success" heading={t("Your first preorder is live!")} dismissible onDismiss={dismissWelcome}>
+            {t(
+              "Shoppers on the selected products can now preorder. Add the Encore blocks in your theme editor if you haven't yet, then place a test order to see it end to end.",
+            )}
+          </s-banner>
         )}
         {c.status === "Paused" && (
-          <Banner tone="warning" title={t("Preorder is paused")}>
-            <Text as="span">{t("No new preorders are being accepted. Existing preorders are not affected.")}</Text>
-          </Banner>
+          <s-banner tone="warning" heading={t("Preorder is paused")}>
+            {t("No new preorders are being accepted. Existing preorders are not affected.")}
+          </s-banner>
         )}
 
         {/* KPI tiles */}
@@ -505,24 +485,23 @@ export default function CampaignDetail() {
         </div>
 
         {/* Tabs container */}
-        <Card padding="0">
-          <Tabs tabs={tabs} selected={tabIndex} onSelect={setTabIndex}>
-            <Box padding="400">
-              {tabIndex === 0 && (
-                <OverviewTab
-                  campaign={c}
-                  progressPct={progressPct}
-                  onMarkCohortReady={handleMarkCohortReady}
-                  onViewStorefront={handleViewStorefront}
-                />
-              )}
-              {tabIndex === 1 && <OrdersTable orders={ORDERS} />}
-              {tabIndex === 2 && <CustomersTab customers={CUSTOMERS} />}
-              {tabIndex === 3 && <ActivityTab items={ACTIVITY} />}
-            </Box>
-          </Tabs>
-        </Card>
-      </BlockStack>
+        <s-section padding="none">
+          <Tabs tabs={tabs} selected={tabIndex} onSelect={setTabIndex} />
+          <s-box padding={tabIndex === 1 || tabIndex === 2 ? "none" : "base"}>
+            {tabIndex === 0 && (
+              <OverviewTab
+                campaign={c}
+                progressPct={progressPct}
+                onMarkCohortReady={handleMarkCohortReady}
+                onViewStorefront={handleViewStorefront}
+              />
+            )}
+            {tabIndex === 1 && <OrdersTable orders={ORDERS} />}
+            {tabIndex === 2 && <CustomersTab customers={CUSTOMERS} />}
+            {tabIndex === 3 && <ActivityTab items={ACTIVITY} />}
+          </s-box>
+        </s-section>
+      </div>
       <ConfirmModal
         open={confirmEndOpen}
         title={t("End preorder")}
@@ -545,7 +524,7 @@ export default function CampaignDetail() {
         }}
         onCancel={() => setConfirmDeleteOpen(false)}
       />
-    </Page>
+    </s-page>
   );
 }
 
@@ -564,175 +543,151 @@ function OverviewTab({
 }) {
   const { t } = useLocale();
   return (
-    <Layout>
-      <Layout.Section>
-        <BlockStack gap="500">
-          {/* Cohort progress */}
-          <Card>
-            <BlockStack gap="400">
-              <SectionHead
-                icon={PackageIcon}
-                tone="violet"
-                title={t("Cohort progress")}
-                sub={
-                  campaign.unitsTarget != null
-                    ? `${t("Units sold toward this cohort's goal of")} ${campaign.unitsTarget} ${t("units")}.`
-                    : t("Units sold for this cohort so far.")
-                }
-                action={progressPct != null ? <ProgressRing percent={progressPct} tone="violet" /> : undefined}
-              />
-              {campaign.unitsTarget != null && progressPct != null ? (
-                <>
-                  <ProgressBar progress={progressPct} tone="primary" />
-                  <InlineStack align="space-between">
-                    <Text as="span" variant="bodySm" tone="subdued">
-                      {campaign.unitsSold.toLocaleString()} of{" "}
-                      {campaign.unitsTarget.toLocaleString()} units
-                    </Text>
-                    <Text as="span" variant="bodySm" tone="subdued">
-                      {campaign.unitsTarget - campaign.unitsSold} units remaining
-                    </Text>
-                  </InlineStack>
-                </>
-              ) : (
-                <Text as="p" variant="headingLg">
-                  {campaign.unitsSold.toLocaleString()} {t("units sold")}
-                </Text>
+    <div className="encore-layout">
+      <div className="encore-stack">
+        {/* Cohort progress */}
+        <s-section>
+          <s-stack direction="block" gap="base">
+            <SectionHead
+              icon={PackageIcon}
+              tone="violet"
+              title={t("Cohort progress")}
+              sub={
+                campaign.unitsTarget != null
+                  ? `${t("Units sold toward this cohort's goal of")} ${campaign.unitsTarget} ${t("units")}.`
+                  : t("Units sold for this cohort so far.")
+              }
+              action={progressPct != null ? <ProgressRing percent={progressPct} tone="violet" /> : undefined}
+            />
+            {campaign.unitsTarget != null && progressPct != null ? (
+              <>
+                <s-progress value={progressPct} max={100} accessibilityLabel={`${progressPct}%`} />
+                <div className="encore-row-between">
+                  <s-text color="subdued" fontSize="small">
+                    {campaign.unitsSold.toLocaleString()} of {campaign.unitsTarget.toLocaleString()} units
+                  </s-text>
+                  <s-text color="subdued" fontSize="small">
+                    {campaign.unitsTarget - campaign.unitsSold} units remaining
+                  </s-text>
+                </div>
+              </>
+            ) : (
+              <s-text fontSize="large" fontWeight="semibold">
+                {campaign.unitsSold.toLocaleString()} {t("units sold")}
+              </s-text>
+            )}
+          </s-stack>
+        </s-section>
+
+        {/* Sales pace — real numbers from this preorder's own orders */}
+        <s-section>
+          <s-stack direction="block" gap="base">
+            <SectionHead icon={ChartLineIcon} tone="teal" title={t("Sales pace")} sub={t("avg units/day since launch")} />
+            <s-stack direction="inline" gap="large-200">
+              <s-stack direction="block" gap="none">
+                <s-text color="subdued" fontSize="small">{t("Run rate")}</s-text>
+                <s-text fontSize="large" fontWeight="semibold">
+                  {campaign.runRate != null ? `${campaign.runRate} ${t("units / day")}` : "—"}
+                </s-text>
+              </s-stack>
+              {campaign.projectedSellOut && (
+                <s-stack direction="block" gap="none">
+                  <s-text color="subdued" fontSize="small">{t("Projected sell-out")}</s-text>
+                  <s-text fontSize="large" fontWeight="semibold">{campaign.projectedSellOut}</s-text>
+                </s-stack>
               )}
-            </BlockStack>
-          </Card>
+            </s-stack>
+            <s-text color="subdued" fontSize="small">
+              {campaign.runRate != null
+                ? t("Based on orders recorded for this preorder since launch.")
+                : t("Updates automatically as preorders come in.")}
+            </s-text>
+          </s-stack>
+        </s-section>
+      </div>
 
-          {/* Sales pace — real numbers from this preorder's own orders */}
-          <Card>
-            <BlockStack gap="400">
-              <SectionHead icon={ChartLineIcon} tone="teal" title={t("Sales pace")} sub={t("avg units/day since launch")} />
-              <InlineStack gap="600" wrap={false}>
-                <BlockStack gap="050">
-                  <Text as="p" variant="bodySm" tone="subdued">{t("Run rate")}</Text>
-                  <Text as="p" variant="headingLg">
-                    {campaign.runRate != null
-                      ? `${campaign.runRate} ${t("units / day")}`
-                      : "—"}
-                  </Text>
-                </BlockStack>
-                {campaign.projectedSellOut && (
-                  <>
-                    <Divider borderColor="border" />
-                    <BlockStack gap="050">
-                      <Text as="p" variant="bodySm" tone="subdued">{t("Projected sell-out")}</Text>
-                      <Text as="p" variant="headingLg">{campaign.projectedSellOut}</Text>
-                    </BlockStack>
-                  </>
-                )}
-              </InlineStack>
-              <Text as="p" variant="bodySm" tone="subdued">
-                {campaign.runRate != null
-                  ? t("Based on orders recorded for this preorder since launch.")
-                  : t("Updates automatically as preorders come in.")}
-              </Text>
-            </BlockStack>
-          </Card>
-        </BlockStack>
-      </Layout.Section>
+      <div className="encore-stack">
+        <s-section>
+          <s-stack direction="block" gap="base">
+            <SectionHead icon={SettingsIcon} tone="slate" title={t("Configuration")} />
+            <s-divider />
+            <SummaryRow label={t("Trigger")} value={campaign.trigger} />
+            <SummaryRow label={t("Payment")} value={campaign.payment} />
+            <SummaryRow label={t("Cart")} value={campaign.cartMode} />
+            <SummaryRow label={t("Discount")} value={campaign.discount} />
+            <SummaryRow label={t("Ship date")} value={campaign.shipDate} />
+            <SummaryRow label={t("Created")} value={campaign.createdAt} />
+          </s-stack>
+        </s-section>
 
-      <Layout.Section variant="oneThird">
-        <BlockStack gap="400">
-          <Card>
-            <BlockStack gap="300">
-              <SectionHead icon={SettingsIcon} tone="slate" title={t("Configuration")} />
-              <Divider />
-              <SummaryRow label={t("Trigger")} value={campaign.trigger} />
-              <SummaryRow label={t("Payment")} value={campaign.payment} />
-              <SummaryRow label={t("Cart")} value={campaign.cartMode} />
-              <SummaryRow label={t("Discount")} value={campaign.discount} />
-              <SummaryRow label={t("Ship date")} value={campaign.shipDate} />
-              <SummaryRow label={t("Created")} value={campaign.createdAt} />
-            </BlockStack>
-          </Card>
-
-          <Card>
-            <BlockStack gap="300">
-              <SectionHead icon={WandIcon} tone="amber" title={t("Quick actions")} />
-              <Divider />
-              <BlockStack gap="200">
-                <Button icon={PackageIcon} onClick={onMarkCohortReady} fullWidth textAlign="left">{t("Mark cohort ready")}</Button>
-                <Button icon={CartIcon} onClick={onViewStorefront} fullWidth textAlign="left">{t("View on storefront")}</Button>
-              </BlockStack>
-            </BlockStack>
-          </Card>
-        </BlockStack>
-      </Layout.Section>
-    </Layout>
+        <s-section>
+          <s-stack direction="block" gap="base">
+            <SectionHead icon={WandIcon} tone="amber" title={t("Quick actions")} />
+            <s-divider />
+            <s-stack direction="block" gap="small">
+              <s-button icon="package" onClick={onMarkCohortReady} inlineSize="fill">
+                {t("Mark cohort ready")}
+              </s-button>
+              <s-button icon="cart" onClick={onViewStorefront} inlineSize="fill">
+                {t("View on storefront")}
+              </s-button>
+            </s-stack>
+          </s-stack>
+        </s-section>
+      </div>
+    </div>
   );
 }
 
 function CustomersTab({ customers }: { customers: Customer[] }) {
   const { t } = useLocale();
-  const resourceName = { singular: t("customer"), plural: t("customers") };
 
   if (customers.length === 0) {
     return (
-      <EmptyState
-        heading={t("No preorders yet")}
-        image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
-      >
-        <p>{t("Customers will appear here as they place preorders.")}</p>
-      </EmptyState>
+      <s-box padding="large">
+        <s-empty-state heading={t("No preorders yet")}>
+          <s-paragraph slot="subheading">{t("Customers will appear here as they place preorders.")}</s-paragraph>
+        </s-empty-state>
+      </s-box>
     );
   }
 
-  const rows = customers.map((c, i) => (
-    <IndexTable.Row id={c.id} key={c.id} position={i}>
-      <IndexTable.Cell>
-        <BlockStack gap="050">
-          <Text as="span" variant="bodyMd" fontWeight="semibold">
-            {c.name}
-          </Text>
-          <Text as="span" variant="bodySm" tone="subdued">
-            {c.email}
-          </Text>
-        </BlockStack>
-      </IndexTable.Cell>
-      <IndexTable.Cell>{c.orderId}</IndexTable.Cell>
-      <IndexTable.Cell>
-        <Text as="span" alignment="end" numeric>
-          {c.units}
-        </Text>
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        <Text as="span" alignment="end" numeric>
-          {c.amount}
-        </Text>
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        <Badge tone={paymentStatusTone(c.paymentStatus)}>
-          {c.paymentStatus}
-        </Badge>
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        <Text as="span" variant="bodySm" tone="subdued">
-          {c.orderedAt}
-        </Text>
-      </IndexTable.Cell>
-    </IndexTable.Row>
-  ));
-
   return (
-    <IndexTable
-      resourceName={resourceName}
-      itemCount={customers.length}
-      selectable={false}
-      headings={[
-        { title: t("Customer") },
-        { title: t("Order") },
-        { title: t("Units"), alignment: "end" },
-        { title: t("Amount"), alignment: "end" },
-        { title: t("Payment status") },
-        { title: t("Ordered") },
-      ]}
-    >
-      {rows}
-    </IndexTable>
+    <s-table>
+      <s-table-header-row>
+        <s-table-header listSlot="primary">{t("Customer")}</s-table-header>
+        <s-table-header listSlot="kicker">{t("Order")}</s-table-header>
+        <s-table-header format="numeric">{t("Units")}</s-table-header>
+        <s-table-header format="currency">{t("Amount")}</s-table-header>
+        <s-table-header listSlot="inline">{t("Payment status")}</s-table-header>
+        <s-table-header>{t("Ordered")}</s-table-header>
+      </s-table-header-row>
+      <s-table-body>
+        {customers.map((c) => (
+          <s-table-row key={c.id}>
+            <s-table-cell>
+              <s-stack direction="block" gap="none">
+                <s-text type="strong">{c.name}</s-text>
+                <s-text color="subdued" fontSize="small">
+                  {c.email}
+                </s-text>
+              </s-stack>
+            </s-table-cell>
+            <s-table-cell>{c.orderId}</s-table-cell>
+            <s-table-cell>{c.units}</s-table-cell>
+            <s-table-cell>{c.amount}</s-table-cell>
+            <s-table-cell>
+              <s-badge tone={badgeTone(paymentStatusTone(c.paymentStatus))}>{c.paymentStatus}</s-badge>
+            </s-table-cell>
+            <s-table-cell>
+              <s-text color="subdued" fontSize="small">
+                {c.orderedAt}
+              </s-text>
+            </s-table-cell>
+          </s-table-row>
+        ))}
+      </s-table-body>
+    </s-table>
   );
 }
 
@@ -766,45 +721,40 @@ function ActivityTab({ items }: { items: ActivityItem[] }) {
   const { t, locale } = useLocale();
   if (items.length === 0) {
     return (
-      <EmptyState
-        heading={t("Nothing has happened yet")}
-        image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
-      >
-        <p>{t("Orders, payments, refunds and reminders for this preorder will show up here as they happen.")}</p>
-      </EmptyState>
+      <s-empty-state heading={t("Nothing has happened yet")}>
+        <s-paragraph slot="subheading">
+          {t("Orders, payments, refunds and reminders for this preorder will show up here as they happen.")}
+        </s-paragraph>
+      </s-empty-state>
     );
   }
   return (
-    <BlockStack gap="400">
+    <s-stack direction="block" gap="base">
       {items.map((a) => (
-        <InlineStack key={a.id} gap="300" blockAlign="start" wrap={false}>
+        <s-stack key={a.id} direction="inline" gap="base" alignItems="start">
           <IconTile icon={ACTIVITY_ICON[a.kind]} tone={ACTIVITY_TONE[a.kind]} size="sm" />
-          <BlockStack gap="050">
-            <Text as="p" variant="bodyMd" fontWeight="medium">
-              {t(a.text)}
-            </Text>
-            <Text as="p" variant="bodySm" tone="subdued">
+          <s-stack direction="block" gap="none">
+            <s-text fontWeight="medium">{t(a.text)}</s-text>
+            <s-text color="subdued" fontSize="small">
               {a.detail}
-            </Text>
-            <Text as="p" variant="bodySm" tone="subdued">
+            </s-text>
+            <s-text color="subdued" fontSize="small">
               {relativeTime(a.at, locale)}
-            </Text>
-          </BlockStack>
-        </InlineStack>
+            </s-text>
+          </s-stack>
+        </s-stack>
       ))}
-    </BlockStack>
+    </s-stack>
   );
 }
 
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
-    <InlineStack align="space-between" blockAlign="center">
-      <Text as="span" variant="bodySm" tone="subdued">
+    <div className="encore-row-between">
+      <s-text color="subdued" fontSize="small">
         {label}
-      </Text>
-      <Text as="span" variant="bodyMd">
-        {value}
-      </Text>
-    </InlineStack>
+      </s-text>
+      <s-text>{value}</s-text>
+    </div>
   );
 }

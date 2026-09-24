@@ -4,7 +4,7 @@
 # GA surface only — no Checkout MCP. Return links are kept structured so the
 # future P2 MCP "rebuild my cart" flow can be added without reworking this.
 
-api_version = "2025-10"
+api_version = "2026-07"
 
 [[extensions]]
 name = "Encore — My pre-orders"

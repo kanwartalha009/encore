@@ -5,19 +5,8 @@ import { useEffect } from "react";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
-import { AppProvider as PolarisAppProvider } from "@shopify/polaris";
-import enTranslations from "@shopify/polaris/locales/en.json";
-import esTranslations from "@shopify/polaris/locales/es.json";
-import frTranslations from "@shopify/polaris/locales/fr.json";
-import deTranslations from "@shopify/polaris/locales/de.json";
-import itTranslations from "@shopify/polaris/locales/it.json";
-import ptTranslations from "@shopify/polaris/locales/pt-BR.json";
-import nlTranslations from "@shopify/polaris/locales/nl.json";
-import plTranslations from "@shopify/polaris/locales/pl.json";
-import type { ReactNode } from "react";
 
 import { authenticate } from "../shopify.server";
-import { RouterLink } from "../components/RouterLink";
 import {
   LocaleProvider,
   toSupportedLocale,
@@ -27,17 +16,8 @@ import {
 
 export const links: LinksFunction = () => [{ rel: "stylesheet", href: appStyles }];
 
-// Polaris chrome (modals, pickers, pagination…) follows the active app locale.
-const POLARIS_TRANSLATIONS: Record<Locale, typeof enTranslations> = {
-  en: enTranslations,
-  es: esTranslations,
-  fr: frTranslations,
-  de: deTranslations,
-  it: itTranslations,
-  pt: ptTranslations,
-  nl: nlTranslations,
-  pl: plTranslations,
-};
+// Polaris web components take their chrome strings (modal close, pagination…)
+// from the admin's own locale, so no per-locale bundle ships with the app.
 
 // Store locale is stable — one Admin API round-trip per shop per hour, not one
 // per navigation (this loader runs on EVERY client-side transition).
@@ -122,26 +102,21 @@ function AppNav() {
   );
 }
 
-/** Inside LocaleProvider so Polaris re-renders with the active locale's strings. */
-function LocalizedPolarisProvider({ children }: { children: ReactNode }) {
-  const { locale } = useLocale();
-  return (
-    <PolarisAppProvider i18n={POLARIS_TRANSLATIONS[locale] ?? enTranslations} linkComponent={RouterLink}>
-      {children}
-    </PolarisAppProvider>
-  );
-}
+/**
+ * Polaris web components, pinned to the newest stable v1 release (1.1 as of
+ * 2026-09-22) per shopify.dev/docs/api/app-home/versioning. Move to
+ * `polaris-2.js` once Polaris 2.0 (the refreshed admin look) leaves RC.
+ */
+const POLARIS_URL = "https://cdn.shopify.com/shopifycloud/polaris-1.js";
 
 export default function App() {
   const { apiKey, storeLocale } = useLoaderData<typeof loader>();
 
   return (
-    <AppProvider embedded apiKey={apiKey}>
+    <AppProvider apiKey={apiKey} polarisUrl={POLARIS_URL}>
       <LocaleProvider defaultLocale={storeLocale}>
-        <LocalizedPolarisProvider>
-          <AppNav />
-          <Content />
-        </LocalizedPolarisProvider>
+        <AppNav />
+        <Content />
       </LocaleProvider>
     </AppProvider>
   );

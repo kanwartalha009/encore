@@ -9,22 +9,9 @@ import { useState } from "react";
 import type { HeadersFunction, LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import { redirect, useFetcher, useLoaderData } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import {
-  Page,
-  Card,
-  BlockStack,
-  InlineStack,
-  Text,
-  Button,
-  ChoiceList,
-  TextField,
-  Badge,
-  Banner,
-  Box,
-  ProgressBar,
-} from "@shopify/polaris";
 import { WandIcon } from "@shopify/polaris-icons";
 import { PageHero } from "../components/ui";
+import { flag, val, vals, useLinkProps } from "../components/wc";
 
 import { authenticate } from "../shopify.server";
 import { useLocale } from "../lib/i18n";
@@ -93,6 +80,7 @@ export default function OnboardingWizard() {
   const [pickerBroken, setPickerBroken] = useState(false);
 
   const publishing = fetcher.state !== "idle";
+  const link = useLinkProps();
 
   const pickProducts = async () => {
     // Never dead-end the wizard: if the App Bridge picker is unavailable or
@@ -134,108 +122,105 @@ export default function OnboardingWizard() {
   const canNext = step === 0 ? products.length > 0 : step === 1 ? mode !== "date" || !!startDate : true;
 
   return (
-    <Page narrowWidth>
-      <PageHero icon={WandIcon} tone="violet" title={t("Set up your first preorder")} />
-      <BlockStack gap="500">
-        <ProgressBar progress={((step + 1) / 3) * 100} size="small" tone="primary" />
+    <s-page inlineSize="small">
+      <div className="encore-stack">
+        <PageHero icon={WandIcon} tone="violet" title={t("Set up your first preorder")} />
+        <s-progress value={((step + 1) / 3) * 100} max={100} accessibilityLabel={`${step + 1} / 3`} />
 
         {fetcher.data && fetcher.data.ok === false && (
-          <Banner tone="critical">{t("Pick at least one product to continue.")}</Banner>
+          <s-banner tone="critical">{t("Pick at least one product to continue.")}</s-banner>
         )}
 
-        <Card>
-          <BlockStack gap="400">
+        <s-section>
+          <s-stack direction="block" gap="base">
             {step === 0 && (
               <>
-                <Text as="h2" variant="headingMd">{t("1. Pick products")}</Text>
-                <Text as="p" tone="subdued">{t("Choose the products you want to sell on preorder.")}</Text>
-                <InlineStack gap="300" blockAlign="center">
-                  <Button onClick={pickProducts}>{t("Choose products")}</Button>
-                  {products.length > 0 && (
-                    <Badge tone="success">{`${products.length} ${t("selected")}`}</Badge>
-                  )}
-                </InlineStack>
+                <s-heading>{t("1. Pick products")}</s-heading>
+                <s-paragraph color="subdued">{t("Choose the products you want to sell on preorder.")}</s-paragraph>
+                <s-stack direction="inline" gap="base" alignItems="center">
+                  <s-button onClick={pickProducts}>{t("Choose products")}</s-button>
+                  {products.length > 0 && <s-badge tone="success">{`${products.length} ${t("selected")}`}</s-badge>}
+                </s-stack>
                 {products.length > 0 && (
-                  <Text as="p" variant="bodySm" tone="subdued">
+                  <s-text color="subdued" fontSize="small">
                     {products.map((p) => p.title).slice(0, 5).join(", ")}
                     {products.length > 5 ? "…" : ""}
-                  </Text>
+                  </s-text>
                 )}
                 {pickerBroken && (
-                  <Banner
-                    tone="warning"
-                    action={{ content: t("Open the full preorder form"), url: "/app/campaigns/new" }}
-                  >
-                    <Text as="p">
-                      {t(
-                        "The product picker didn't open. You can create your first preorder with the full form instead — it does the same thing with a few more options.",
-                      )}
-                    </Text>
-                  </Banner>
+                  <s-banner tone="warning">
+                    {t(
+                      "The product picker didn't open. You can create your first preorder with the full form instead — it does the same thing with a few more options.",
+                    )}
+                    <s-button slot="secondary-actions" {...link("/app/campaigns/new")}>
+                      {t("Open the full preorder form")}
+                    </s-button>
+                  </s-banner>
                 )}
                 {pickerHint && products.length === 0 && (
-                  <Banner tone="info">
-                    <Text as="p">
-                      {t(
-                        "No products selected. If your store doesn't have any products yet, add one in Shopify admin under Products, then come back here.",
-                      )}
-                    </Text>
-                  </Banner>
+                  <s-banner tone="info">
+                    {t(
+                      "No products selected. If your store doesn't have any products yet, add one in Shopify admin under Products, then come back here.",
+                    )}
+                  </s-banner>
                 )}
               </>
             )}
 
             {step === 1 && (
               <>
-                <Text as="h2" variant="headingMd">{t("2. When should preorder show?")}</Text>
-                <ChoiceList
-                  title=""
-                  titleHidden
-                  choices={[
-                    { label: t("Preorder now"), value: "now", helpText: t("Offer preorder right away.") },
-                    { label: t("When it sells out"), value: "oos", helpText: t("Switch to preorder only when stock hits 0.") },
-                    { label: t("On a date"), value: "date", helpText: t("Start preorder from a launch date.") },
-                  ]}
-                  selected={[mode]}
-                  onChange={(v) => setMode(v[0] ?? "now")}
-                />
+                <s-heading>{t("2. When should preorder show?")}</s-heading>
+                <s-choice-list label={t("2. When should preorder show?")} labelAccessibilityVisibility="exclusive" name="mode" onChange={(e) => setMode(vals(e)[0] ?? "now")}>
+                  <s-choice value="now" selected={flag(mode === "now")}>
+                    {t("Preorder now")}
+                    <s-text slot="details">{t("Offer preorder right away.")}</s-text>
+                  </s-choice>
+                  <s-choice value="oos" selected={flag(mode === "oos")}>
+                    {t("When it sells out")}
+                    <s-text slot="details">{t("Switch to preorder only when stock hits 0.")}</s-text>
+                  </s-choice>
+                  <s-choice value="date" selected={flag(mode === "date")}>
+                    {t("On a date")}
+                    <s-text slot="details">{t("Start preorder from a launch date.")}</s-text>
+                  </s-choice>
+                </s-choice-list>
                 {mode === "date" && (
-                  <TextField label={t("Start date")} type="date" value={startDate} onChange={setStartDate} autoComplete="off" />
+                  <s-date-field label={t("Start date")} value={startDate} onChange={(e) => setStartDate(val(e))} />
                 )}
               </>
             )}
 
             {step === 2 && (
               <>
-                <Text as="h2" variant="headingMd">{t("3. Style the button")}</Text>
-                <TextField label={t("Button text")} value={ctaLabel} onChange={setCtaLabel} autoComplete="off" />
-                <Box background="bg-surface-secondary" padding="400" borderRadius="200">
-                  <InlineStack align="center">
+                <s-heading>{t("3. Style the button")}</s-heading>
+                <s-text-field label={t("Button text")} value={ctaLabel} onInput={(e) => setCtaLabel(val(e))} />
+                <s-box background="subdued" padding="base" borderRadius="base">
+                  <s-stack direction="inline" justifyContent="center">
                     <span style={{ background: "#1a1a1a", color: "#fff", padding: "12px 24px", borderRadius: 8, fontWeight: 600 }}>
                       {ctaLabel || t("Preorder")}
                     </span>
-                  </InlineStack>
-                </Box>
+                  </s-stack>
+                </s-box>
               </>
             )}
 
-            <InlineStack align="space-between">
-              <Button disabled={step === 0} onClick={() => setStep((s) => Math.max(0, s - 1))}>
+            <div className="encore-row-between">
+              <s-button disabled={flag(step === 0)} onClick={() => setStep((s) => Math.max(0, s - 1))}>
                 {t("Back")}
-              </Button>
+              </s-button>
               {step < 2 ? (
-                <Button variant="primary" disabled={!canNext} onClick={() => setStep((s) => s + 1)}>
+                <s-button variant="primary" disabled={flag(!canNext)} onClick={() => setStep((s) => s + 1)}>
                   {t("Next")}
-                </Button>
+                </s-button>
               ) : (
-                <Button variant="primary" loading={publishing} disabled={products.length === 0} onClick={publish}>
+                <s-button variant="primary" loading={flag(publishing)} disabled={flag(products.length === 0)} onClick={publish}>
                   {t("Publish")}
-                </Button>
+                </s-button>
               )}
-            </InlineStack>
-          </BlockStack>
-        </Card>
-      </BlockStack>
-    </Page>
+            </div>
+          </s-stack>
+        </s-section>
+      </div>
+    </s-page>
   );
 }

@@ -7,23 +7,9 @@ import { useState } from "react";
 import type { HeadersFunction, LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import { useLoaderData, useFetcher } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import {
-  Page,
-  Layout,
-  Card,
-  BlockStack,
-  InlineStack,
-  InlineGrid,
-  Text,
-  Badge,
-  Button,
-  TextField,
-  Divider,
-  Box,
-  Banner,
-} from "@shopify/polaris";
 import { ChartLineIcon } from "@shopify/polaris-icons";
 import { PageHero } from "../components/ui";
+import { flag, val, useLinkProps } from "../components/wc";
 
 import { authenticate } from "../shopify.server";
 import { useLocale } from "../lib/i18n";
@@ -61,13 +47,13 @@ const pctText = (r: number | null) => (r == null ? "—" : `${(r * 100).toFixed(
 function Metric({ label, value, sub }: { label: string; value: string; sub?: string }) {
   const { t } = useLocale();
   return (
-    <Card>
-      <BlockStack gap="100">
-        <Text as="p" variant="bodySm" tone="subdued">{t(label)}</Text>
-        <Text as="p" variant="heading2xl">{value}</Text>
-        {sub ? <Text as="p" variant="bodySm" tone="subdued">{sub}</Text> : null}
-      </BlockStack>
-    </Card>
+    <s-section>
+      <s-stack direction="block" gap="small-200">
+        <s-text color="subdued" fontSize="small">{t(label)}</s-text>
+        <s-text fontSize="large-100" fontWeight="bold">{value}</s-text>
+        {sub ? <s-text color="subdued" fontSize="small">{sub}</s-text> : null}
+      </s-stack>
+    </s-section>
   );
 }
 
@@ -75,6 +61,7 @@ export default function BenchmarkPage() {
   const { t, locale } = useLocale();
   const data = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
+  const link = useLinkProps();
   const [name, setName] = useState(data.incumbent.name);
   const [rate, setRate] = useState(
     data.incumbent.conversionRate == null ? "" : String((data.incumbent.conversionRate * 100).toFixed(1)),
@@ -115,27 +102,34 @@ export default function BenchmarkPage() {
   };
 
   return (
-    <Page>
-      <PageHero
-        icon={ChartLineIcon}
-        tone="emerald"
-        title={t("Benchmark")}
-        sub={t("How much demand Encore recovers for your store — at a glance.")}
-        actions={<Button onClick={exportCsv}>{t("Export CSV")}</Button>}
-      />
-      <BlockStack gap="500">
+    <s-page inlineSize="large">
+      <div className="encore-stack">
+        <PageHero
+          icon={ChartLineIcon}
+          tone="emerald"
+          title={t("Benchmark")}
+          sub={t("How much demand Encore recovers for your store — at a glance.")}
+          actions={
+            <s-button icon="export" onClick={exportCsv}>
+              {t("Export CSV")}
+            </s-button>
+          }
+        />
         {noData ? (
-          <Card>
-            <BlockStack gap="200">
-              <Text as="h2" variant="headingMd">{t("Nothing to score yet")}</Text>
-              <Text as="p" tone="subdued">{t("Your recovered-demand scorecard fills in after your first back-in-stock alerts convert to orders — set up the waitlist to start capturing demand.")}</Text>
-              <InlineStack>
-                <Button variant="primary" url="/app/waitlist">{t("Set up back-in-stock")}</Button>
-              </InlineStack>
-            </BlockStack>
-          </Card>
+          <s-section heading={t("Nothing to score yet")}>
+            <s-stack direction="block" gap="small">
+              <s-paragraph color="subdued">
+                {t("Your recovered-demand scorecard fills in after your first back-in-stock alerts convert to orders — set up the waitlist to start capturing demand.")}
+              </s-paragraph>
+              <s-stack direction="inline">
+                <s-button variant="primary" {...link("/app/waitlist")}>
+                  {t("Set up back-in-stock")}
+                </s-button>
+              </s-stack>
+            </s-stack>
+          </s-section>
         ) : (
-          <InlineGrid columns={{ xs: 1, sm: 3 }} gap="400">
+          <div className="encore-grid encore-grid--3">
             <Metric
               label="Waitlist conversion"
               value={pctText(data.waitlist.conversionRate)}
@@ -143,79 +137,69 @@ export default function BenchmarkPage() {
             />
             <Metric label="Units captured" value={data.preorder.units.toLocaleString()} sub={t("preorders")} />
             <Metric label="GMV captured" value={formatGmv(Math.round(data.preorder.gmv * 100), data.currency, locale)} sub={t("preorder value")} />
-          </InlineGrid>
+          </div>
         )}
 
-        <Layout>
-          <Layout.Section>
-            <Card>
-              <BlockStack gap="400">
-                <InlineStack align="space-between" blockAlign="center">
-                  <Text as="h2" variant="headingMd">{t("Compare with your previous app")}</Text>
-                  <Badge tone={liftTone}>
-                    {`${t("Lift")} ${liftText}`}
-                  </Badge>
-                </InlineStack>
-                <Text as="p" variant="bodySm" tone="subdued">
-                  {t("Enter your previous app's waitlist-to-purchase rate to see Encore's lift against that baseline.")}
-                </Text>
-                <Divider />
-                <fetcher.Form method="post">
-                  <input type="hidden" name="intent" value="save_baseline" />
-                  <InlineGrid columns={{ xs: 1, sm: 3 }} gap="300">
-                    <TextField
-                      label={t("Previous app name")}
-                      name="incumbentName"
-                      value={name}
-                      onChange={setName}
-                      autoComplete="off"
-                      placeholder="e.g. Globo / Notify Me"
-                    />
-                    <TextField
-                      label={t("Previous app conversion rate (%)")}
-                      name="incumbentConversionRate"
-                      value={rate}
-                      onChange={setRate}
-                      type="number"
-                      suffix="%"
-                      autoComplete="off"
-                    />
-                    <Box paddingBlockStart="600">
-                      <Button submit variant="primary" loading={fetcher.state !== "idle"}>
-                        {t("Save baseline")}
-                      </Button>
-                    </Box>
-                  </InlineGrid>
-                </fetcher.Form>
-              </BlockStack>
-            </Card>
-          </Layout.Section>
+        <div className="encore-layout">
+          <s-section>
+            <s-stack direction="block" gap="base">
+              <div className="encore-row-between">
+                <s-heading>{t("Compare with your previous app")}</s-heading>
+                <s-badge tone={liftTone ?? "auto"}>{`${t("Lift")} ${liftText}`}</s-badge>
+              </div>
+              <s-text color="subdued" fontSize="small">
+                {t("Enter your previous app's waitlist-to-purchase rate to see Encore's lift against that baseline.")}
+              </s-text>
+              <s-divider />
+              <fetcher.Form method="post">
+                <input type="hidden" name="intent" value="save_baseline" />
+                <s-grid gridTemplateColumns="1fr 1fr auto" gap="base" alignItems="end">
+                  <s-text-field
+                    label={t("Previous app name")}
+                    name="incumbentName"
+                    value={name}
+                    onInput={(e) => setName(val(e))}
+                    placeholder="e.g. Globo / Notify Me"
+                  />
+                  <s-number-field
+                    label={t("Previous app conversion rate (%)")}
+                    name="incumbentConversionRate"
+                    value={rate}
+                    onInput={(e) => setRate(val(e))}
+                    suffix="%"
+                    min={0}
+                    max={100}
+                    step={0.1}
+                  />
+                  <s-button type="submit" variant="primary" loading={flag(fetcher.state !== "idle")}>
+                    {t("Save baseline")}
+                  </s-button>
+                </s-grid>
+              </fetcher.Form>
+            </s-stack>
+          </s-section>
 
-          <Layout.Section variant="oneThird">
-            <Card>
-              <BlockStack gap="300">
-                <Text as="h2" variant="headingMd">{t("Zero-incident proof")}</Text>
-                <Divider />
-                <InlineStack align="space-between">
-                  <Text as="span" variant="bodyMd">{t("Oversell incidents")}</Text>
-                  <Badge tone={data.reliability.oversellIncidents === 0 ? "success" : "critical"}>
-                    {String(data.reliability.oversellIncidents)}
-                  </Badge>
-                </InlineStack>
-                <InlineStack align="space-between">
-                  <Text as="span" variant="bodyMd">{t("Untagged orders")}</Text>
-                  <Badge tone={data.reliability.untaggedOrders === 0 ? "success" : "critical"}>
-                    {String(data.reliability.untaggedOrders)}
-                  </Badge>
-                </InlineStack>
-                {!clean && (
-                  <Banner tone="critical">{t("A reliability issue is open — resolve it before relying on these numbers.")}</Banner>
-                )}
-              </BlockStack>
-            </Card>
-          </Layout.Section>
-        </Layout>
-      </BlockStack>
-    </Page>
+          <s-section heading={t("Zero-incident proof")}>
+            <s-stack direction="block" gap="base">
+              <div className="encore-row-between">
+                <s-text>{t("Oversell incidents")}</s-text>
+                <s-badge tone={data.reliability.oversellIncidents === 0 ? "success" : "critical"}>
+                  {String(data.reliability.oversellIncidents)}
+                </s-badge>
+              </div>
+              <div className="encore-row-between">
+                <s-text>{t("Untagged orders")}</s-text>
+                <s-badge tone={data.reliability.untaggedOrders === 0 ? "success" : "critical"}>
+                  {String(data.reliability.untaggedOrders)}
+                </s-badge>
+              </div>
+              {!clean && (
+                <s-banner tone="critical">{t("A reliability issue is open — resolve it before relying on these numbers.")}</s-banner>
+              )}
+            </s-stack>
+          </s-section>
+        </div>
+      </div>
+    </s-page>
   );
 }

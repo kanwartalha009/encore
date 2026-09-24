@@ -6,21 +6,9 @@ import type {
 } from "react-router";
 import { useLoaderData, useSubmit } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import {
-  Page,
-  Card,
-  BlockStack,
-  InlineStack,
-  Text,
-  Badge,
-  Button,
-  Select,
-  TextField,
-  Divider,
-  Banner,
-} from "@shopify/polaris";
 import { LanguageIcon } from "@shopify/polaris-icons";
 import { PageHero } from "../components/ui";
+import { val } from "../components/wc";
 import { useAppBridge } from "@shopify/app-bridge-react";
 
 import { authenticate } from "../shopify.server";
@@ -99,96 +87,90 @@ export default function TranslationsPage() {
   };
 
   return (
-    <Page>
-      <PageHero
-        icon={LanguageIcon}
-        tone="violet"
-        title={t("translations.title")}
-        sub={t("Translate the text Encore adds to your storefront. Switches with the shopper's language — set once, not per market.")}
-        actions={<Button variant="primary" onClick={save}>{t("common.save")}</Button>}
-      />
-      <BlockStack gap="500">
-        <Banner tone="info">
-          <Text as="span">{t("The admin language follows your Shopify account automatically. Below you translate the storefront text we add (button, badge, cart, popup, low-stock) — these register with Shopify so they switch with the buyer's language alongside Translate & Adapt.")}</Text>
-        </Banner>
+    <s-page inlineSize="large">
+      <div className="encore-stack">
+        <PageHero
+          icon={LanguageIcon}
+          tone="violet"
+          title={t("translations.title")}
+          sub={t("Translate the text Encore adds to your storefront. Switches with the shopper's language — set once, not per market.")}
+          actions={
+            <s-button variant="primary" onClick={save}>
+              {t("common.save")}
+            </s-button>
+          }
+        />
+        <s-banner tone="info">
+          {t("The admin language follows your Shopify account automatically. Below you translate the storefront text we add (button, badge, cart, popup, low-stock) — these register with Shopify so they switch with the buyer's language alongside Translate & Adapt.")}
+        </s-banner>
 
-        <Card>
-          <BlockStack gap="400">
-            <InlineStack align="space-between" blockAlign="center">
-              <Select
-                label={t("Language to translate")}
-                options={targets.map((l) => ({
-                  label: l.published ? l.name : `${l.name} ${t("(not published)")}`,
-                  value: l.code,
-                }))}
-                value={locale}
-                onChange={setLocale}
-              />
-              <Badge tone={done === STOREFRONT_STRINGS.length ? "success" : "attention"}>
+        <s-section>
+          <s-stack direction="block" gap="base">
+            <div className="encore-row-between">
+              <s-select label={t("Language to translate")} value={locale} onChange={(e) => setLocale(val(e))}>
+                {targets.map((l) => (
+                  <s-option key={l.code} value={l.code}>
+                    {l.published ? l.name : `${l.name} ${t("(not published)")}`}
+                  </s-option>
+                ))}
+              </s-select>
+              <s-badge tone={done === STOREFRONT_STRINGS.length ? "success" : "caution"}>
                 {`${done} / ${STOREFRONT_STRINGS.length} ${t("translated")}`}
-              </Badge>
-            </InlineStack>
+              </s-badge>
+            </div>
             {localeMeta && !localeMeta.published && (
-              <Banner tone="warning">
-                <Text as="span">
-                  {t("If this language isn't published on your storefront yet, publish it in Shopify Settings → Languages.")}
-                </Text>
-              </Banner>
+              <s-banner tone="warning">
+                {t("If this language isn't published on your storefront yet, publish it in Shopify Settings → Languages.")}
+              </s-banner>
             )}
-          </BlockStack>
-        </Card>
+          </s-stack>
+        </s-section>
 
         {done === 0 && (
-          <Card>
-            <BlockStack gap="200">
-              <Text as="h2" variant="headingMd">{`${t("No translations yet for")} ${localeMeta?.name ?? locale}`}</Text>
-              <Text as="p" tone="subdued">{t("Every storefront string Encore adds can be customised per language — fill in any field below and save to override the English default for shoppers browsing in this language.")}</Text>
-            </BlockStack>
-          </Card>
+          <s-section heading={`${t("No translations yet for")} ${localeMeta?.name ?? locale}`}>
+            <s-paragraph color="subdued">
+              {t("Every storefront string Encore adds can be customised per language — fill in any field below and save to override the English default for shoppers browsing in this language.")}
+            </s-paragraph>
+          </s-section>
         )}
 
         {GROUPS.map((group) => {
           const items = STOREFRONT_STRINGS.filter((s) => s.group === group);
           if (items.length === 0) return null;
           return (
-            <Card key={group}>
-              <BlockStack gap="400">
-                <Text as="h2" variant="headingMd">{t(group)}</Text>
-                <Divider />
-                <BlockStack gap="400">
-                  {items.map((s) => (
-                    <InlineStack key={s.key} gap="400" align="space-between" blockAlign="start" wrap={false}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <BlockStack gap="050">
-                          <Text as="span" variant="bodyMd" fontWeight="semibold">{t(s.label)}</Text>
-                          <Text as="span" variant="bodySm" tone="subdued">{s.defaultValue}</Text>
-                        </BlockStack>
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <TextField
-                          label={localeMeta?.name ?? locale}
-                          labelHidden
-                          value={(translations[locale] ?? {})[s.key] ?? ""}
-                          onChange={(v) => setVal(s.key, v)}
-                          autoComplete="off"
-                          placeholder={
-                            SAMPLE_TRANSLATIONS[locale]?.[s.key] ??
-                            `${t("Translate to")} ${localeMeta?.name ?? locale}…`
-                          }
-                        />
-                      </div>
-                    </InlineStack>
-                  ))}
-                </BlockStack>
-              </BlockStack>
-            </Card>
+            <s-section key={group} heading={t(group)}>
+              <s-stack direction="block" gap="base">
+                {items.map((s) => (
+                  <s-grid key={s.key} gridTemplateColumns="1fr 1fr" gap="base" alignItems="start">
+                    <s-stack direction="block" gap="none">
+                      <s-text type="strong">{t(s.label)}</s-text>
+                      <s-text color="subdued" fontSize="small">
+                        {s.defaultValue}
+                      </s-text>
+                    </s-stack>
+                    <s-text-field
+                      label={localeMeta?.name ?? locale}
+                      labelAccessibilityVisibility="exclusive"
+                      value={(translations[locale] ?? {})[s.key] ?? ""}
+                      onInput={(e) => setVal(s.key, val(e))}
+                      placeholder={
+                        SAMPLE_TRANSLATIONS[locale]?.[s.key] ??
+                        `${t("Translate to")} ${localeMeta?.name ?? locale}…`
+                      }
+                    />
+                  </s-grid>
+                ))}
+              </s-stack>
+            </s-section>
           );
         })}
 
-        <InlineStack align="end">
-          <Button variant="primary" onClick={save}>{t("common.save")}</Button>
-        </InlineStack>
-      </BlockStack>
-    </Page>
+        <s-stack direction="inline" justifyContent="end">
+          <s-button variant="primary" onClick={save}>
+            {t("common.save")}
+          </s-button>
+        </s-stack>
+      </div>
+    </s-page>
   );
 }

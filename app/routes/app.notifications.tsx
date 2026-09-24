@@ -8,24 +8,9 @@ import { useEffect, useMemo, useState } from "react";
 import type { HeadersFunction, LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import { useLoaderData, useFetcher, useSearchParams } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import {
-  Page,
-  Layout,
-  Card,
-  BlockStack,
-  InlineStack,
-  Text,
-  ChoiceList,
-  Select,
-  TextField,
-  Button,
-  Badge,
-  Banner,
-  Box,
-  Divider,
-} from "@shopify/polaris";
 import { EmailIcon } from "@shopify/polaris-icons";
 import { PageHero } from "../components/ui";
+import { flag, val, vals } from "../components/wc";
 
 import { authenticate } from "../shopify.server";
 import { useLocale } from "../lib/i18n";
@@ -132,141 +117,115 @@ export default function NotificationsPage() {
   };
 
   return (
-    <Page>
-      <PageHero icon={EmailIcon} tone="sky" title={t("Notifications")} sub={t("Choose how customer emails are sent, and edit the copy per language.")} />
-      <BlockStack gap="500">
-        <Text as="p" tone="subdued">
+    <s-page inlineSize="large">
+      <div className="encore-stack">
+        <PageHero icon={EmailIcon} tone="sky" title={t("Notifications")} sub={t("Choose how customer emails are sent, and edit the copy per language.")} />
+        <s-paragraph color="subdued">
           {t("Encore delivers customer emails through Klaviyo or Shopify Flow — pick whichever your store already uses, then tailor the copy for each message and language below.")}
-        </Text>
-        {fetcher.data?.ok && (
-          <Banner tone="success">
-            {t("Saved.")}
-          </Banner>
-        )}
-        {klaviyoStatus === "connected" && (
-          <Banner tone="success">{t("Klaviyo connected.")}</Banner>
-        )}
-        {klaviyoStatus === "error" && (
-          <Banner tone="critical">{t("Klaviyo connection failed. Please try again.")}</Banner>
-        )}
+        </s-paragraph>
+        {fetcher.data?.ok && <s-banner tone="success">{t("Saved.")}</s-banner>}
+        {klaviyoStatus === "connected" && <s-banner tone="success">{t("Klaviyo connected.")}</s-banner>}
+        {klaviyoStatus === "error" && <s-banner tone="critical">{t("Klaviyo connection failed. Please try again.")}</s-banner>}
         {klaviyoStatus === "unconfigured" && (
-          <Banner tone="warning">
-            {t("Klaviyo OAuth isn't configured on this app yet — paste an API key instead.")}
-          </Banner>
+          <s-banner tone="warning">{t("Klaviyo OAuth isn't configured on this app yet — paste an API key instead.")}</s-banner>
         )}
 
-        <Layout>
-          <Layout.Section variant="oneThird">
-            <Card>
-              <BlockStack gap="300">
-                <Text as="h2" variant="headingMd">{t("Provider")}</Text>
-                <Text as="p" variant="bodySm" tone="subdued">
-                  {t("Most stores already run one of these — no new cost.")}
-                </Text>
-                <ChoiceList
-                  title=""
-                  titleHidden
-                  choices={[
-                    { label: t("Klaviyo"), value: "klaviyo", helpText: t("Encore sends events + copy; your Klaviyo flow emails.") },
-                    { label: t("Shopify Flow"), value: "shopify_flow", helpText: t("A Flow workflow emails via the Encore 'Send email' action.") },
-                    { label: t("Off"), value: "off", helpText: t("No automated customer emails.") },
-                  ]}
-                  selected={[provider]}
-                  onChange={(v) => setProvider((v[0] as NotificationProvider) ?? "off")}
-                />
+        <div className="encore-layout" style={{ gridTemplateColumns: "minmax(0, 1fr) minmax(0, 2fr)" }}>
+          <s-section heading={t("Provider")} subheading={t("Most stores already run one of these — no new cost.")}>
+            <s-stack direction="block" gap="base">
+              <s-choice-list label={t("Provider")} labelAccessibilityVisibility="exclusive" name="provider" onChange={(e) => setProvider((vals(e)[0] as NotificationProvider) ?? "off")}>
+                <s-choice value="klaviyo" selected={flag(provider === "klaviyo")}>
+                  {t("Klaviyo")}
+                  <s-text slot="details">{t("Encore sends events + copy; your Klaviyo flow emails.")}</s-text>
+                </s-choice>
+                <s-choice value="shopify_flow" selected={flag(provider === "shopify_flow")}>
+                  {t("Shopify Flow")}
+                  <s-text slot="details">{t("A Flow workflow emails via the Encore 'Send email' action.")}</s-text>
+                </s-choice>
+                <s-choice value="off" selected={flag(provider === "off")}>
+                  {t("Off")}
+                  <s-text slot="details">{t("No automated customer emails.")}</s-text>
+                </s-choice>
+              </s-choice-list>
 
-                {provider === "klaviyo" && (
-                  <BlockStack gap="300">
-                    <Divider />
-                    <InlineStack align="space-between" blockAlign="center">
-                      <Text as="span" variant="bodyMd">{t("Klaviyo connection")}</Text>
-                      <Badge tone={klaviyoOAuth ? "success" : undefined}>
-                        {klaviyoOAuth ? t("Connected (OAuth)") : t("Not connected")}
-                      </Badge>
-                    </InlineStack>
-                    {klaviyoConfigurable ? (
-                      <Button
-                        onClick={() => klaviyoConnect.load("/klaviyo/connect")}
-                        loading={klaviyoConnect.state !== "idle"}
-                        variant={klaviyoOAuth ? "secondary" : "primary"}
-                      >
-                        {klaviyoOAuth ? t("Reconnect Klaviyo") : t("Connect Klaviyo")}
-                      </Button>
-                    ) : (
-                      <Text as="p" variant="bodySm" tone="subdued">
-                        {t("Or paste a Klaviyo private API key in Settings → Email integrations.")}
-                      </Text>
-                    )}
-                    <ChoiceList
-                      title={t("Back-in-stock mode")}
-                      choices={[
-                        { label: t("Encore events"), value: "events", helpText: t("Encore sends a Back in Stock event on restock.") },
-                        { label: t("Klaviyo native"), value: "native", helpText: t("Subscribe shoppers to Klaviyo's own back-in-stock at signup (needs the catalog synced).") },
-                      ]}
-                      selected={[bisMode]}
-                      onChange={(v) => setBisMode((v[0] as "events" | "native") ?? "events")}
-                    />
-                  </BlockStack>
-                )}
-              </BlockStack>
-            </Card>
-          </Layout.Section>
+              {provider === "klaviyo" && (
+                <s-stack direction="block" gap="base">
+                  <s-divider />
+                  <div className="encore-row-between">
+                    <s-text>{t("Klaviyo connection")}</s-text>
+                    <s-badge tone={klaviyoOAuth ? "success" : "auto"}>
+                      {klaviyoOAuth ? t("Connected (OAuth)") : t("Not connected")}
+                    </s-badge>
+                  </div>
+                  {klaviyoConfigurable ? (
+                    <s-button
+                      onClick={() => klaviyoConnect.load("/klaviyo/connect")}
+                      loading={flag(klaviyoConnect.state !== "idle")}
+                      variant={klaviyoOAuth ? "secondary" : "primary"}
+                    >
+                      {klaviyoOAuth ? t("Reconnect Klaviyo") : t("Connect Klaviyo")}
+                    </s-button>
+                  ) : (
+                    <s-text color="subdued" fontSize="small">
+                      {t("Or paste a Klaviyo private API key in Settings → Email integrations.")}
+                    </s-text>
+                  )}
+                  <s-choice-list label={t("Back-in-stock mode")} name="bisMode" onChange={(e) => setBisMode((vals(e)[0] as "events" | "native") ?? "events")}>
+                    <s-choice value="events" selected={flag(bisMode === "events")}>
+                      {t("Encore events")}
+                      <s-text slot="details">{t("Encore sends a Back in Stock event on restock.")}</s-text>
+                    </s-choice>
+                    <s-choice value="native" selected={flag(bisMode === "native")}>
+                      {t("Klaviyo native")}
+                      <s-text slot="details">{t("Subscribe shoppers to Klaviyo's own back-in-stock at signup (needs the catalog synced).")}</s-text>
+                    </s-choice>
+                  </s-choice-list>
+                </s-stack>
+              )}
+            </s-stack>
+          </s-section>
 
-          <Layout.Section>
-            <Card>
-              <BlockStack gap="400">
-                <Text as="h2" variant="headingMd">{t("Email templates")}</Text>
-                <InlineStack gap="300">
-                  <Box minWidth="220px">
-                    <Select
-                      label={t("Message")}
-                      options={MESSAGE_TYPES.map((m) => ({ label: t(m.label), value: m.type }))}
-                      value={type}
-                      onChange={(v) => onPick(v as MessageType, locale)}
-                    />
-                  </Box>
-                  <Box minWidth="120px">
-                    <Select
-                      label={t("Language")}
-                      options={LOCALES.map((l) => ({ label: l.toUpperCase(), value: l }))}
-                      value={locale}
-                      onChange={(v) => onPick(type, v)}
-                    />
-                  </Box>
-                </InlineStack>
-
-                <TextField
-                  label={t("Subject")}
-                  value={subject}
-                  onChange={setSubject}
-                  autoComplete="off"
-                />
-                <TextField
-                  label={t("Body")}
-                  value={body}
-                  onChange={setBody}
-                  multiline={6}
-                  autoComplete="off"
-                />
-
-                <InlineStack gap="100" wrap>
-                  <Text as="span" variant="bodySm" tone="subdued">{t("Variables:")}</Text>
-                  {vars.map((v) => (
-                    <Badge key={v}>{`{{${v}}}`}</Badge>
+          <s-section heading={t("Email templates")}>
+            <s-stack direction="block" gap="base">
+              <s-grid gridTemplateColumns="2fr 1fr" gap="base">
+                <s-select label={t("Message")} value={type} onChange={(e) => onPick(val(e) as MessageType, locale)}>
+                  {MESSAGE_TYPES.map((m) => (
+                    <s-option key={m.type} value={m.type}>
+                      {t(m.label)}
+                    </s-option>
                   ))}
-                </InlineStack>
+                </s-select>
+                <s-select label={t("Language")} value={locale} onChange={(e) => onPick(type, val(e))}>
+                  {LOCALES.map((l) => (
+                    <s-option key={l} value={l}>
+                      {l.toUpperCase()}
+                    </s-option>
+                  ))}
+                </s-select>
+              </s-grid>
 
-                <Divider />
-                <InlineStack align="end">
-                  <Button variant="primary" onClick={save} loading={saving}>
-                    {t("Save")}
-                  </Button>
-                </InlineStack>
-              </BlockStack>
-            </Card>
-          </Layout.Section>
-        </Layout>
-      </BlockStack>
-    </Page>
+              <s-text-field label={t("Subject")} value={subject} onInput={(e) => setSubject(val(e))} />
+              <s-text-area label={t("Body")} value={body} rows={6} onInput={(e) => setBody(val(e))} />
+
+              <s-stack direction="inline" gap="small-200" alignItems="center">
+                <s-text color="subdued" fontSize="small">
+                  {t("Variables:")}
+                </s-text>
+                {vars.map((v) => (
+                  <s-badge key={v}>{`{{${v}}}`}</s-badge>
+                ))}
+              </s-stack>
+
+              <s-divider />
+              <s-stack direction="inline" justifyContent="end">
+                <s-button variant="primary" onClick={save} loading={flag(saving)}>
+                  {t("Save")}
+                </s-button>
+              </s-stack>
+            </s-stack>
+          </s-section>
+        </div>
+      </div>
+    </s-page>
   );
 }

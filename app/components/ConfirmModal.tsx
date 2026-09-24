@@ -1,9 +1,9 @@
 /**
  * Shared confirmation dialog (QA 2026-08-31: five window.confirm() calls were
- * untranslated browser chrome). One Polaris modal, fully localized, used by
- * every destructive action in the admin.
+ * untranslated browser chrome). One Polaris `<s-modal>`, fully localized, used
+ * by every destructive action in the admin.
  */
-import { Modal, Text } from "@shopify/polaris";
+import { Modal } from "./wc";
 import { useLocale } from "../lib/i18n";
 
 export default function ConfirmModal({
@@ -28,17 +28,15 @@ export default function ConfirmModal({
     <Modal
       open={open}
       onClose={onCancel}
-      title={title}
-      primaryAction={{
-        content: confirmLabel,
-        destructive,
-        onAction: onConfirm,
-      }}
-      secondaryActions={[{ content: t("common.cancel"), onAction: onCancel }]}
+      heading={title}
+      primaryAction={
+        <s-button variant="primary" tone={destructive ? "critical" : "auto"} onClick={onConfirm}>
+          {confirmLabel}
+        </s-button>
+      }
+      secondaryActions={<s-button onClick={onCancel}>{t("common.cancel")}</s-button>}
     >
-      <Modal.Section>
-        <Text as="p">{message}</Text>
-      </Modal.Section>
+      <s-paragraph>{message}</s-paragraph>
     </Modal>
   );
 }

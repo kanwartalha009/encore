@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type {
   ActionFunctionArgs,
   HeadersFunction,
@@ -7,29 +7,6 @@ import type {
 import { useFetcher, useLoaderData, useSubmit } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import {
-  Page,
-  Layout,
-  Card,
-  BlockStack,
-  InlineStack,
-  Text,
-  Badge,
-  Button,
-  Box,
-  TextField,
-  Select,
-  Checkbox,
-  Banner,
-  Divider,
-  Collapsible,
-  ChoiceList,
-  Link,
-  Icon,
-} from "@shopify/polaris";
-import {
-  ChevronDownIcon,
-  ChevronUpIcon,
-  InfoIcon,
   LanguageIcon,
   CartIcon,
   OrderIcon,
@@ -41,7 +18,8 @@ import {
   SettingsIcon,
   MenuHorizontalIcon,
 } from "@shopify/polaris-icons";
-import { IconTile, type TileTone } from "../components/ui";
+import { IconTile, PageHero, type TileTone } from "../components/ui";
+import { SelectField, ChoiceListField, badgeTone, flag, isChecked, val, useLinkProps } from "../components/wc";
 
 type IconSource = React.FunctionComponent<React.SVGProps<SVGSVGElement>>;
 import { useAppBridge } from "@shopify/app-bridge-react";
@@ -101,6 +79,14 @@ export default function SettingsPage() {
   const discountTone = (s: DiscountCompatRow["status"]) =>
     s === "CONFLICT" ? "critical" : s === "REVIEW" ? "attention" : "success";
   const { locale, setLocale, t } = useLocale();
+  const link = useLinkProps();
+  // Klaviyo OAuth starts with an authenticated fetch, then a top-level hop
+  // (the route answers JSON; a plain link inside the iframe used to show it).
+  const klaviyoConnect = useFetcher<{ url?: string; error?: string }>();
+  useEffect(() => {
+    const u = klaviyoConnect.data?.url;
+    if (u) window.open(u, "_top");
+  }, [klaviyoConnect.data]);
   const g = saved as Partial<{
     defaultPaymentMode: "pay_now" | "deposit" | "pay_later";
     defaultDepositPct: string;
@@ -167,13 +153,11 @@ export default function SettingsPage() {
   const [omnisendKey, setOmnisendKey] = useState(g.omnisendKey ?? "");
   const [slackWebhook, setSlackWebhook] = useState(g.slackWebhook ?? "");
   const [senderEmail, setSenderEmail] = useState(g.senderEmail ?? `hello@${shop}`);
-  const [embedEnabled, setEmbedEnabled] = useState(g.embedEnabled ?? true);
-  const [smsEnabled, setSmsEnabled] = useState(g.smsEnabled ?? false);
+  const [embedEnabled] = useState(g.embedEnabled ?? true);
+  const [smsEnabled] = useState(g.smsEnabled ?? false);
 
   // Inventory rules
-  const [availabilityRule, setAvailabilityRule] = useState<
-    "always" | "oos" | "in_stock"
-  >(g.availabilityRule ?? "always");
+  const [availabilityRule] = useState<"always" | "oos" | "in_stock">(g.availabilityRule ?? "always");
   const [autoStopAtZero, setAutoStopAtZero] = useState(g.autoStopAtZero ?? true);
   const [autoManageContinueSelling, setAutoManageContinueSelling] = useState(
     g.autoManageContinueSelling ?? true,
@@ -278,11 +262,19 @@ export default function SettingsPage() {
   };
 
   return (
-    <Page
-      title={t("settings.title")}
-      subtitle="Store-wide settings — set once. They apply to every preorder; a few can be overridden per preorder."
-      primaryAction={{ content: t("common.save"), onAction: handleSave }}
-    >
+    <s-page inlineSize="large">
+      <div className="encore-stack">
+      <PageHero
+        icon={SettingsIcon}
+        tone="slate"
+        title={t("settings.title")}
+        sub={t("Store-wide settings — set once. They apply to every preorder; a few can be overridden per preorder.")}
+        actions={
+          <s-button variant="primary" onClick={handleSave}>
+            {t("common.save")}
+          </s-button>
+        }
+      />
       <div
         style={{
           display: "grid",
@@ -292,8 +284,8 @@ export default function SettingsPage() {
         }}
       >
         <div style={{ position: "sticky", top: 16 }}>
-          <Card padding="200">
-            <BlockStack gap="050">
+          <s-section>
+            <s-stack direction="block" gap="small-300">
               {SETTINGS_SECTIONS.map(([id, label, icon, tone]) => (
                 <button
                   key={id}
@@ -301,42 +293,32 @@ export default function SettingsPage() {
                   onClick={() => jumpTo(id)}
                   style={{ all: "unset", outline: "revert", cursor: "pointer", display: "block", width: "100%" }}
                 >
-                  <Box
-                    padding="150"
-                    borderRadius="200"
-                    background={activeSec === id ? "bg-surface-secondary" : undefined}
-                  >
-                    <InlineStack gap="200" blockAlign="center" wrap={false}>
-                    <IconTile icon={icon} tone={activeSec === id ? tone : "slate"} size="sm" />
-                    <Text
-                      as="span"
-                      variant="bodyMd"
-                      fontWeight={activeSec === id ? "semibold" : "regular"}
-                    >
-                      {label}
-                    </Text>
-                    </InlineStack>
-                  </Box>
+                  <s-box padding="small-100" borderRadius="base" background={activeSec === id ? "subdued" : "transparent"}>
+                    <s-stack direction="inline" gap="small-100" alignItems="center">
+                      <IconTile icon={icon} tone={activeSec === id ? tone : "slate"} size="sm" />
+                      <s-text fontWeight={activeSec === id ? "semibold" : "auto"}>{label}</s-text>
+                    </s-stack>
+                  </s-box>
                 </button>
               ))}
-            </BlockStack>
-          </Card>
+            </s-stack>
+          </s-section>
         </div>
 
-        <BlockStack gap="500">
-          <Banner tone="info">
-            <Text as="span">{t("These defaults pre-fill new preorders. You can change anything per preorder at any time.")}</Text>
-          </Banner>
+        <s-stack direction="block" gap="large">
+          <s-banner tone="info">
+            <s-text>{t("These defaults pre-fill new preorders. You can change anything per preorder at any time.")}</s-text>
+          </s-banner>
 
         <div id="sec-language" />
-        <Card>
-          <BlockStack gap="400">
-            <BlockStack gap="100">
-              <Text as="h2" variant="headingMd">{t("App language")}</Text>
-              <Text as="p" variant="bodySm" tone="subdued">{t("The language of this admin app. Defaults to your store's language; change it just for your account.")}</Text>
-            </BlockStack>
-            <Divider />
-            <Select
+        <s-section>
+          <s-stack direction="block" gap="base">
+            <s-stack direction="block" gap="small-200">
+              <s-heading>{t("App language")}</s-heading>
+              <s-paragraph fontSize="small" color="subdued">{t("The language of this admin app. Defaults to your store's language; change it just for your account.")}</s-paragraph>
+            </s-stack>
+            <s-divider />
+            <SelectField
               label={t("App language")}
               labelHidden
               options={LOCALES.map((l) => ({
@@ -346,15 +328,15 @@ export default function SettingsPage() {
               value={locale}
               onChange={(v) => setLocale(v as Locale)}
             />
-          </BlockStack>
-        </Card>
+          </s-stack>
+        </s-section>
 
         <div id="sec-defaults" />
-        <Card>
-          <BlockStack gap="400">
-            <Text as="h2" variant="headingMd">{t("Preorder defaults")}</Text>
-            <Divider />
-            <Select
+        <s-section>
+          <s-stack direction="block" gap="base">
+            <s-heading>{t("Preorder defaults")}</s-heading>
+            <s-divider />
+            <SelectField
               label={t("How do customers pay?")}
               options={[
                 { label: t("Full at checkout (recommended)"), value: "pay_now" },
@@ -370,98 +352,82 @@ export default function SettingsPage() {
                   v as "pay_now" | "deposit" | "pay_later",
                 )
               }
-              helpText={t("Most stores keep this on Full at checkout. Use Deposit to lower the buying barrier on big-ticket items.")}
+              details={t("Most stores keep this on Full at checkout. Use Deposit to lower the buying barrier on big-ticket items.")}
             />
             {defaultPaymentMode === "deposit" && (
-              <TextField
+              <s-number-field
                 label={t("Default deposit percentage")}
-                type="number"
                 value={defaultDepositPct}
-                onChange={setDefaultDepositPct}
-                autoComplete="off"
+                onInput={(e) => setDefaultDepositPct(val(e))}
                 suffix="%"
-                helpText={t("The remainder is auto-charged 7 days before the ship date.")}
-              />
+                details={t("The remainder is auto-charged 7 days before the ship date.")}/>
             )}
-            <TextField
+            <s-text-area
               label={t("Message below Add to cart")}
               value={defaultDeliveryNote}
-              onChange={setDefaultDeliveryNote}
-              autoComplete="off"
-              multiline={2}
-              helpText="Shown under the Preorder button. Use {{shipping_date}} to insert the product's ship date automatically."
-            />
-            <TextField
+              onInput={(e) => setDefaultDeliveryNote(val(e))} rows={2}
+              details="Shown under the Preorder button. Use {{shipping_date}} to insert the product's ship date automatically."/>
+            <s-text-area
               label={t("Fallback message (when no ship date is set)")}
               value={defaultDeliveryFallback}
-              onChange={setDefaultDeliveryFallback}
-              autoComplete="off"
-              multiline={2}
-              helpText="Used when a product has no ship date, so {{shipping_date}} would be empty."
-            />
-          </BlockStack>
-        </Card>
+              onInput={(e) => setDefaultDeliveryFallback(val(e))} rows={2}
+              details="Used when a product has no ship date, so {{shipping_date}} would be empty."/>
+          </s-stack>
+        </s-section>
 
         <div id="sec-lineitem" />
-        <Card>
-          <BlockStack gap="400">
-            <BlockStack gap="100">
-              <Text as="h2" variant="headingMd">{t("Preorder in cart & checkout")}</Text>
-              <Text as="p" variant="bodySm" tone="subdued">{t("What shoppers see on the preorder line through cart, checkout, and the order.")}</Text>
-            </BlockStack>
-            <Divider />
-            <Checkbox
+        <s-section>
+          <s-stack direction="block" gap="base">
+            <s-stack direction="block" gap="small-200">
+              <s-heading>{t("Preorder in cart & checkout")}</s-heading>
+              <s-paragraph fontSize="small" color="subdued">{t("What shoppers see on the preorder line through cart, checkout, and the order.")}</s-paragraph>
+            </s-stack>
+            <s-divider />
+            <s-checkbox
               label={t("Show a “Preorder” label and ship date on the cart line")}
-              checked={showLineItemProps}
-              onChange={setShowLineItemProps}
-            />
+              checked={flag(showLineItemProps)}
+              onChange={(e) => setShowLineItemProps(isChecked(e))}/>
             {showLineItemProps && (
-              <BlockStack gap="300">
-                <TextField
+              <s-stack direction="block" gap="small">
+                <s-text-field
                   label={t("Label property name")}
                   value={preorderPropLabel}
-                  onChange={setPreorderPropLabel}
-                  autoComplete="off"
-                  helpText={t("Shows as e.g. “Preorder: Yes”.")}
-                />
-                <TextField
+                  onInput={(e) => setPreorderPropLabel(val(e))}
+                  details={t("Shows as e.g. “Preorder: Yes”.")}/>
+                <s-text-field
                   label={t("Ship-date property name")}
                   value={shipDatePropLabel}
-                  onChange={setShipDatePropLabel}
-                  autoComplete="off"
-                  helpText={t("Shows the ship date, e.g. “Ships: Aug 15”.")}
-                />
-              </BlockStack>
+                  onInput={(e) => setShipDatePropLabel(val(e))}
+                  details={t("Shows the ship date, e.g. “Ships: Aug 15”.")}/>
+              </s-stack>
             )}
-            <Banner tone="info">
-              <Text as="span">{t("These are visible line-item properties. Internal IDs Encore adds stay hidden (underscore-prefixed). In Shopify selling-plan mode the plan carries the preorder; in legacy mode these properties do.")}</Text>
-            </Banner>
-          </BlockStack>
-        </Card>
+            <s-banner tone="info">
+              <s-text>{t("These are visible line-item properties. Internal IDs Encore adds stay hidden (underscore-prefixed). In Shopify selling-plan mode the plan carries the preorder; in legacy mode these properties do.")}</s-text>
+            </s-banner>
+          </s-stack>
+        </s-section>
 
         <div id="sec-inventory" />
-        <Card>
-          <BlockStack gap="400">
-            <BlockStack gap="100">
-              <Text as="h2" variant="headingMd">{t("Inventory rules")}</Text>
-              <Text as="p" variant="bodySm" tone="subdued">{t("When preorder is available and how stock is handled. Applies to every preorder.")}</Text>
-            </BlockStack>
-            <Divider />
-            <Text as="p" variant="bodySm" tone="subdued">{t('When shoppers see each preorder ("Always" for presales, or "Only when sold out") is set on the preorder itself — open any preorder and choose under "When shoppers see it".')}</Text>
-            <Checkbox
+        <s-section>
+          <s-stack direction="block" gap="base">
+            <s-stack direction="block" gap="small-200">
+              <s-heading>{t("Inventory rules")}</s-heading>
+              <s-paragraph fontSize="small" color="subdued">{t("When preorder is available and how stock is handled. Applies to every preorder.")}</s-paragraph>
+            </s-stack>
+            <s-divider />
+            <s-paragraph fontSize="small" color="subdued">{t('When shoppers see each preorder ("Always" for presales, or "Only when sold out") is set on the preorder itself — open any preorder and choose under "When shoppers see it".')}</s-paragraph>
+            <s-checkbox
               label={t("Automatically stop preorders when stock reaches 0")}
-              checked={autoStopAtZero}
-              onChange={setAutoStopAtZero}
-            />
-            <Checkbox
+              checked={flag(autoStopAtZero)}
+              onChange={(e) => setAutoStopAtZero(isChecked(e))}/>
+            <s-checkbox
               label={'Auto-manage "Continue selling when out of stock"'}
-              helpText={t("While a campaign is live, Encore turns this on for its variants so shoppers can buy past zero stock. When a variant's preorder allocation sells out, or the campaign pauses or ends, Encore turns it back off — the product shows Sold out and Shopify rejects further orders.")}
-              checked={autoManageContinueSelling}
-              onChange={setAutoManageContinueSelling}
-            />
-            <Divider />
-            <ChoiceList
-              title={t("How is inventory reserved?")}
+              details={t("While a campaign is live, Encore turns this on for its variants so shoppers can buy past zero stock. When a variant's preorder allocation sells out, or the campaign pauses or ends, Encore turns it back off — the product shows Sold out and Shopify rejects further orders.")}
+              checked={flag(autoManageContinueSelling)}
+              onChange={(e) => setAutoManageContinueSelling(isChecked(e))}/>
+            <s-divider />
+            <ChoiceListField
+              label={t("How is inventory reserved?")}
               choices={[
                 {
                   label: t("Reserve on sale"),
@@ -481,26 +447,24 @@ export default function SettingsPage() {
                 setReserveMode(v[0] as "on_sale" | "on_fulfillment")
               }
             />
-          </BlockStack>
-        </Card>
+          </s-stack>
+        </s-section>
 
         <div id="sec-button" />
-        <Card>
-          <BlockStack gap="400">
-            <BlockStack gap="100">
-              <Text as="h2" variant="headingMd">{t("Preorder button & storefront")}</Text>
-              <Text as="p" variant="bodySm" tone="subdued">{t("Default button text and how it behaves before a preorder starts or after it ends.")}</Text>
-            </BlockStack>
-            <Divider />
-            <BlockStack gap="300">
-              <TextField
+        <s-section>
+          <s-stack direction="block" gap="base">
+            <s-stack direction="block" gap="small-200">
+              <s-heading>{t("Preorder button & storefront")}</s-heading>
+              <s-paragraph fontSize="small" color="subdued">{t("Default button text and how it behaves before a preorder starts or after it ends.")}</s-paragraph>
+            </s-stack>
+            <s-divider />
+            <s-stack direction="block" gap="small">
+              <s-text-field
                 label={t("Default button label")}
                 value={defaultButtonLabel}
-                onChange={setDefaultButtonLabel}
-                autoComplete="off"
-                helpText={t("Override per preorder if needed.")}
-              />
-              <Select
+                onInput={(e) => setDefaultButtonLabel(val(e))}
+                details={t("Override per preorder if needed.")}/>
+              <SelectField
                 label={t("Button placement")}
                 options={[
                   { label: t("Replace Add to cart"), value: "replace" },
@@ -512,100 +476,84 @@ export default function SettingsPage() {
                   setCtaPlacement(v as "replace" | "beside" | "stack")
                 }
               />
-              <Checkbox
+              <s-checkbox
                 label={'Show "Coming soon" before the preorder starts'}
-                checked={comingSoonBeforeStart}
-                onChange={setComingSoonBeforeStart}
-              />
-              <Checkbox
+                checked={flag(comingSoonBeforeStart)}
+                onChange={(e) => setComingSoonBeforeStart(isChecked(e))}/>
+              <s-checkbox
                 label={'Show "Not available" after the preorder ends'}
-                checked={notAvailableAfterEnd}
-                onChange={setNotAvailableAfterEnd}
-              />
-              <Checkbox
+                checked={flag(notAvailableAfterEnd)}
+                onChange={(e) => setNotAvailableAfterEnd(isChecked(e))}/>
+              <s-checkbox
                 label={'Hide the "Buy it now" button on preorder products'}
-                checked={hideBuyNow}
-                onChange={setHideBuyNow}
-              />
-              <Checkbox
+                checked={flag(hideBuyNow)}
+                onChange={(e) => setHideBuyNow(isChecked(e))}/>
+              <s-checkbox
                 label={t("Show preorder badge on product & collection pages")}
-                checked={showPreorderLabel}
-                onChange={setShowPreorderLabel}
-              />
-              <Checkbox
+                checked={flag(showPreorderLabel)}
+                onChange={(e) => setShowPreorderLabel(isChecked(e))}/>
+              <s-checkbox
                 label={t("Show promotional message & fulfillment note")}
-                checked={showPromoNote}
-                onChange={setShowPromoNote}
-              />
-            </BlockStack>
-          </BlockStack>
-        </Card>
+                checked={flag(showPromoNote)}
+                onChange={(e) => setShowPromoNote(isChecked(e))}/>
+            </s-stack>
+          </s-stack>
+        </s-section>
 
         <div id="sec-cart" />
-        <Card>
-          <BlockStack gap="400">
-            <BlockStack gap="100">
-              <Text as="h2" variant="headingMd">{t("Cart")}</Text>
-              <Text as="p" variant="bodySm" tone="subdued">{t("How preorder items appear in the cart, and what shoppers see when they mix preorder and in-stock items.")}</Text>
-            </BlockStack>
-            <Divider />
-            <BlockStack gap="300">
-              <Checkbox
+        <s-section>
+          <s-stack direction="block" gap="base">
+            <s-stack direction="block" gap="small-200">
+              <s-heading>{t("Cart")}</s-heading>
+              <s-paragraph fontSize="small" color="subdued">{t("How preorder items appear in the cart, and what shoppers see when they mix preorder and in-stock items.")}</s-paragraph>
+            </s-stack>
+            <s-divider />
+            <s-stack direction="block" gap="small">
+              <s-checkbox
                 label={t("Show mixed-cart warning")}
-                helpText={t("Warn when a cart has both preorder and in-stock items.")}
-                checked={mixedCartWarning}
-                onChange={setMixedCartWarning}
-              />
+                details={t("Warn when a cart has both preorder and in-stock items.")}
+                checked={flag(mixedCartWarning)}
+                onChange={(e) => setMixedCartWarning(isChecked(e))}/>
               {mixedCartWarning && (
-                <TextField
+                <s-text-area
                   label={t("Warning message")}
                   value={mixedCartMessage}
-                  onChange={setMixedCartMessage}
-                  autoComplete="off"
-                  multiline={2}
-                />
+                  onInput={(e) => setMixedCartMessage(val(e))} rows={2}/>
               )}
-              <Checkbox
+              <s-checkbox
                 label={t("Show preorder note on the cart line item")}
-                checked={showLineItem}
-                onChange={setShowLineItem}
-              />
-              <Checkbox
+                checked={flag(showLineItem)}
+                onChange={(e) => setShowLineItem(isChecked(e))}/>
+              <s-checkbox
                 label={t("Show a contact link in the cart")}
-                checked={showContactLink}
-                onChange={setShowContactLink}
-              />
+                checked={flag(showContactLink)}
+                onChange={(e) => setShowContactLink(isChecked(e))}/>
               {showContactLink && (
-                <BlockStack gap="300">
-                  <TextField
+                <s-stack direction="block" gap="small">
+                  <s-email-field
                     label={t("Contact email")}
                     value={contactEmail}
-                    onChange={setContactEmail}
-                    autoComplete="off"
-                    type="email"
-                  />
-                  <TextField
+                    onInput={(e) => setContactEmail(val(e))}/>
+                  <s-text-field
                     label={t("Contact subject")}
                     value={contactSubject}
-                    onChange={setContactSubject}
-                    autoComplete="off"
-                  />
-                </BlockStack>
+                    onInput={(e) => setContactSubject(val(e))}/>
+                </s-stack>
               )}
-            </BlockStack>
-          </BlockStack>
-        </Card>
+            </s-stack>
+          </s-stack>
+        </s-section>
 
         <div id="sec-payment" />
-        <Card>
-          <BlockStack gap="400">
-            <BlockStack gap="100">
-              <Text as="h2" variant="headingMd">{t("Payment & balances")}</Text>
-              <Text as="p" variant="bodySm" tone="subdued">{t("How preorders integrate with checkout and how the remaining balance is collected on deposits.")}</Text>
-            </BlockStack>
-            <Divider />
-            <ChoiceList
-              title={t("Preorder model")}
+        <s-section>
+          <s-stack direction="block" gap="base">
+            <s-stack direction="block" gap="small-200">
+              <s-heading>{t("Payment & balances")}</s-heading>
+              <s-paragraph fontSize="small" color="subdued">{t("How preorders integrate with checkout and how the remaining balance is collected on deposits.")}</s-paragraph>
+            </s-stack>
+            <s-divider />
+            <ChoiceListField
+              label={t("Preorder model")}
               choices={[
                 {
                   label: t("Use Shopify selling plan (recommended)"),
@@ -623,9 +571,9 @@ export default function SettingsPage() {
                 setPreorderModel(v[0] as "selling_plan" | "legacy")
               }
             />
-            <Divider />
-            <ChoiceList
-              title={t("Charge the remaining balance")}
+            <s-divider />
+            <ChoiceListField
+              label={t("Charge the remaining balance")}
               choices={[
                 {
                   label: t("Auto-charge remaining balance"),
@@ -643,39 +591,33 @@ export default function SettingsPage() {
               onChange={(v) => setBalanceCharge(v[0] as "auto" | "reminder")}
             />
             {balanceCharge === "auto" && (
-              <TextField
+              <s-number-field
                 label={t("Charge balance before ship date")}
-                type="number"
                 value={balanceChargeDays}
-                onChange={setBalanceChargeDays}
-                autoComplete="off"
-                suffix={t("days before")}
-              />
+                onInput={(e) => setBalanceChargeDays(val(e))}
+                suffix={t("days before")}/>
             )}
-            <Checkbox
+            <s-checkbox
               label={t("Send notifications about overdue balances")}
-              checked={notifyOverdue}
-              onChange={setNotifyOverdue}
-            />
-            <Divider />
-            <TextField
+              checked={flag(notifyOverdue)}
+              onChange={(e) => setNotifyOverdue(isChecked(e))}/>
+            <s-divider />
+            <s-text-field
               label={t("Tag name for preorder orders")}
               value={orderTagName}
-              onChange={setOrderTagName}
-              autoComplete="off"
-              helpText={t("Applied to every preorder in Shopify admin.")}
-            />
-          </BlockStack>
-        </Card>
+              onInput={(e) => setOrderTagName(val(e))}
+              details={t("Applied to every preorder in Shopify admin.")}/>
+          </s-stack>
+        </s-section>
 
         <div id="sec-design" />
-        <Card>
-          <BlockStack gap="400">
-            <BlockStack gap="100">
-              <Text as="h2" variant="headingMd">{t("Design")}</Text>
-              <Text as="p" variant="bodySm" tone="subdued">{t("Match the preorder badge and button to your store. Custom CSS for fine control.")}</Text>
-            </BlockStack>
-            <Divider />
+        <s-section>
+          <s-stack direction="block" gap="base">
+            <s-stack direction="block" gap="small-200">
+              <s-heading>{t("Design")}</s-heading>
+              <s-paragraph fontSize="small" color="subdued">{t("Match the preorder badge and button to your store. Custom CSS for fine control.")}</s-paragraph>
+            </s-stack>
+            <s-divider />
             <div
               style={{
                 display: "grid",
@@ -684,9 +626,9 @@ export default function SettingsPage() {
                 alignItems: "start",
               }}
             >
-              <BlockStack gap="400">
-            <ChoiceList
-              title={t("Badge style")}
+              <s-stack direction="block" gap="base">
+            <ChoiceListField
+              label={t("Badge style")}
               choices={[
                 { label: t("Pill"), value: "pill" },
                 { label: t("Corner tag"), value: "corner" },
@@ -697,7 +639,7 @@ export default function SettingsPage() {
                 setBadgeStyle(v[0] as "pill" | "corner" | "ribbon")
               }
             />
-            <Select
+            <SelectField
               label={t("Badge position on the product page")}
               options={[
                 { label: t("Smart (next to the price, else on the image)"), value: "auto" },
@@ -710,22 +652,19 @@ export default function SettingsPage() {
               onChange={(v) =>
                 setBadgePosition(v as "auto" | "price" | "image-left" | "image-right" | "button")
               }
-              helpText={t("Smart placement finds your theme's price or main image automatically — works on any theme.")}
+              details={t("Smart placement finds your theme's price or main image automatically — works on any theme.")}
             />
-            <Checkbox
+            <s-checkbox
               label={t("Show the preorder badge on collection, search and home product cards")}
-              checked={collectionBadges}
-              onChange={setCollectionBadges}
-            />
-            <InlineStack gap="300" blockAlign="end">
-              <Box minWidth="200px">
-                <TextField
+              checked={flag(collectionBadges)}
+              onChange={(e) => setCollectionBadges(isChecked(e))}/>
+            <s-stack direction="inline" gap="small" alignItems="end">
+              <s-box>
+                <s-text-field
                   label={t("Button colour (hex)")}
                   value={buttonColor}
-                  onChange={setButtonColor}
-                  autoComplete="off"
-                />
-              </Box>
+                  onInput={(e) => setButtonColor(val(e))}/>
+              </s-box>
               <div
                 style={{
                   width: 36,
@@ -735,34 +674,28 @@ export default function SettingsPage() {
                   border: "1px solid var(--p-color-border)",
                 }}
               />
-            </InlineStack>
-            <TextField
+            </s-stack>
+            <s-text-area
               label={t("Custom CSS")}
               value={customCss}
-              onChange={setCustomCss}
-              autoComplete="off"
-              multiline={6}
+              onInput={(e) => setCustomCss(val(e))} rows={6}
               placeholder=".encore-preorder-button { border-radius: 8px; }"
-              helpText={t("Advanced — applied to the storefront block for this store.")}
-            />
-              </BlockStack>
+              details={t("Advanced — applied to the storefront block for this store.")}/>
+              </s-stack>
 
               <div style={{ position: "sticky", top: 16 }}>
-            <BlockStack gap="300">
-              <InlineStack align="space-between" blockAlign="center">
-                <Text as="h3" variant="headingSm">{t("Live preview")}</Text>
-                <Checkbox
+            <s-stack direction="block" gap="small">
+              <s-stack direction="inline" justifyContent="space-between" alignItems="center">
+                <s-heading fontSize="small">{t("Live preview")}</s-heading>
+                <s-checkbox
                   label={t("Preview without a ship date")}
-                  checked={previewNoDate}
-                  onChange={setPreviewNoDate}
-                />
-              </InlineStack>
-              <Box
-                padding="500"
-                borderWidth="025"
-                borderColor="border"
-                borderRadius="300"
-                background="bg-surface"
+                  checked={flag(previewNoDate)}
+                  onChange={(e) => setPreviewNoDate(isChecked(e))}/>
+              </s-stack>
+              <s-box
+                padding="large" border="base"
+                borderRadius="base"
+                background="base"
               >
                 <div className="encore-preview">
                   <style dangerouslySetInnerHTML={{ __html: customCss }} />
@@ -825,225 +758,210 @@ export default function SettingsPage() {
                     </div>
                   </div>
                 </div>
-              </Box>
-              <Text as="p" variant="bodySm" tone="subdued">{t("Updates live as you change the colour, badge, message, or custom CSS. Your CSS can target .encore-preorder-button, .encore-preorder-badge, or .encore-preorder-note.")}</Text>
-            </BlockStack>
+              </s-box>
+              <s-paragraph fontSize="small" color="subdued">{t("Updates live as you change the colour, badge, message, or custom CSS. Your CSS can target .encore-preorder-button, .encore-preorder-badge, or .encore-preorder-note.")}</s-paragraph>
+            </s-stack>
               </div>
             </div>
-          </BlockStack>
-        </Card>
+          </s-stack>
+        </s-section>
 
         {/* Storefront block status — verified against the live theme */}
-        <Card>
-          <BlockStack gap="400">
-            <InlineStack align="space-between" blockAlign="center">
-              <BlockStack gap="050">
-                <InlineStack gap="200" blockAlign="center">
-                  <Text as="h2" variant="headingMd">{t("Storefront block")}</Text>
+        <s-section>
+          <s-stack direction="block" gap="base">
+            <s-stack direction="inline" justifyContent="space-between" alignItems="center">
+              <s-stack direction="block" gap="small-300">
+                <s-stack direction="inline" gap="small-100" alignItems="center">
+                  <s-heading>{t("Storefront block")}</s-heading>
                   {embed.checked ? (
-                    <Badge tone={embed.enabled ? "success" : "critical"}>
+                    <s-badge tone={badgeTone(embed.enabled ? "success" : "critical")}>
                       {embed.enabled ? t("Enabled") : t("Not enabled")}
-                    </Badge>
+                    </s-badge>
                   ) : (
-                    <Badge tone="attention">{t("Not verified")}</Badge>
+                    <s-badge tone="caution">{t("Not verified")}</s-badge>
                   )}
-                </InlineStack>
-                <Text as="p" variant="bodySm" tone="subdued">
+                </s-stack>
+                <s-paragraph fontSize="small" color="subdued">
                   {embed.checked
                     ? embed.enabled
                       ? t("Encore's app embed is on in your live theme ({theme}). The Preorder button, Notify-me and Low-stock appear automatically next to your add-to-cart button — no theme code needed.").replace("{theme}", embed.themeName)
                       : t("Encore's app embed is OFF in your live theme ({theme}). Nothing will show on the storefront until it is turned on — click Turn on, then Save in the theme editor.").replace("{theme}", embed.themeName)
                     : t("Could not read your live theme to confirm the embed is on. Open the theme editor → App embeds and make sure Encore is toggled on.")}
-                </Text>
-              </BlockStack>
-              <Button url={embedUrl} external variant={embed.checked && !embed.enabled ? "primary" : undefined}>
+                </s-paragraph>
+              </s-stack>
+              <s-button href={embedUrl} target="_blank" variant={embed.checked && !embed.enabled ? "primary" : undefined}>
                 {embed.checked && !embed.enabled ? t("Turn on in theme editor") : t("Open theme editor")}
-              </Button>
-            </InlineStack>
-          </BlockStack>
-        </Card>
+              </s-button>
+            </s-stack>
+          </s-stack>
+        </s-section>
 
         <div id="sec-discounts" />
-        <Card>
-          <BlockStack gap="400">
-            <InlineStack align="space-between" blockAlign="center">
-              <BlockStack gap="050">
-                <Text as="h2" variant="headingMd">{t("Discount compatibility")}</Text>
-                <Text as="p" variant="bodySm" tone="subdued">
+        <s-section>
+          <s-stack direction="block" gap="base">
+            <s-stack direction="inline" justifyContent="space-between" alignItems="center">
+              <s-stack direction="block" gap="small-300">
+                <s-heading>{t("Discount compatibility")}</s-heading>
+                <s-paragraph fontSize="small" color="subdued">
                   {t("Check your active discounts against preorders — Buy-X-Get-Y is the usual conflict.")}
-                </Text>
-              </BlockStack>
-              <Button onClick={checkDiscounts} loading={discountFetcher.state !== "idle"}>
+                </s-paragraph>
+              </s-stack>
+              <s-button onClick={checkDiscounts} loading={flag(discountFetcher.state !== "idle")}>
                 {t("Check now")}
-              </Button>
-            </InlineStack>
-            <Divider />
+              </s-button>
+            </s-stack>
+            <s-divider />
             {discountFetcher.data?.error ? (
-              <Banner tone="warning">
-                <Text as="span">
+              <s-banner tone="warning">
+                <s-text>
                   {t("Couldn't read discounts — confirm the app has the read_discounts permission (re-grant after deploy).")}
-                </Text>
-              </Banner>
+                </s-text>
+              </s-banner>
             ) : discountFetcher.data ? (
               (discountFetcher.data.rows?.length ?? 0) === 0 ? (
-                <Text as="p" tone="subdued">{t("No active discounts — nothing conflicts with preorders.")}</Text>
+                <s-paragraph color="subdued">{t("No active discounts — nothing conflicts with preorders.")}</s-paragraph>
               ) : (
-                <BlockStack gap="300">
+                <s-stack direction="block" gap="small">
                   {discountFetcher.data.rows?.map((d) => (
-                    <InlineStack key={d.id} align="space-between" blockAlign="start" wrap={false} gap="300">
-                      <BlockStack gap="050">
-                        <Text as="span" variant="bodyMd" fontWeight="semibold">{d.title}</Text>
-                        <Text as="span" variant="bodySm" tone="subdued">{d.kind} — {d.note}</Text>
-                      </BlockStack>
-                      <Badge tone={discountTone(d.status)}>
+                    <s-stack direction="inline" key={d.id} justifyContent="space-between" alignItems="start" gap="small">
+                      <s-stack direction="block" gap="small-300">
+                        <s-text fontWeight="semibold">{d.title}</s-text>
+                        <s-text fontSize="small" color="subdued">{d.kind} — {d.note}</s-text>
+                      </s-stack>
+                      <s-badge tone={badgeTone(discountTone(d.status))}>
                         {d.status === "OK" ? t("Compatible") : d.status === "REVIEW" ? t("Review") : t("Conflict")}
-                      </Badge>
-                    </InlineStack>
+                      </s-badge>
+                    </s-stack>
                   ))}
-                </BlockStack>
+                </s-stack>
               )
             ) : (
-              <Text as="p" tone="subdued">
+              <s-paragraph color="subdued">
                 {t("Run a check to see how your live discounts interact with preorders.")}
-              </Text>
+              </s-paragraph>
             )}
-          </BlockStack>
-        </Card>
+          </s-stack>
+        </s-section>
 
         <div id="sec-advanced" />
-        <Card>
-          <BlockStack gap="400">
-            <InlineStack align="space-between" blockAlign="center">
-              <BlockStack gap="050">
-                <InlineStack gap="200" blockAlign="center">
-                  <Text as="h2" variant="headingMd">{t("Advanced")}</Text>
-                  <Icon source={InfoIcon} tone="subdued" />
-                </InlineStack>
-                <Text as="p" variant="bodySm" tone="subdued">{t("Email integrations, SMS alerts, danger zone.")}</Text>
-              </BlockStack>
-              <Button
+        <s-section>
+          <s-stack direction="block" gap="base">
+            <s-stack direction="inline" justifyContent="space-between" alignItems="center">
+              <s-stack direction="block" gap="small-300">
+                <s-stack direction="inline" gap="small-100" alignItems="center">
+                  <s-heading>{t("Advanced")}</s-heading>
+                  <s-icon type="info" color="subdued" />
+                </s-stack>
+                <s-paragraph fontSize="small" color="subdued">{t("Email integrations, SMS alerts, danger zone.")}</s-paragraph>
+              </s-stack>
+              <s-button
                 variant="tertiary"
-                icon={advancedOpen ? ChevronUpIcon : ChevronDownIcon}
+                icon={advancedOpen ? "chevron-up" : "chevron-down"}
                 onClick={() => setAdvancedOpen((v) => !v)}
               >
                 {advancedOpen ? "Hide" : "Show"} advanced
-              </Button>
-            </InlineStack>
+              </s-button>
+            </s-stack>
 
-            <Collapsible
-              id="settings-advanced"
-              open={advancedOpen}
-              transition={{ duration: "200ms", timingFunction: "ease" }}
-            >
-              <BlockStack gap="500">
-                <Divider />
+            {advancedOpen && (
+            <div id="settings-advanced">
+              <s-stack direction="block" gap="large">
+                <s-divider />
 
-                <BlockStack gap="300">
-                  <Text as="h3" variant="headingSm">{t("Email integrations")}</Text>
+                <s-stack direction="block" gap="small">
+                  <s-heading fontSize="small">{t("Email integrations")}</s-heading>
                   <IntegrationRow
                     name="Klaviyo"
                     helpText={t("Sync waitlist signups + preorder campaigns to a Klaviyo list.")}
                     action={
-                      <Button url="/klaviyo/connect">
+                      <s-button onClick={() => klaviyoConnect.load("/klaviyo/connect")} loading={flag(klaviyoConnect.state !== "idle")}>
                         {klaviyoKey ? t("Reconnect") : t("Connect")}
-                      </Button>
+                      </s-button>
                     }
                     connected={!!klaviyoKey}
                   >
-                    <TextField
+                    <s-password-field
                       label={t("API key")}
-                      labelHidden
+                      labelAccessibilityVisibility="exclusive"
                       value={klaviyoKey}
-                      onChange={setKlaviyoKey}
-                      autoComplete="off"
-                      placeholder={t("pk_xxxxx")}
-                      type="password"
-                    />
+                      onInput={(e) => setKlaviyoKey(val(e))}
+                      placeholder={t("pk_xxxxx")}/>
                   </IntegrationRow>
-                  <Divider />
+                  <s-divider />
                   <IntegrationRow
                     name="Omnisend"
                     helpText={t("Push preorder events into Omnisend automation flows.")}
-                    action={<Button disabled>{t("Coming soon")}</Button>}
+                    action={<s-button disabled>{t("Coming soon")}</s-button>}
                     connected={!!omnisendKey}
                   >
-                    <TextField
+                    <s-password-field
                       label={t("API key")}
-                      labelHidden
+                      labelAccessibilityVisibility="exclusive"
                       value={omnisendKey}
-                      onChange={setOmnisendKey}
-                      autoComplete="off"
-                      placeholder={t("omn-xxxxx")}
-                      type="password"
-                    />
+                      onInput={(e) => setOmnisendKey(val(e))}
+                      placeholder={t("omn-xxxxx")}/>
                   </IntegrationRow>
-                  <Divider />
+                  <s-divider />
                   <IntegrationRow
                     name="Slack alerts"
                     helpText={t("Per-preorder merchant alerts (balance failures, cohort ready).")}
-                    action={<Button disabled>{t("Coming soon")}</Button>}
+                    action={<s-button disabled>{t("Coming soon")}</s-button>}
                     connected={!!slackWebhook}
                   >
-                    <TextField
+                    <s-text-field
                       label={t("Webhook URL")}
-                      labelHidden
+                      labelAccessibilityVisibility="exclusive"
                       value={slackWebhook}
-                      onChange={setSlackWebhook}
-                      autoComplete="off"
-                      placeholder={t("https://hooks.slack.com/services/...")}
-                    />
+                      onInput={(e) => setSlackWebhook(val(e))}
+                      placeholder={t("https://hooks.slack.com/services/...")}/>
                   </IntegrationRow>
-                </BlockStack>
+                </s-stack>
 
-                <Divider />
+                <s-divider />
 
-                <BlockStack gap="300">
-                  <Text as="h3" variant="headingSm">{t("Email & SMS")}</Text>
-                  <TextField
+                <s-stack direction="block" gap="small">
+                  <s-heading fontSize="small">{t("Email & SMS")}</s-heading>
+                  <s-email-field
                     label={t("Sender email")}
                     value={senderEmail}
-                    onChange={setSenderEmail}
-                    autoComplete="off"
-                    type="email"
-                    helpText={t("Verify SPF/DKIM in your email host before going live.")}
-                  />
-                  {/* SMS delivery ships in R3 — hidden until real (audit O4). <Checkbox
+                    onInput={(e) => setSenderEmail(val(e))}
+                    details={t("Verify SPF/DKIM in your email host before going live.")}/>
+                  {/* SMS delivery ships in R3 — hidden until real (audit O4). <s-checkbox
                     label={t("Enable SMS for back-in-stock alerts")}
-                    helpText={t("Requires Twilio (or compatible) credentials in v1.1.")}
-                    checked={smsEnabled}
-                    onChange={setSmsEnabled}
-                  /> */}
-                </BlockStack>
+                    details={t("Requires Twilio (or compatible) credentials in v1.1.")}
+                    checked={flag(smsEnabled)}
+                    onChange={(e) => setSmsEnabled(isChecked(e))}/> */}
+                </s-stack>
 
-                <Divider />
+                <s-divider />
 
-                <BlockStack gap="300">
-                  <Text as="h3" variant="headingSm">{t("Danger zone")}</Text>
-                  <InlineStack
-                    align="space-between"
-                    blockAlign="center"
-                    wrap={false}
+                <s-stack direction="block" gap="small">
+                  <s-heading fontSize="small">{t("Danger zone")}</s-heading>
+                  <s-stack direction="inline"
+                    justifyContent="space-between"
+                    alignItems="center"
                   >
-                    <BlockStack gap="050">
-                      <Text as="p" variant="bodyMd" fontWeight="semibold">{t("Uninstall app")}</Text>
-                      <Text as="p" variant="bodySm" tone="subdued">{t("Uninstall from Shopify admin. We guarantee a clean uninstall — no leftover theme code.")}</Text>
-                    </BlockStack>
-                    <Button url={`https://${shop}/admin/apps`} external>{t("Open admin apps")}</Button>
-                  </InlineStack>
-                </BlockStack>
-              </BlockStack>
-            </Collapsible>
-          </BlockStack>
-        </Card>
+                    <s-stack direction="block" gap="small-300">
+                      <s-paragraph fontWeight="semibold">{t("Uninstall app")}</s-paragraph>
+                      <s-paragraph fontSize="small" color="subdued">{t("Uninstall from Shopify admin. We guarantee a clean uninstall — no leftover theme code.")}</s-paragraph>
+                    </s-stack>
+                    <s-button href={`https://${shop}/admin/apps`} target="_blank">{t("Open admin apps")}</s-button>
+                  </s-stack>
+                </s-stack>
+              </s-stack>
+            </div>
+            )}
+          </s-stack>
+        </s-section>
 
         <div id="sec-more" />
-        <Card>
-          <BlockStack gap="400">
-            <BlockStack gap="100">
-              <Text as="h2" variant="headingMd">{t("More settings")}</Text>
-              <Text as="p" variant="bodySm" tone="subdued">{t("Less-common areas, kept out of the way until you need them.")}</Text>
-            </BlockStack>
-            <Divider />
+        <s-section>
+          <s-stack direction="block" gap="base">
+            <s-stack direction="block" gap="small-200">
+              <s-heading>{t("More settings")}</s-heading>
+              <s-paragraph fontSize="small" color="subdued">{t("Less-common areas, kept out of the way until you need them.")}</s-paragraph>
+            </s-stack>
+            <s-divider />
             {(
               [
                 ["/app/markets", t("Markets"), t("Per-region preorder rules and availability.")],
@@ -1052,30 +970,29 @@ export default function SettingsPage() {
                 ["/app/help", t("Get help"), t("Send us a message — we usually reply within a day.")],
               ] as [string, string, string][]
             ).map(([url, label, desc]) => (
-              <InlineStack key={url} align="space-between" blockAlign="center" wrap={false}>
-                <BlockStack gap="050">
-                  <Text as="p" variant="bodyMd" fontWeight="semibold">{label}</Text>
-                  <Text as="p" variant="bodySm" tone="subdued">{desc}</Text>
-                </BlockStack>
-                <Button url={url}>{t("Open")}</Button>
-              </InlineStack>
+              <s-stack direction="inline" key={url} justifyContent="space-between" alignItems="center">
+                <s-stack direction="block" gap="small-300">
+                  <s-paragraph fontWeight="semibold">{label}</s-paragraph>
+                  <s-paragraph fontSize="small" color="subdued">{desc}</s-paragraph>
+                </s-stack>
+                <s-button {...link(url)}>{t("Open")}</s-button>
+              </s-stack>
             ))}
-          </BlockStack>
-        </Card>
+          </s-stack>
+        </s-section>
 
-        <Box paddingBlockEnd="400">
-          <Text as="p" variant="bodySm" tone="subdued" alignment="center">
+        <s-box paddingBlockEnd="base">
+          <s-paragraph fontSize="small" color="subdued">
             Need help?{" "}
-            <Link url="/app/help">
-              {t("Get help")}
-            </Link>{" "}
+            <s-link {...link("/app/help")}>{t("Get help")}</s-link>{" "}
             or contact{" "}
-            <Link url="/app/help">support</Link>.
-          </Text>
-        </Box>
-      </BlockStack>
+            <s-link {...link("/app/help")}>support</s-link>.
+          </s-paragraph>
+        </s-box>
+      </s-stack>
       </div>
-    </Page>
+      </div>
+    </s-page>
   );
 }
 
@@ -1093,24 +1010,24 @@ function IntegrationRow({
   children: React.ReactNode;
 }) {
   return (
-    <BlockStack gap="200">
-      <InlineStack align="space-between" blockAlign="center">
-        <BlockStack gap="050">
-          <InlineStack gap="200">
-            <Text as="p" variant="bodyMd" fontWeight="semibold">
+    <s-stack direction="block" gap="small-100">
+      <s-stack direction="inline" justifyContent="space-between" alignItems="center">
+        <s-stack direction="block" gap="small-300">
+          <s-stack direction="inline" gap="small-100">
+            <s-paragraph fontWeight="semibold">
               {name}
-            </Text>
-            <Badge tone={connected ? "success" : undefined}>
+            </s-paragraph>
+            <s-badge tone={badgeTone(connected ? "success" : undefined)}>
               {connected ? "Connected" : "Not connected"}
-            </Badge>
-          </InlineStack>
-          <Text as="p" variant="bodySm" tone="subdued">
+            </s-badge>
+          </s-stack>
+          <s-paragraph fontSize="small" color="subdued">
             {helpText}
-          </Text>
-        </BlockStack>
+          </s-paragraph>
+        </s-stack>
         {action}
-      </InlineStack>
+      </s-stack>
       {children}
-    </BlockStack>
+    </s-stack>
   );
 }

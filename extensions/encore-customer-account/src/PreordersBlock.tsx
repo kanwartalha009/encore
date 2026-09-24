@@ -1,13 +1,14 @@
 /**
  * Customer Account block: the signed-in shopper's Encore pre-orders + waitlist.
  *
- * API 2025-10 (Preact + Polaris web components — the react wrapper ended at
+ * API 2026-07 (Preact + Polaris web components — the react wrapper ended at
  * 2025-07). Pulls data from the app's /customer/portal endpoint, authenticated
  * with the customer-account session token. Shows ship date + balance-due per
  * pre-order and restock status per waitlist item. Fails closed (renders
  * nothing) so it can never break the customer's Orders page.
  */
 import "@shopify/ui-extensions/preact";
+import type { Api } from "@shopify/ui-extensions/customer-account.order-index.block.render";
 import { render } from "preact";
 import { useEffect, useState } from "preact/hooks";
 
@@ -16,6 +17,11 @@ import { useEffect, useState } from "preact/hooks";
 // ⇒ DEPLOY STEP: set this to the production application_url before `deploy`.
 // See DEPLOY-CHECKLIST.md ("Production URLs").
 const APP_URL = "https://encore-production-7c8f.up.railway.app";
+
+// The `shopify` global carries this target's API (i18n, sessionToken, …).
+// @shopify/ui-extensions' customer-account typings still declare it with the
+// checkout surface's narrower ShopifyGlobal, so type it here from the target.
+const api = shopify as unknown as Api;
 
 export default async () => {
   render(<Preorders />, document.body);
@@ -33,8 +39,10 @@ type PreorderRow = {
 type WaitRow = { product: string; variant: string; productId: string; status: string };
 
 function Preorders() {
+  // translate() returns string | unknown[] (rich replacements); we only ever
+  // pass scalar vars, so a string is what comes back.
   const t = (key: string, vars?: Record<string, unknown>) =>
-    shopify.i18n.translate(key, vars);
+    String(api.i18n.translate(key, vars as never));
   const [loading, setLoading] = useState(true);
   const [preorders, setPreorders] = useState<PreorderRow[]>([]);
   const [waitlist, setWaitlist] = useState<WaitRow[]>([]);
@@ -43,7 +51,7 @@ function Preorders() {
     let active = true;
     (async () => {
       try {
-        const token = await shopify.sessionToken.get();
+        const token = await api.sessionToken.get();
         const res = await fetch(`${APP_URL}/customer/portal`, {
           method: "POST",
           headers: {
@@ -86,10 +94,10 @@ function Preorders() {
                     {p.product}
                     {p.orderRef ? ` · ${p.orderRef}` : ""}
                   </s-text>
-                  <s-badge tone={p.balanceDue > 0 ? "warning" : "success"}>
+                  <s-badge tone={p.balanceDue > 0 ? "critical" : "auto"}>
                     {p.balanceDue > 0
                       ? t("preorders.balanceDue", {
-                          amount: shopify.i18n.formatCurrency(p.balanceDue),
+                          amount: api.i18n.formatCurrency(p.balanceDue),
                         })
                       : t("preorders.paid")}
                   </s-badge>
@@ -116,7 +124,7 @@ function Preorders() {
                     {w.product}
                     {w.variant ? ` · ${w.variant}` : ""}
                   </s-text>
-                  <s-badge tone={w.status === "AVAILABLE" ? "success" : "info"}>
+                  <s-badge tone={w.status === "AVAILABLE" ? "auto" : "neutral"}>
                     {w.status === "AVAILABLE"
                       ? t("waitlist.available")
                       : t("waitlist.waiting")}

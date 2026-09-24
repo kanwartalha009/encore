@@ -8,7 +8,7 @@ import { useMemo, useState } from "react";
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { useLoaderData } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import { Page, Card, BlockStack, InlineStack, Select, Box, Divider } from "@shopify/polaris";
+import { val } from "../components/wc";
 import { OrderIcon, CashDollarIcon, ClockIcon, CartIcon } from "@shopify/polaris-icons";
 import { PageHero, StatCard } from "../components/ui";
 
@@ -82,8 +82,8 @@ export default function OrdersPage() {
   );
 
   return (
-    <Page>
-      <BlockStack gap="500">
+    <s-page inlineSize="large">
+      <div className="encore-stack">
         <PageHero
           icon={OrderIcon}
           tone="violet"
@@ -102,37 +102,32 @@ export default function OrdersPage() {
             value={String(stats.awaiting)}
           />
         </div>
-        <Card padding="0">
-          <Box padding="400">
-            <InlineStack gap="300" wrap>
-              <Select
-                label={t("Payment")}
-                labelInline
-                value={status}
-                onChange={setStatus}
-                options={[
-                  { label: t("All"), value: "ALL" },
-                  { label: t("Awaiting payment"), value: "AWAITING" },
-                  { label: t("Deposit paid"), value: "DEPOSIT_PAID" },
-                  { label: t("Paid"), value: "BALANCE_PAID" },
-                  { label: t("Refunded"), value: "REFUNDED" },
-                ]}
-              />
+        <s-section padding="none">
+          <s-box padding="base">
+            <s-stack direction="inline" gap="base" alignItems="end">
+              <s-select label={t("Payment")} value={status} onChange={(e) => setStatus(val(e))}>
+                <s-option value="ALL">{t("All")}</s-option>
+                <s-option value="AWAITING">{t("Awaiting payment")}</s-option>
+                <s-option value="DEPOSIT_PAID">{t("Deposit paid")}</s-option>
+                <s-option value="BALANCE_PAID">{t("Paid")}</s-option>
+                <s-option value="REFUNDED">{t("Refunded")}</s-option>
+              </s-select>
               {campaigns.length > 1 && (
-                <Select
-                  label={t("Preorder")}
-                  labelInline
-                  value={campaign}
-                  onChange={setCampaign}
-                  options={[{ label: t("All"), value: "ALL" }, ...campaigns]}
-                />
+                <s-select label={t("Preorder")} value={campaign} onChange={(e) => setCampaign(val(e))}>
+                  <s-option value="ALL">{t("All")}</s-option>
+                  {campaigns.map((c) => (
+                    <s-option key={c.value} value={c.value}>
+                      {c.label}
+                    </s-option>
+                  ))}
+                </s-select>
               )}
-            </InlineStack>
-          </Box>
-          <Divider />
+            </s-stack>
+          </s-box>
+          <s-divider />
           <OrdersTable orders={rows} showCampaign />
-        </Card>
-      </BlockStack>
-    </Page>
+        </s-section>
+      </div>
+    </s-page>
   );
 }

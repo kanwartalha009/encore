@@ -2,21 +2,9 @@ import { useState } from "react";
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { useLoaderData, useSearchParams } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import {
-  Page,
-  Card,
-  BlockStack,
-  InlineStack,
-  Text,
-  Badge,
-  Button,
-  Tabs,
-  IndexTable,
-  EmptyState,
-  Layout,
-} from "@shopify/polaris";
-import { ExportIcon, DeliveryIcon } from "@shopify/polaris-icons";
-import { PageHero } from "../components/ui";
+import { DeliveryIcon, OrderIcon, CartIcon, ClockIcon } from "@shopify/polaris-icons";
+import { PageHero, StatCard } from "../components/ui";
+import { Tabs, badgeTone, flag } from "../components/wc";
 import { useAppBridge } from "@shopify/app-bridge-react";
 
 import { authenticate } from "../shopify.server";
@@ -96,99 +84,74 @@ export default function OrdersPage() {
     shopify.toast.show(t("Orders exported"));
   };
 
-  const orderRows = orders.map((o, i) => (
-    <IndexTable.Row id={o.id} key={o.id} position={i}>
-      <IndexTable.Cell>
-        <Text as="span" variant="bodyMd" fontWeight="semibold">{o.orderRef}</Text>
-      </IndexTable.Cell>
-      <IndexTable.Cell>{o.customer}</IndexTable.Cell>
-      <IndexTable.Cell>{o.product}</IndexTable.Cell>
-      <IndexTable.Cell>{o.cohort}</IndexTable.Cell>
-      <IndexTable.Cell>{o.shipDate}</IndexTable.Cell>
-      <IndexTable.Cell>
-        <Text as="span" numeric alignment="end">{o.units}</Text>
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        <Text as="span" numeric alignment="end">{o.amount}</Text>
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        <Badge tone={payTone(o.paymentStatus)}>{t(o.paymentStatus)}</Badge>
-      </IndexTable.Cell>
-    </IndexTable.Row>
+  const orderRows = orders.map((o) => (
+    <s-table-row key={o.id}>
+      <s-table-cell>
+        <s-text type="strong">{o.orderRef}</s-text>
+      </s-table-cell>
+      <s-table-cell>{o.customer}</s-table-cell>
+      <s-table-cell>{o.product}</s-table-cell>
+      <s-table-cell>{o.cohort}</s-table-cell>
+      <s-table-cell>{o.shipDate}</s-table-cell>
+      <s-table-cell>{o.units}</s-table-cell>
+      <s-table-cell>{o.amount}</s-table-cell>
+      <s-table-cell>
+        <s-badge tone={badgeTone(payTone(o.paymentStatus))}>{t(o.paymentStatus)}</s-badge>
+      </s-table-cell>
+    </s-table-row>
   ));
 
-  const cohortRows = cohorts.map((c, i) => {
+  const cohortRows = cohorts.map((c) => {
     const pct = c.unitsTarget ? Math.min(100, Math.round((c.unitsSold / c.unitsTarget) * 100)) : null;
     return (
-      <IndexTable.Row id={c.id} key={c.id} position={i}>
-        <IndexTable.Cell>
-          <BlockStack gap="050">
-            <Text as="span" variant="bodyMd" fontWeight="semibold">{c.name}</Text>
-            <Text as="span" variant="bodySm" tone="subdued">{c.campaignName}</Text>
-          </BlockStack>
-        </IndexTable.Cell>
-        <IndexTable.Cell>
-          <Badge tone={cohortTone(c.status)}>{t(COHORT_STATUS_LABEL[c.status])}</Badge>
-        </IndexTable.Cell>
-        <IndexTable.Cell>{c.shipDate}</IndexTable.Cell>
-        <IndexTable.Cell>
-          <Text as="span" variant="bodySm" tone="subdued">
+      <s-table-row key={c.id}>
+        <s-table-cell>
+          <s-stack direction="block" gap="none">
+            <s-text type="strong">{c.name}</s-text>
+            <s-text color="subdued" fontSize="small">
+              {c.campaignName}
+            </s-text>
+          </s-stack>
+        </s-table-cell>
+        <s-table-cell>
+          <s-badge tone={badgeTone(cohortTone(c.status))}>{t(COHORT_STATUS_LABEL[c.status])}</s-badge>
+        </s-table-cell>
+        <s-table-cell>{c.shipDate}</s-table-cell>
+        <s-table-cell>
+          <s-text color="subdued" fontSize="small">
             {c.unitsSold.toLocaleString()}
             {c.unitsTarget ? ` / ${c.unitsTarget.toLocaleString()}` : ""}
             {pct != null ? ` (${pct}%)` : ""}
-          </Text>
-        </IndexTable.Cell>
-        <IndexTable.Cell>
-          <Text as="span" numeric alignment="end">{c.gmv}</Text>
-        </IndexTable.Cell>
-      </IndexTable.Row>
+          </s-text>
+        </s-table-cell>
+        <s-table-cell>{c.gmv}</s-table-cell>
+      </s-table-row>
     );
   });
 
   return (
-    <Page>
-      <PageHero
-        icon={DeliveryIcon}
-        tone="violet"
-        title={t("orders.title")}
-        sub={t("orders.subtitle")}
-        actions={
-          tab === 0 ? (
-            <Button variant="primary" icon={ExportIcon} onClick={exportOrders} disabled={orders.length === 0}>
-              {t("Export orders")}
-            </Button>
-          ) : undefined
-        }
-      />
-      <BlockStack gap="400">
-        <Layout>
-          <Layout.Section variant="oneThird">
-            <Card>
-              <BlockStack gap="100">
-                <Text as="p" variant="bodySm" tone="subdued">{t("Preorder orders")}</Text>
-                <Text as="p" variant="heading2xl">{orders.length.toLocaleString()}</Text>
-              </BlockStack>
-            </Card>
-          </Layout.Section>
-          <Layout.Section variant="oneThird">
-            <Card>
-              <BlockStack gap="100">
-                <Text as="p" variant="bodySm" tone="subdued">{t("Units pre-sold")}</Text>
-                <Text as="p" variant="heading2xl">{totalUnits.toLocaleString()}</Text>
-              </BlockStack>
-            </Card>
-          </Layout.Section>
-          <Layout.Section variant="oneThird">
-            <Card>
-              <BlockStack gap="100">
-                <Text as="p" variant="bodySm" tone="subdued">{t("Cohorts")}</Text>
-                <Text as="p" variant="heading2xl">{cohorts.length.toLocaleString()}</Text>
-              </BlockStack>
-            </Card>
-          </Layout.Section>
-        </Layout>
+    <s-page inlineSize="large">
+      <div className="encore-stack">
+        <PageHero
+          icon={DeliveryIcon}
+          tone="violet"
+          title={t("orders.title")}
+          sub={t("orders.subtitle")}
+          actions={
+            tab === 0 ? (
+              <s-button variant="primary" icon="export" onClick={exportOrders} disabled={flag(orders.length === 0)}>
+                {t("Export orders")}
+              </s-button>
+            ) : undefined
+          }
+        />
+        <div className="encore-grid encore-grid--3">
+          <StatCard index={0} icon={OrderIcon} tone="violet" label={t("Preorder orders")} value={orders.length.toLocaleString()} />
+          <StatCard index={1} icon={CartIcon} tone="teal" label={t("Units pre-sold")} value={totalUnits.toLocaleString()} />
+          <StatCard index={2} icon={ClockIcon} tone="sky" label={t("Cohorts")} value={cohorts.length.toLocaleString()} />
+        </div>
 
-        <Card padding="0">
+        <s-section padding="none">
           <Tabs
             tabs={[
               { id: "orders", content: t("Orders") },
@@ -199,56 +162,46 @@ export default function OrdersPage() {
           />
           {tab === 0 ? (
             orders.length === 0 ? (
-              <EmptyState
-                heading={t("No preorder orders yet")}
-                image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
-              >
-                <p>{t("Orders placed on preorder show here, each linked to its cohort.")}</p>
-              </EmptyState>
+              <s-box padding="large">
+                <s-empty-state heading={t("No preorder orders yet")}>
+                  <s-paragraph slot="subheading">{t("Orders placed on preorder show here, each linked to its cohort.")}</s-paragraph>
+                </s-empty-state>
+              </s-box>
             ) : (
-              <IndexTable
-                resourceName={{ singular: t("order"), plural: t("orders") }}
-                itemCount={orders.length}
-                selectable={false}
-                headings={[
-                  { title: t("Order") },
-                  { title: t("Customer") },
-                  { title: t("Product") },
-                  { title: t("Cohort") },
-                  { title: t("Ship date") },
-                  { title: t("Units"), alignment: "end" },
-                  { title: t("Amount"), alignment: "end" },
-                  { title: t("Payment") },
-                ]}
-              >
-                {orderRows}
-              </IndexTable>
+              <s-table>
+                <s-table-header-row>
+                  <s-table-header listSlot="primary">{t("Order")}</s-table-header>
+                  <s-table-header listSlot="secondary">{t("Customer")}</s-table-header>
+                  <s-table-header>{t("Product")}</s-table-header>
+                  <s-table-header listSlot="kicker">{t("Cohort")}</s-table-header>
+                  <s-table-header>{t("Ship date")}</s-table-header>
+                  <s-table-header format="numeric">{t("Units")}</s-table-header>
+                  <s-table-header format="currency">{t("Amount")}</s-table-header>
+                  <s-table-header listSlot="inline">{t("Payment")}</s-table-header>
+                </s-table-header-row>
+                <s-table-body>{orderRows}</s-table-body>
+              </s-table>
             )
           ) : cohorts.length === 0 ? (
-            <EmptyState
-              heading={t("No cohorts yet")}
-              image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
-            >
-              <p>{t("Cohorts are auto-created when you set a ship date on a preorder.")}</p>
-            </EmptyState>
+            <s-box padding="large">
+              <s-empty-state heading={t("No cohorts yet")}>
+                <s-paragraph slot="subheading">{t("Cohorts are auto-created when you set a ship date on a preorder.")}</s-paragraph>
+              </s-empty-state>
+            </s-box>
           ) : (
-            <IndexTable
-              resourceName={{ singular: t("cohort"), plural: t("cohorts") }}
-              itemCount={cohorts.length}
-              selectable={false}
-              headings={[
-                { title: t("Cohort") },
-                { title: t("Status") },
-                { title: t("Ship date") },
-                { title: t("Progress") },
-                { title: t("GMV"), alignment: "end" },
-              ]}
-            >
-              {cohortRows}
-            </IndexTable>
+            <s-table>
+              <s-table-header-row>
+                <s-table-header listSlot="primary">{t("Cohort")}</s-table-header>
+                <s-table-header listSlot="inline">{t("Status")}</s-table-header>
+                <s-table-header>{t("Ship date")}</s-table-header>
+                <s-table-header listSlot="secondary">{t("Progress")}</s-table-header>
+                <s-table-header format="currency">{t("GMV")}</s-table-header>
+              </s-table-header-row>
+              <s-table-body>{cohortRows}</s-table-body>
+            </s-table>
           )}
-        </Card>
-      </BlockStack>
-    </Page>
+        </s-section>
+      </div>
+    </s-page>
   );
 }

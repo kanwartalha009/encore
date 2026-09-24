@@ -7,24 +7,9 @@ import { useEffect, useState } from "react";
 import type { HeadersFunction, LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import { useLoaderData, useFetcher, useRevalidator } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import {
-  Page,
-  Layout,
-  Card,
-  BlockStack,
-  InlineStack,
-  InlineGrid,
-  Text,
-  Badge,
-  Button,
-  ButtonGroup,
-  ProgressBar,
-  Divider,
-  Box,
-  Banner,
-} from "@shopify/polaris";
 import { CreditCardIcon } from "@shopify/polaris-icons";
 import { PageHero } from "../components/ui";
+import { flag } from "../components/wc";
 
 import { authenticate } from "../shopify.server";
 import { useLocale } from "../lib/i18n";
@@ -87,131 +72,130 @@ export default function PlansPage() {
     limit == null ? 0 : Math.min(100, Math.round((used / Math.max(1, limit)) * 100));
 
   return (
-    <Page>
-      <PageHero icon={CreditCardIcon} tone="emerald" title={t("Plans & billing")} sub={t("Limits reset monthly. Save 20% on annual.")} />
-      <BlockStack gap="500">
-        {err && <Banner tone="critical">{err}</Banner>}
-        {comped && <Banner tone="success">{t("Your plan is comped — no charge.")}</Banner>}
+    <s-page inlineSize="large">
+      <div className="encore-stack">
+        <PageHero icon={CreditCardIcon} tone="emerald" title={t("Plans & billing")} sub={t("Limits reset monthly. Save 20% on annual.")} />
+        {err && <s-banner tone="critical">{err}</s-banner>}
+        {comped && <s-banner tone="success">{t("Your plan is comped — no charge.")}</s-banner>}
 
-        <Card>
-          <BlockStack gap="300">
-            <InlineStack align="space-between" blockAlign="center">
-              <Text as="h2" variant="headingMd">{t("This month's usage")}</Text>
+        <s-section>
+          <s-stack direction="block" gap="base">
+            <div className="encore-row-between">
+              <s-heading>{t("This month's usage")}</s-heading>
               {billing?.planCode ? (
-                <Badge tone={billing.status === "ACTIVE" ? "success" : "attention"}>
+                <s-badge tone={billing.status === "ACTIVE" ? "success" : "caution"}>
                   {`${billing.planCode.toUpperCase()} · ${billing.status ?? "—"}`}
-                </Badge>
+                </s-badge>
               ) : (
-                <Badge>{t("No plan")}</Badge>
+                <s-badge>{t("No plan")}</s-badge>
               )}
-            </InlineStack>
-            <Divider />
-            <InlineGrid columns={{ xs: 1, sm: 2 }} gap="400">
-              <BlockStack gap="100">
-                <InlineStack align="space-between">
-                  <Text as="span" variant="bodyMd">{t("Preorders")}</Text>
-                  <Text as="span" variant="bodyMd">{`${usage.preorders.toLocaleString()} / ${limitText(usage.preorderLimit)}`}</Text>
-                </InlineStack>
-                <ProgressBar progress={usageBar(usage.preorders, usage.preorderLimit)} size="small" tone={usage.preorderOver ? "critical" : "primary"} />
-              </BlockStack>
-              <BlockStack gap="100">
-                <InlineStack align="space-between">
-                  <Text as="span" variant="bodyMd">{t("Notify-me events")}</Text>
-                  <Text as="span" variant="bodyMd">{`${usage.notify.toLocaleString()} / ${limitText(usage.notifyLimit)}`}</Text>
-                </InlineStack>
-                <ProgressBar progress={usageBar(usage.notify, usage.notifyLimit)} size="small" tone={usage.notifyOver ? "critical" : "primary"} />
-              </BlockStack>
-            </InlineGrid>
+            </div>
+            <s-divider />
+            <div className="encore-layout encore-layout--equal">
+              <s-stack direction="block" gap="small-200">
+                <div className="encore-row-between">
+                  <s-text>{t("Preorders")}</s-text>
+                  <s-text>{`${usage.preorders.toLocaleString()} / ${limitText(usage.preorderLimit)}`}</s-text>
+                </div>
+                <s-progress value={usageBar(usage.preorders, usage.preorderLimit)} max={100} tone={usage.preorderOver ? "critical" : "auto"} accessibilityLabel={t("Preorders")} />
+              </s-stack>
+              <s-stack direction="block" gap="small-200">
+                <div className="encore-row-between">
+                  <s-text>{t("Notify-me events")}</s-text>
+                  <s-text>{`${usage.notify.toLocaleString()} / ${limitText(usage.notifyLimit)}`}</s-text>
+                </div>
+                <s-progress value={usageBar(usage.notify, usage.notifyLimit)} max={100} tone={usage.notifyOver ? "critical" : "auto"} accessibilityLabel={t("Notify-me events")} />
+              </s-stack>
+            </div>
             {(usage.preorderOver || usage.notifyOver) && (
-              <Banner tone="warning">
+              <s-banner tone="warning">
                 {t("You've hit a monthly limit — new preorders / notify-me signups pause until you upgrade or the month resets. Existing orders are unaffected.")}
-              </Banner>
+              </s-banner>
             )}
-          </BlockStack>
-        </Card>
+          </s-stack>
+        </s-section>
 
         {plans.length === 0 ? (
-          <Card>
-            <BlockStack gap="200">
-              <Text as="h2" variant="headingMd">{t("Plans couldn't be loaded")}</Text>
-              <Text as="p" tone="subdued">{t("This is usually a brief connection hiccup — your store and settings are unaffected. Try again in a moment.")}</Text>
-              <InlineStack>
-                <Button variant="primary" onClick={() => revalidator.revalidate()} loading={revalidator.state !== "idle"}>{t("Try again")}</Button>
-              </InlineStack>
-            </BlockStack>
-          </Card>
+          <s-section heading={t("Plans couldn't be loaded")}>
+            <s-stack direction="block" gap="small">
+              <s-paragraph color="subdued">
+                {t("This is usually a brief connection hiccup — your store and settings are unaffected. Try again in a moment.")}
+              </s-paragraph>
+              <s-stack direction="inline">
+                <s-button variant="primary" onClick={() => revalidator.revalidate()} loading={flag(revalidator.state !== "idle")}>
+                  {t("Try again")}
+                </s-button>
+              </s-stack>
+            </s-stack>
+          </s-section>
         ) : (
           <>
-        <InlineStack align="center">
-          <ButtonGroup variant="segmented">
-            <Button pressed={interval === "EVERY_30_DAYS"} onClick={() => setInterval("EVERY_30_DAYS")}>
-              {t("Monthly")}
-            </Button>
-            <Button pressed={interval === "ANNUAL"} onClick={() => setInterval("ANNUAL")}>
-              {t("Annual (-20%)")}
-            </Button>
-          </ButtonGroup>
-        </InlineStack>
+            <s-stack direction="inline" justifyContent="center">
+              <s-button-group gap="none">
+                <s-press-button pressed={flag(interval === "EVERY_30_DAYS")} onClick={() => setInterval("EVERY_30_DAYS")}>
+                  {t("Monthly")}
+                </s-press-button>
+                <s-press-button pressed={flag(interval === "ANNUAL")} onClick={() => setInterval("ANNUAL")}>
+                  {t("Annual (-20%)")}
+                </s-press-button>
+              </s-button-group>
+            </s-stack>
 
-        <Layout>
-          {plans.map((p) => {
-            const minor = interval === "ANNUAL" ? p.amountAnnual : p.amountMonthly;
-            const current = billing?.planCode === p.code && billing?.status === "ACTIVE";
-            return (
-              <Layout.Section key={p.code} variant="oneThird">
-                <Card>
-                  <BlockStack gap="300">
-                    <InlineStack align="space-between" blockAlign="center">
-                      <Text as="h3" variant="headingMd">{p.name}</Text>
-                      {current && <Badge tone="success">{t("Current")}</Badge>}
-                    </InlineStack>
-                    <Text as="p" variant="heading2xl">
-                      {money(minor, p.currency)}
-                      <Text as="span" variant="bodySm" tone="subdued">
-                        {interval === "ANNUAL" ? t("/yr") : t("/mo")}
-                      </Text>
-                    </Text>
-                    {interval === "ANNUAL" && (
-                      <Text as="p" variant="bodySm" tone="subdued">
-                        {`${money(Math.round(p.amountAnnual / 12), p.currency)} ${t("/mo billed yearly")}`}
-                      </Text>
-                    )}
-                    <Divider />
-                    <BlockStack gap="100">
-                      <Text as="p" variant="bodyMd">{`${limitText(p.preorderLimit)} ${t("preorders / mo")}`}</Text>
-                      <Text as="p" variant="bodyMd">{`${limitText(p.notifyLimit)} ${t("notify-me / mo")}`}</Text>
-                      {p.trialDays > 0 && (
-                        <Text as="p" variant="bodySm" tone="subdued">{`${p.trialDays}-${t("day free trial")}`}</Text>
+            <div className="encore-grid encore-grid--3">
+              {plans.map((p) => {
+                const minor = interval === "ANNUAL" ? p.amountAnnual : p.amountMonthly;
+                const current = billing?.planCode === p.code && billing?.status === "ACTIVE";
+                return (
+                  <s-section key={p.code}>
+                    <s-stack direction="block" gap="base">
+                      <div className="encore-row-between">
+                        <s-heading>{p.name}</s-heading>
+                        {current && <s-badge tone="success">{t("Current")}</s-badge>}
+                      </div>
+                      <s-text fontSize="large-100" fontWeight="bold">
+                        {money(minor, p.currency)}
+                        <s-text color="subdued" fontSize="small">
+                          {interval === "ANNUAL" ? t("/yr") : t("/mo")}
+                        </s-text>
+                      </s-text>
+                      {interval === "ANNUAL" && (
+                        <s-text color="subdued" fontSize="small">
+                          {`${money(Math.round(p.amountAnnual / 12), p.currency)} ${t("/mo billed yearly")}`}
+                        </s-text>
                       )}
-                    </BlockStack>
-                    <Button
-                      variant={current ? "secondary" : "primary"}
-                      disabled={current || subscribing}
-                      loading={subscribing}
-                      onClick={() => {
-                        const data = new FormData();
-                        data.set("planCode", p.code);
-                        data.set("interval", interval);
-                        fetcher.submit(data, { method: "post" });
-                      }}
-                    >
-                      {current ? t("Current plan") : t("Choose plan")}
-                    </Button>
-                  </BlockStack>
-                </Card>
-              </Layout.Section>
-            );
-          })}
-        </Layout>
+                      <s-divider />
+                      <s-stack direction="block" gap="small-200">
+                        <s-text>{`${limitText(p.preorderLimit)} ${t("preorders / mo")}`}</s-text>
+                        <s-text>{`${limitText(p.notifyLimit)} ${t("notify-me / mo")}`}</s-text>
+                        {p.trialDays > 0 && (
+                          <s-text color="subdued" fontSize="small">{`${p.trialDays}-${t("day free trial")}`}</s-text>
+                        )}
+                      </s-stack>
+                      <s-button
+                        variant={current ? "secondary" : "primary"}
+                        disabled={flag(current || subscribing)}
+                        loading={flag(subscribing)}
+                        onClick={() => {
+                          const data = new FormData();
+                          data.set("planCode", p.code);
+                          data.set("interval", interval);
+                          fetcher.submit(data, { method: "post" });
+                        }}
+                      >
+                        {current ? t("Current plan") : t("Choose plan")}
+                      </s-button>
+                    </s-stack>
+                  </s-section>
+                );
+              })}
+            </div>
           </>
         )}
 
-        <Box paddingBlockStart="200">
-          <Text as="p" variant="bodySm" tone="subdued">
-            {t("Billed through Shopify. Cancel or change plans any time; usage resets monthly.")}
-          </Text>
-        </Box>
-      </BlockStack>
-    </Page>
+        <s-paragraph color="subdued" fontSize="small">
+          {t("Billed through Shopify. Cancel or change plans any time; usage resets monthly.")}
+        </s-paragraph>
+      </div>
+    </s-page>
   );
 }

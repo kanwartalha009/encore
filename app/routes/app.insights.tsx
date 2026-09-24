@@ -11,7 +11,6 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { useLoaderData, useNavigate } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import { Page, BlockStack, Card, Text, InlineStack, Button } from "@shopify/polaris";
 import {
   ChartLineIcon,
   OrderIcon,
@@ -19,7 +18,6 @@ import {
   ChartVerticalIcon,
   MagicIcon,
   CashDollarIcon,
-  PlusIcon,
 } from "@shopify/polaris-icons";
 import { PageHero, StatCard, QuickAction, Reveal } from "../components/ui";
 
@@ -75,8 +73,8 @@ export default function InsightsPage() {
   const lift = d.benchmark.lift == null ? "—" : `${d.benchmark.lift} pts`;
 
   return (
-    <Page>
-      <BlockStack gap="500">
+    <s-page inlineSize="large">
+      <div className="encore-stack">
         <PageHero
           icon={ChartLineIcon}
           tone="teal"
@@ -125,21 +123,19 @@ export default function InsightsPage() {
 
         {empty && (
           <Reveal index={4}>
-            <Card>
-              <InlineStack align="space-between" blockAlign="center" wrap>
-                <BlockStack gap="100">
-                  <Text as="h2" variant="headingMd">
-                    {t("Insights fill in with your first preorder")}
-                  </Text>
-                  <Text as="p" tone="subdued">
+            <s-section>
+              <div className="encore-row-between">
+                <s-stack direction="block" gap="small-200">
+                  <s-heading>{t("Insights fill in with your first preorder")}</s-heading>
+                  <s-paragraph color="subdued">
                     {t("Orders, cohorts, conversion and demand all start counting the moment a preorder goes live.")}
-                  </Text>
-                </BlockStack>
-                <Button variant="primary" icon={PlusIcon} onClick={() => navigate("/app/campaigns/new")}>
+                  </s-paragraph>
+                </s-stack>
+                <s-button variant="primary" icon="plus" onClick={() => navigate("/app/campaigns/new")}>
                   {t("Create a preorder")}
-                </Button>
-              </InlineStack>
-            </Card>
+                </s-button>
+              </div>
+            </s-section>
           </Reveal>
         )}
 
@@ -177,7 +173,7 @@ export default function InsightsPage() {
             onClick={() => navigate("/app/demand")}
           />
         </div>
-      </BlockStack>
-    </Page>
+      </div>
+    </s-page>
   );
 }

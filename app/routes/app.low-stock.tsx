@@ -6,20 +6,9 @@ import type {
 } from "react-router";
 import { useLoaderData, useSubmit } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import {
-  Page,
-  Card,
-  BlockStack,
-  InlineStack,
-  Text,
-  Button,
-  Box,
-  TextField,
-  Select,
-  Divider,
-} from "@shopify/polaris";
 import { InventoryIcon } from "@shopify/polaris-icons";
 import { PageHero } from "../components/ui";
+import { val, useLinkProps } from "../components/wc";
 import { useAppBridge } from "@shopify/app-bridge-react";
 
 import { authenticate } from "../shopify.server";
@@ -78,14 +67,7 @@ function ColorField({
   value: string;
   onChange: (v: string) => void;
 }) {
-  return (
-    <InlineStack gap="300" blockAlign="end">
-      <Box minWidth="180px">
-        <TextField label={label} value={value} onChange={onChange} autoComplete="off" />
-      </Box>
-      <div style={{ width: 32, height: 32, borderRadius: 8, background: value, border: "1px solid var(--p-color-border)" }} />
-    </InlineStack>
-  );
+  return <s-color-field label={label} value={value} onInput={(e) => onChange(val(e))} />;
 }
 
 function LowStockPreview({
@@ -177,20 +159,21 @@ function PresetCard({
 }) {
   const { t } = useLocale();
   return (
-    <button type="button" onClick={onClick} style={{ all: "unset", outline: "revert", cursor: "pointer", flex: 1, minWidth: 0 }}>
-      <Box
-        padding="300"
-        borderWidth={active ? "050" : "025"}
-        borderColor={active ? "border-emphasis" : "border"}
-        borderRadius="300"
-        background={active ? "bg-surface-secondary" : undefined}
-      >
-        <BlockStack gap="050">
-          <Text as="span" variant="bodyMd" fontWeight="semibold">{t(preset.name)}</Text>
-          <Text as="span" variant="bodySm" tone="subdued">{t(preset.desc)}</Text>
-        </BlockStack>
-      </Box>
-    </button>
+    <s-clickable
+      onClick={onClick}
+      padding="base"
+      border="base"
+      borderColor={active ? "strong" : "base"}
+      borderRadius="base"
+      background={active ? "subdued" : "transparent"}
+    >
+      <s-stack direction="block" gap="none">
+        <s-text type="strong">{t(preset.name)}</s-text>
+        <s-text color="subdued" fontSize="small">
+          {t(preset.desc)}
+        </s-text>
+      </s-stack>
+    </s-clickable>
   );
 }
 
@@ -199,6 +182,7 @@ export default function LowStockPage() {
   const { t } = useLocale();
   const { saved, collections } = useLoaderData<typeof loader>();
   const submit = useSubmit();
+  const link = useLinkProps();
   const v = saved as {
     enabled?: boolean;
     threshold?: string;
@@ -243,180 +227,175 @@ export default function LowStockPage() {
   };
 
   return (
-    <Page>
-      <PageHero
-        icon={InventoryIcon}
-        tone="amber"
-        title={t("lowstock.title")}
-        sub={t("lowstock.subtitle")}
-        actions={<Button variant="primary" onClick={() => save()}>{t("common.save")}</Button>}
-      />
-      {!enabled ? (
-        // ----- Enable-first guide -----
-        <Card>
-          <BlockStack gap="400">
-            <Text as="h2" variant="headingMd">{t("Show shoppers when stock is running low")}</Text>
-            <Text as="p" tone="subdued">{t("A small “only a few left” indicator on the product page nudges hesitant shoppers to buy now. It appears automatically when a variant's available inventory drops to your threshold, and reads live inventory from your store.")}</Text>
-            <Divider />
-            <BlockStack gap="200">
-              <Text as="p" variant="bodyMd">{t("What you'll set up next:")}</Text>
-              <Text as="p" tone="subdued">{t("1 · The threshold (e.g. show when 10 or fewer left).")}</Text>
-              <Text as="p" tone="subdued">{t("2 · A design — text, a progress bar, a badge, and your colours.")}</Text>
-              <Text as="p" tone="subdued">{t("3 · Any products to exclude, by tag or collection.")}</Text>
-            </BlockStack>
-            <InlineStack>
-              <Button variant="primary" onClick={() => setEnabled(true)}>{t("Enable low stock")}</Button>
-            </InlineStack>
-          </BlockStack>
-        </Card>
-      ) : (
-        // ----- Full settings -----
-        <BlockStack gap="500">
-          <Card>
-            <InlineStack align="space-between" blockAlign="center">
-              <BlockStack gap="050">
-                <InlineStack gap="200" blockAlign="center">
-                  <Text as="h2" variant="headingMd">{t("Low stock is on")}</Text>
-                </InlineStack>
-                <Text as="p" variant="bodySm" tone="subdued">{t("Shown on product pages when available is at or below your threshold.")}</Text>
-              </BlockStack>
-              <Button
-                variant="tertiary"
-                tone="critical"
-                onClick={() => {
-                  setEnabled(false);
-                  save({ enabled: false });
-                }}
-              >
-                {t("Turn off")}
-              </Button>
-            </InlineStack>
-          </Card>
+    <s-page inlineSize="large">
+      <div className="encore-stack">
+        <PageHero
+          icon={InventoryIcon}
+          tone="amber"
+          title={t("lowstock.title")}
+          sub={t("lowstock.subtitle")}
+          actions={
+            enabled ? (
+              <s-button variant="primary" onClick={() => save()}>
+                {t("common.save")}
+              </s-button>
+            ) : undefined
+          }
+        />
+        {!enabled ? (
+          // ----- Enable-first guide -----
+          <s-section heading={t("Show shoppers when stock is running low")}>
+            <s-stack direction="block" gap="base">
+              <s-paragraph color="subdued">
+                {t("A small “only a few left” indicator on the product page nudges hesitant shoppers to buy now. It appears automatically when a variant's available inventory drops to your threshold, and reads live inventory from your store.")}
+              </s-paragraph>
+              <s-divider />
+              <s-stack direction="block" gap="small">
+                <s-text>{t("What you'll set up next:")}</s-text>
+                <s-text color="subdued">{t("1 · The threshold (e.g. show when 10 or fewer left).")}</s-text>
+                <s-text color="subdued">{t("2 · A design — text, a progress bar, a badge, and your colours.")}</s-text>
+                <s-text color="subdued">{t("3 · Any products to exclude, by tag or collection.")}</s-text>
+              </s-stack>
+              <s-stack direction="inline">
+                <s-button variant="primary" onClick={() => setEnabled(true)}>
+                  {t("Enable low stock")}
+                </s-button>
+              </s-stack>
+            </s-stack>
+          </s-section>
+        ) : (
+          // ----- Full settings -----
+          <>
+            <s-section>
+              <div className="encore-row-between">
+                <s-stack direction="block" gap="none">
+                  <s-heading>{t("Low stock is on")}</s-heading>
+                  <s-text color="subdued" fontSize="small">
+                    {t("Shown on product pages when available is at or below your threshold.")}
+                  </s-text>
+                </s-stack>
+                <s-button
+                  variant="tertiary"
+                  tone="critical"
+                  onClick={() => {
+                    setEnabled(false);
+                    save({ enabled: false });
+                  }}
+                >
+                  {t("Turn off")}
+                </s-button>
+              </div>
+            </s-section>
 
-          <Card>
-            <BlockStack gap="200">
-              <Text as="h2" variant="headingMd">{t("Products running low will appear here once inventory tracking picks them up.")}</Text>
-              <Text as="p" tone="subdued">{t("As inventory drops to your threshold, the indicator shows on those product pages automatically — and suggestions for what to preorder next will appear here.")}</Text>
-              <InlineStack>
-                <Button url="/app/campaigns">{t("View preorders")}</Button>
-              </InlineStack>
-            </BlockStack>
-          </Card>
+            <s-section heading={t("Products running low will appear here once inventory tracking picks them up.")}>
+              <s-stack direction="block" gap="small">
+                <s-paragraph color="subdued">
+                  {t("As inventory drops to your threshold, the indicator shows on those product pages automatically — and suggestions for what to preorder next will appear here.")}
+                </s-paragraph>
+                <s-stack direction="inline">
+                  <s-button {...link("/app/campaigns")}>{t("View preorders")}</s-button>
+                </s-stack>
+              </s-stack>
+            </s-section>
 
-          <Card>
-            <BlockStack gap="400">
-              <Text as="h2" variant="headingMd">{t("When to show")}</Text>
-              <Divider />
-              <TextField
-                label={t("Show when available is at or below")}
-                type="number"
-                value={threshold}
-                onChange={setThreshold}
-                autoComplete="off"
-                suffix={t("units")}
-                helpText={t("Hidden above this number, and when the product is out of stock.")}
-              />
-              <Select
-                label={t("Position")}
-                options={[
-                  { label: t("Below the price"), value: "below_price" },
-                  { label: t("Above Add to cart"), value: "above_atc" },
-                  { label: t("Below Add to cart"), value: "below_atc" },
-                ]}
-                value={position}
-                onChange={setPosition}
-              />
-            </BlockStack>
-          </Card>
+            <s-section heading={t("When to show")}>
+              <s-stack direction="block" gap="base">
+                <s-number-field
+                  label={t("Show when available is at or below")}
+                  value={threshold}
+                  onInput={(e) => setThreshold(val(e))}
+                  suffix={t("units")}
+                  min={1}
+                  details={t("Hidden above this number, and when the product is out of stock.")}
+                />
+                <s-select label={t("Position")} value={position} onChange={(e) => setPosition(val(e))}>
+                  <s-option value="below_price">{t("Below the price")}</s-option>
+                  <s-option value="above_atc">{t("Above Add to cart")}</s-option>
+                  <s-option value="below_atc">{t("Below Add to cart")}</s-option>
+                </s-select>
+              </s-stack>
+            </s-section>
 
-          <Card>
-            <BlockStack gap="400">
-              <Text as="h2" variant="headingMd">{t("Design")}</Text>
-              <Divider />
-              <Text as="p" variant="bodySm" tone="subdued">{t("Pick a style, then customise everything.")}</Text>
-              <InlineStack gap="300" wrap>
-                {LOW_STOCK_PRESETS.slice(0, 3).map((p) => (
-                  <PresetCard key={p.id} preset={p} active={preset === p.id} onClick={() => setPreset(p.id)} />
-                ))}
-              </InlineStack>
-              <InlineStack gap="300" wrap>
-                {LOW_STOCK_PRESETS.slice(3).map((p) => (
-                  <PresetCard key={p.id} preset={p} active={preset === p.id} onClick={() => setPreset(p.id)} />
-                ))}
-              </InlineStack>
-              <TextField
-                label={t("Text")}
-                value={text}
-                onChange={setText}
-                autoComplete="off"
-                helpText={t("Variables: {n} or {available} (remaining), {threshold}.")}
-              />
-              <ColorField label={t("Bar / accent colour")} value={barColor} onChange={setBarColor} />
-              <ColorField label={t("Bar background colour")} value={bgColor} onChange={setBgColor} />
-              <ColorField label={t("Text colour")} value={textColor} onChange={setTextColor} />
-              <TextField
-                label={t("Custom CSS")}
-                value={customCss}
-                onChange={setCustomCss}
-                autoComplete="off"
-                multiline={4}
-                placeholder=".encore-lowstock { font-weight: 700; }"
-                helpText={t("Targets .encore-lowstock in the theme block.")}
-              />
+            <s-section heading={t("Design")} subheading={t("Pick a style, then customise everything.")}>
+              <s-stack direction="block" gap="base">
+                <s-grid gridTemplateColumns="repeat(3, minmax(0, 1fr))" gap="base">
+                  {LOW_STOCK_PRESETS.map((p) => (
+                    <PresetCard key={p.id} preset={p} active={preset === p.id} onClick={() => setPreset(p.id)} />
+                  ))}
+                </s-grid>
+                <s-text-field
+                  label={t("Text")}
+                  value={text}
+                  onInput={(e) => setText(val(e))}
+                  details={t("Variables: {n} or {available} (remaining), {threshold}.")}
+                />
+                <s-grid gridTemplateColumns="repeat(3, minmax(0, 1fr))" gap="base">
+                  <ColorField label={t("Bar / accent colour")} value={barColor} onChange={setBarColor} />
+                  <ColorField label={t("Bar background colour")} value={bgColor} onChange={setBgColor} />
+                  <ColorField label={t("Text colour")} value={textColor} onChange={setTextColor} />
+                </s-grid>
+                <s-text-area
+                  label={t("Custom CSS")}
+                  value={customCss}
+                  onInput={(e) => setCustomCss(val(e))}
+                  rows={4}
+                  placeholder=".encore-lowstock { font-weight: 700; }"
+                  details={t("Targets .encore-lowstock in the theme block.")}
+                />
 
-              <Divider />
-              <Text as="h3" variant="headingSm">{t("Live preview")}</Text>
-              <Box padding="500" borderWidth="025" borderColor="border" borderRadius="300" background="bg-surface">
-                <BlockStack gap="100">
-                  <Text as="span" variant="bodyMd" fontWeight="semibold">Aurora Hoodie — Indigo</Text>
-                  <Text as="span" tone="subdued">$54.00</Text>
-                  <Box paddingBlockStart="200">
-                    <style dangerouslySetInnerHTML={{ __html: customCss }} />
-                    <LowStockPreview
-                      preset={preset}
-                      text={text}
-                      barColor={barColor}
-                      bgColor={bgColor}
-                      textColor={textColor}
-                      n={n}
-                      threshold={Number(threshold) || 10}
-                    />
-                  </Box>
-                </BlockStack>
-              </Box>
-            </BlockStack>
-          </Card>
+                <s-divider />
+                <s-heading>{t("Live preview")}</s-heading>
+                <s-box padding="large" border="base" borderRadius="base" background="base">
+                  <s-stack direction="block" gap="small-200">
+                    <s-text type="strong">Aurora Hoodie — Indigo</s-text>
+                    <s-text color="subdued">$54.00</s-text>
+                    <s-box paddingBlockStart="small">
+                      <style dangerouslySetInnerHTML={{ __html: customCss }} />
+                      <LowStockPreview
+                        preset={preset}
+                        text={text}
+                        barColor={barColor}
+                        bgColor={bgColor}
+                        textColor={textColor}
+                        n={n}
+                        threshold={Number(threshold) || 10}
+                      />
+                    </s-box>
+                  </s-stack>
+                </s-box>
+              </s-stack>
+            </s-section>
 
-          <Card>
-            <BlockStack gap="400">
-              <Text as="h2" variant="headingMd">{t("Exclusions")}</Text>
-              <Divider />
-              <TextField
-                label={t("Exclude products with these tags")}
-                value={excludeTags}
-                onChange={setExcludeTags}
-                autoComplete="off"
-                helpText={t("Comma-separated, e.g. archived, clearance.")}
-              />
-              <CollectionPicker
-                collections={collections}
-                selected={excludeCollections}
-                onChange={setExcludeCollections}
-                label={t("Exclude collections")}
-              />
-              {collections.length === 0 && (
-                <Text as="p" variant="bodySm" tone="subdued">
-                  {t("No collections found in your store.")}
-                </Text>
-              )}
-            </BlockStack>
-          </Card>
+            <s-section heading={t("Exclusions")}>
+              <s-stack direction="block" gap="base">
+                <s-text-field
+                  label={t("Exclude products with these tags")}
+                  value={excludeTags}
+                  onInput={(e) => setExcludeTags(val(e))}
+                  details={t("Comma-separated, e.g. archived, clearance.")}
+                />
+                <CollectionPicker
+                  collections={collections}
+                  selected={excludeCollections}
+                  onChange={setExcludeCollections}
+                  label={t("Exclude collections")}
+                />
+                {collections.length === 0 && (
+                  <s-text color="subdued" fontSize="small">
+                    {t("No collections found in your store.")}
+                  </s-text>
+                )}
+              </s-stack>
+            </s-section>
 
-          <InlineStack align="end">
-            <Button variant="primary" onClick={() => save()}>{t("common.save")}</Button>
-          </InlineStack>
-        </BlockStack>
-      )}
-    </Page>
+            <s-stack direction="inline" justifyContent="end">
+              <s-button variant="primary" onClick={() => save()}>
+                {t("common.save")}
+              </s-button>
+            </s-stack>
+          </>
+        )}
+      </div>
+    </s-page>
   );
 }

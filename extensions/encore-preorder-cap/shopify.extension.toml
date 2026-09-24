@@ -3,7 +3,7 @@
 # the variant's `encore.preorder_remaining` metafield (maintained by the app —
 # see app/models/preorder-cap.server.ts). Complements the offer-level hide in
 # capacity.server.ts. Built to Wasm by the Shopify CLI on deploy (javy).
-api_version = "2025-10"
+api_version = "2026-07"
 
 [[extensions]]
 name = "Encore preorder cap"

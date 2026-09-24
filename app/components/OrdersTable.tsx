@@ -1,10 +1,8 @@
 /**
  * Orders table — one row per Shopify order that carries preorder lines.
  * Shared by the campaign detail "Orders" tab and the /app/orders page.
- * Client-safe: no `.server` imports; rows arrive pre-formatted from loaders.
+ * Polaris web components (`<s-table>`); client-safe, rows arrive pre-formatted.
  */
-import { Badge, BlockStack, Button, EmptyState, IndexTable, InlineStack, Text } from "@shopify/polaris";
-import { ExternalIcon } from "@shopify/polaris-icons";
 import { useNavigate } from "react-router";
 import { useLocale } from "../lib/i18n";
 
@@ -31,20 +29,20 @@ const STATUS_LABEL: Record<string, string> = {
   REFUNDED: "Refunded",
 };
 
-function tone(s: string): "success" | "warning" | "critical" | "info" | "attention" | undefined {
+function tone(s: string): "success" | "warning" | "critical" | "info" | "caution" | "auto" {
   switch (s) {
     case "BALANCE_PAID":
       return "success";
     case "DEPOSIT_PAID":
       return "info";
     case "BALANCE_PENDING":
-      return "attention";
+      return "caution";
     case "BALANCE_FAILED":
       return "critical";
     case "REFUNDED":
       return "warning";
     default:
-      return undefined;
+      return "auto";
   }
 }
 
@@ -60,89 +58,72 @@ export function OrdersTable({
 
   if (orders.length === 0) {
     return (
-      <EmptyState
-        heading={t("No orders yet")}
-        image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
-      >
-        <p>{t("Orders appear here the moment a shopper checks out with a preorder item.")}</p>
-      </EmptyState>
+      <s-box padding="large">
+        <s-empty-state heading={t("No orders yet")}>
+          <s-paragraph slot="subheading">
+            {t("Orders appear here the moment a shopper checks out with a preorder item.")}
+          </s-paragraph>
+        </s-empty-state>
+      </s-box>
     );
   }
 
-  const headings = [
-    { title: t("Order") },
-    { title: t("Customer") },
-    ...(showCampaign ? [{ title: t("Preorder") }] : []),
-    { title: t("Units"), alignment: "end" as const },
-    { title: t("Amount"), alignment: "end" as const },
-    { title: t("Payment") },
-    { title: t("Ships") },
-    { title: t("Placed") },
-    { title: "" },
-  ];
-
   return (
-    <IndexTable
-      resourceName={{ singular: t("order"), plural: t("orders") }}
-      itemCount={orders.length}
-      selectable={false}
-      headings={headings as never}
-    >
-      {orders.map((o, i) => (
-        <IndexTable.Row id={o.id} key={o.id} position={i}>
-          <IndexTable.Cell>
-            <Text as="span" variant="bodyMd" fontWeight="semibold">
-              {o.orderRef}
-            </Text>
-          </IndexTable.Cell>
-          <IndexTable.Cell>
-            <BlockStack gap="050">
-              <Text as="span" variant="bodyMd">
-                {o.customerName}
-              </Text>
-              <Text as="span" variant="bodySm" tone="subdued">
-                {o.customerEmail}
-              </Text>
-            </BlockStack>
-          </IndexTable.Cell>
-          {showCampaign && (
-            <IndexTable.Cell>
-              <Button variant="plain" onClick={() => navigate(`/app/campaigns/${o.campaignId}`)}>
-                {o.campaignName || "—"}
-              </Button>
-            </IndexTable.Cell>
-          )}
-          <IndexTable.Cell>
-            <Text as="span" alignment="end" numeric>
-              {o.units}
-            </Text>
-          </IndexTable.Cell>
-          <IndexTable.Cell>
-            <Text as="span" alignment="end" numeric>
-              {o.amount}
-            </Text>
-          </IndexTable.Cell>
-          <IndexTable.Cell>
-            <Badge tone={tone(o.paymentStatus)}>{t(STATUS_LABEL[o.paymentStatus] ?? o.paymentStatus)}</Badge>
-          </IndexTable.Cell>
-          <IndexTable.Cell>{o.shipDate === "TBD" ? t("TBD") : o.shipDate}</IndexTable.Cell>
-          <IndexTable.Cell>
-            <Text as="span" variant="bodySm" tone="subdued">
-              {o.placedAt}
-            </Text>
-          </IndexTable.Cell>
-          <IndexTable.Cell>
-            {o.shopifyUrl && (
-              <InlineStack align="end">
-                <Button variant="plain" icon={ExternalIcon} url={o.shopifyUrl} external>
-                  {t("Open in Shopify")}
-                </Button>
-              </InlineStack>
+    <s-table>
+      <s-table-header-row>
+        <s-table-header listSlot="primary">{t("Order")}</s-table-header>
+        <s-table-header listSlot="secondary">{t("Customer")}</s-table-header>
+        {showCampaign && <s-table-header listSlot="kicker">{t("Preorder")}</s-table-header>}
+        <s-table-header format="numeric">{t("Units")}</s-table-header>
+        <s-table-header format="currency">{t("Amount")}</s-table-header>
+        <s-table-header listSlot="inline">{t("Payment")}</s-table-header>
+        <s-table-header>{t("Ships")}</s-table-header>
+        <s-table-header>{t("Placed")}</s-table-header>
+        <s-table-header></s-table-header>
+      </s-table-header-row>
+      <s-table-body>
+        {orders.map((o) => (
+          <s-table-row key={o.id}>
+            <s-table-cell>
+              <s-text type="strong">{o.orderRef}</s-text>
+            </s-table-cell>
+            <s-table-cell>
+              <s-stack direction="block" gap="none">
+                <s-text>{o.customerName}</s-text>
+                <s-text color="subdued" fontSize="small">
+                  {o.customerEmail}
+                </s-text>
+              </s-stack>
+            </s-table-cell>
+            {showCampaign && (
+              <s-table-cell>
+                <s-button variant="tertiary" onClick={() => navigate(`/app/campaigns/${o.campaignId}`)}>
+                  {o.campaignName || "—"}
+                </s-button>
+              </s-table-cell>
             )}
-          </IndexTable.Cell>
-        </IndexTable.Row>
-      ))}
-    </IndexTable>
+            <s-table-cell>{o.units}</s-table-cell>
+            <s-table-cell>{o.amount}</s-table-cell>
+            <s-table-cell>
+              <s-badge tone={tone(o.paymentStatus)}>{t(STATUS_LABEL[o.paymentStatus] ?? o.paymentStatus)}</s-badge>
+            </s-table-cell>
+            <s-table-cell>{o.shipDate === "TBD" ? t("TBD") : o.shipDate}</s-table-cell>
+            <s-table-cell>
+              <s-text color="subdued" fontSize="small">
+                {o.placedAt}
+              </s-text>
+            </s-table-cell>
+            <s-table-cell>
+              {o.shopifyUrl && (
+                <s-button variant="tertiary" icon="external" href={o.shopifyUrl} target="_blank">
+                  {t("Open in Shopify")}
+                </s-button>
+              )}
+            </s-table-cell>
+          </s-table-row>
+        ))}
+      </s-table-body>
+    </s-table>
   );
 }
 

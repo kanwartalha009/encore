@@ -1,10 +1,10 @@
 /**
- * Encore UI primitives — the design layer on top of Polaris.
- * Styles live in app/app.css (loaded by app/routes/app.tsx).
+ * Encore UI primitives — the design layer on top of Polaris web components.
+ * Styles live in app/app.css (loaded by app/routes/app.tsx). Tiles keep the
+ * @shopify/polaris-icons SVGs (the same icon set `<s-icon>` draws) so they can
+ * take the tile's colour; everything else in the admin is an `<s-*>` element.
  */
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Icon, Card, Text } from "@shopify/polaris";
-import { ArrowUpIcon, ArrowDownIcon, ChevronRightIcon } from "@shopify/polaris-icons";
 
 export type TileTone = "violet" | "teal" | "amber" | "rose" | "sky" | "emerald" | "slate";
 type IconSource = React.FunctionComponent<React.SVGProps<SVGSVGElement>>;
@@ -108,27 +108,27 @@ export function StatCard({
   return (
     <Reveal index={index}>
       <div className="encore-lift" style={{ borderRadius: 12 }}>
-        <Card>
+        <s-section>
           <div className="encore-stat">
             <div className="encore-stat__top">
-              <Text as="p" variant="bodySm" tone="subdued">
+              <s-text color="subdued" fontSize="small">
                 {label}
-              </Text>
+              </s-text>
               <IconTile icon={icon} tone={tone} size="sm" />
             </div>
             <div className="encore-stat__value">{shown}</div>
             <div className="encore-stat__foot">
               {delta && delta !== "—" && (
                 <span className={deltaClass}>
-                  {deltaTone === "success" && <Icon source={ArrowUpIcon} />}
-                  {deltaTone === "critical" && <Icon source={ArrowDownIcon} />}
+                  {deltaTone === "success" && <s-icon type="arrow-up" size="small" />}
+                  {deltaTone === "critical" && <s-icon type="arrow-down" size="small" />}
                   {delta}
                 </span>
               )}
               {sub && <span>{sub}</span>}
             </div>
           </div>
-        </Card>
+        </s-section>
       </div>
     </Reveal>
   );
@@ -161,7 +161,7 @@ export function QuickAction({
           </span>
         </span>
         <span className="encore-quick__arrow">
-          <Icon source={ChevronRightIcon} />
+          <s-icon type="chevron-right" />
         </span>
       </button>
     </Reveal>
@@ -187,13 +187,11 @@ export function SectionHead({
       <div className="encore-section-head">
         <IconTile icon={icon} tone={tone} size="sm" />
         <div className="encore-section-head__text">
-          <Text as="h2" variant="headingMd">
-            {title}
-          </Text>
+          <s-heading>{title}</s-heading>
           {sub && (
-            <Text as="p" variant="bodySm" tone="subdued">
+            <s-text color="subdued" fontSize="small">
               {sub}
-            </Text>
+            </s-text>
           )}
         </div>
       </div>

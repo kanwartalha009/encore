@@ -1,6 +1,7 @@
 # Encore — Preorder Novafied (Polaris-React app on the Nova Apps Platform).
 # Keeps encore's Partner-app identity (client_id, app proxy) over the Novafied codebase.
-# api_version pinned to 2025-10 to match app/shopify.server.ts (ApiVersion.October25).
+# api_version pinned to 2026-07 (latest stable, Sept 2026) to match app/shopify.server.ts
+# (ApiVersion.July26). 2025-10 leaves support on 2026-10-01 (12-month rule).
 
 client_id = "98895e8868ecb5c8555ab43039b554e1"
 name = "Encore"
@@ -17,7 +18,7 @@ scopes = "read_products,write_products,write_purchase_options,read_inventory,rea
 redirect_urls = [ "https://encore-production-7c8f.up.railway.app/auth/callback" ]
 
 [webhooks]
-api_version = "2025-10"
+api_version = "2026-07"
 
 # Lifecycle — handled app-locally AND forwarded to the Nova ingress (billing source of truth, §5).
 [[webhooks.subscriptions]]

@@ -6,23 +6,9 @@ import type {
 } from "react-router";
 import { useLoaderData, useSubmit } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import {
-  Page,
-  Card,
-  BlockStack,
-  InlineStack,
-  Text,
-  Badge,
-  ChoiceList,
-  Checkbox,
-  Banner,
-  IndexTable,
-  EmptyState,
-  TextField,
-  Box,
-} from "@shopify/polaris";
 import { GlobeIcon } from "@shopify/polaris-icons";
 import { PageHero } from "../components/ui";
+import { badgeTone, flag, isChecked, val, vals } from "../components/wc";
 import { useAppBridge } from "@shopify/app-bridge-react";
 
 import { authenticate } from "../shopify.server";
@@ -118,141 +104,133 @@ export default function MarketsPage() {
 
   if (markets.length <= 1) {
     return (
-      <Page>
-        <PageHero icon={GlobeIcon} tone="sky" title={t("Per-market rules")} />
-        <Card>
-          <EmptyState
-            heading={t("You sell in one market")}
-            image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
-          >
-            <p>{t("Per-market rules aren't needed yet — they appear once you add a second Shopify market.")}</p>
-          </EmptyState>
-        </Card>
-      </Page>
+      <s-page inlineSize="large">
+        <div className="encore-stack">
+          <PageHero icon={GlobeIcon} tone="sky" title={t("Per-market rules")} />
+          <s-section>
+            <s-empty-state heading={t("You sell in one market")}>
+              <s-paragraph slot="subheading">
+                {t("Per-market rules aren't needed yet — they appear once you add a second Shopify market.")}
+              </s-paragraph>
+            </s-empty-state>
+          </s-section>
+        </div>
+      </s-page>
     );
   }
 
-  const rows = markets.map((m: MarketRow, i) => {
+  const rows = markets.map((m: MarketRow) => {
     const exp = marketExperience(m, effectiveRule);
     return (
-      <IndexTable.Row id={m.id} key={m.id} position={i}>
-        <IndexTable.Cell>
-          <InlineStack gap="150" blockAlign="center">
-            <Text as="span" variant="bodyMd" fontWeight="semibold">{m.name}</Text>
-            {m.primary && <Badge>{t("Primary")}</Badge>}
-          </InlineStack>
-        </IndexTable.Cell>
-        <IndexTable.Cell>
-          <Text as="span" tone="subdued">
+      <s-table-row key={m.id}>
+        <s-table-cell>
+          <s-stack direction="inline" gap="small" alignItems="center">
+            <s-text type="strong">{m.name}</s-text>
+            {m.primary && <s-badge>{t("Primary")}</s-badge>}
+          </s-stack>
+        </s-table-cell>
+        <s-table-cell>
+          <s-text color="subdued">
             {m.stock != null
               ? `${m.stock} ${t("in stock")}`
               : effectiveRule.marketSnapshot[m.id]?.fulfillable
                 ? t("Served by a location")
                 : t("No serving location")}
-          </Text>
-        </IndexTable.Cell>
-        <IndexTable.Cell>
-          <Badge tone={expTone(exp)}>
+          </s-text>
+        </s-table-cell>
+        <s-table-cell>
+          <s-badge tone={badgeTone(expTone(exp))}>
             {exp === "Buy" ? t("Buy") : exp === "Preorder" ? t("Preorder") : t("Not offered")}
-          </Badge>
-        </IndexTable.Cell>
-        <IndexTable.Cell>
-          <Checkbox
+          </s-badge>
+        </s-table-cell>
+        <s-table-cell>
+          <s-checkbox
             label={t("Force preorder")}
-            labelHidden
-            checked={!!overrides[m.id]?.forcePreorder}
-            onChange={(on) => setForce(m.id, on)}
+            labelAccessibilityVisibility="exclusive"
+            checked={flag(!!overrides[m.id]?.forcePreorder)}
+            onChange={(e) => setForce(m.id, isChecked(e))}
           />
-        </IndexTable.Cell>
-        <IndexTable.Cell>
-          <Box maxWidth="160px">
-            <TextField
+        </s-table-cell>
+        <s-table-cell>
+          <div style={{ maxWidth: 180 }}>
+            <s-date-field
               label={t("Ship-date override")}
-              labelHidden
-              type="date"
+              labelAccessibilityVisibility="exclusive"
               value={overrides[m.id]?.shipDate ?? ""}
-              onChange={(v) => setOverride(m.id, v)}
-              autoComplete="off"
-              disabled={exp !== "Preorder"}
+              onChange={(e) => setOverride(m.id, val(e))}
+              disabled={flag(exp !== "Preorder")}
             />
-          </Box>
-        </IndexTable.Cell>
-      </IndexTable.Row>
+          </div>
+        </s-table-cell>
+      </s-table-row>
     );
   });
 
   return (
-    <Page
-      title={t("Per-market rules")}
-      subtitle={t("Run a product as in-stock in one market and preorder in another — reconciled to real inventory.")}
-      primaryAction={{ content: t("Save market rules"), onAction: save }}
-    >
-      <BlockStack gap="500">
+    <s-page inlineSize="large">
+      <div className="encore-stack">
+        <PageHero
+          icon={GlobeIcon}
+          tone="sky"
+          title={t("Per-market rules")}
+          sub={t("Run a product as in-stock in one market and preorder in another — reconciled to real inventory.")}
+          actions={
+            <s-button variant="primary" onClick={save}>
+              {t("Save market rules")}
+            </s-button>
+          }
+        />
         {usingDemo && (
-          <Banner tone="info">
-            <Text as="span">{t("Showing sample markets — connect a dev store with multiple Shopify Markets to see live data.")}</Text>
-          </Banner>
+          <s-banner tone="info">
+            {t("Showing sample markets — connect a dev store with multiple Shopify Markets to see live data.")}
+          </s-banner>
         )}
 
-        <Card>
-          <BlockStack gap="400">
-            <Text as="h2" variant="headingMd">{t("Scope")}</Text>
-            <ChoiceList
-              title={t("Where is preorder offered?")}
-              titleHidden
-              choices={[
-                { label: t("All markets"), value: "ALL" },
-                { label: t("Specific markets"), value: "SPECIFIC" },
-              ]}
-              selected={[scope]}
-              onChange={(v) => setScope(v[0] ?? "ALL")}
-            />
+        <s-section heading={t("Scope")}>
+          <s-stack direction="block" gap="base">
+            <s-choice-list label={t("Where is preorder offered?")} labelAccessibilityVisibility="exclusive" name="scope" onChange={(e) => setScope(vals(e)[0] ?? "ALL")}>
+              <s-choice value="ALL" selected={flag(scope === "ALL")}>
+                {t("All markets")}
+              </s-choice>
+              <s-choice value="SPECIFIC" selected={flag(scope === "SPECIFIC")}>
+                {t("Specific markets")}
+              </s-choice>
+            </s-choice-list>
             {scope === "SPECIFIC" && (
-              <BlockStack gap="200">
+              <s-stack direction="block" gap="small">
                 {markets.map((m) => (
-                  <Checkbox
+                  <s-checkbox
                     key={m.id}
                     label={m.name}
-                    checked={selected.includes(m.id)}
-                    onChange={(on) => toggleMarket(m.id, on)}
+                    checked={flag(selected.includes(m.id))}
+                    onChange={(e) => toggleMarket(m.id, isChecked(e))}
                   />
                 ))}
-              </BlockStack>
+              </s-stack>
             )}
-          </BlockStack>
-        </Card>
+          </s-stack>
+        </s-section>
 
-        <Card padding="0">
-          <Box padding="400">
-            <Text as="h2" variant="headingMd">{t("Market × inventory")}</Text>
-          </Box>
-          <IndexTable
-            resourceName={{ singular: t("market"), plural: t("markets") }}
-            itemCount={markets.length}
-            selectable={false}
-            headings={[
-              { title: t("Market") },
-              { title: t("Sellable stock") },
-              { title: t("Shopper sees") },
-              { title: t("Force preorder") },
-              { title: t("Ship-date override") },
-            ]}
-          >
-            {rows}
-          </IndexTable>
-        </Card>
+        <s-section heading={t("Market × inventory")} padding="none">
+          <s-table>
+            <s-table-header-row>
+              <s-table-header listSlot="primary">{t("Market")}</s-table-header>
+              <s-table-header listSlot="secondary">{t("Sellable stock")}</s-table-header>
+              <s-table-header listSlot="inline">{t("Shopper sees")}</s-table-header>
+              <s-table-header>{t("Force preorder")}</s-table-header>
+              <s-table-header>{t("Ship-date override")}</s-table-header>
+            </s-table-header-row>
+            <s-table-body>{rows}</s-table-body>
+          </s-table>
+        </s-section>
 
-        <Banner tone={conflicts > 0 ? "warning" : "success"}>
-          <Text as="span">
-            {conflicts > 0
-              ? t("Some scoped markets have sellable stock — Encore shows Buy there, never preorder.")
-              : t("Encore never shows preorder in a market that has sellable stock; it auto-reconciles when inventory changes.")}
-            {rule.lastReconciledAt
-              ? ` ${t("Last reconciled")}: ${new Date(rule.lastReconciledAt).toLocaleString()}.`
-              : ""}
-          </Text>
-        </Banner>
-      </BlockStack>
-    </Page>
+        <s-banner tone={conflicts > 0 ? "warning" : "success"}>
+          {conflicts > 0
+            ? t("Some scoped markets have sellable stock — Encore shows Buy there, never preorder.")
+            : t("Encore never shows preorder in a market that has sellable stock; it auto-reconciles when inventory changes.")}
+          {rule.lastReconciledAt ? ` ${t("Last reconciled")}: ${new Date(rule.lastReconciledAt).toLocaleString()}.` : ""}
+        </s-banner>
+      </div>
+    </s-page>
   );
 }

@@ -7,9 +7,9 @@ import { useState } from "react";
 import type { HeadersFunction, LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import { useFetcher } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import { Page, Card, BlockStack, TextField, Button, Banner } from "@shopify/polaris";
 import { QuestionCircleIcon } from "@shopify/polaris-icons";
 import { PageHero } from "../components/ui";
+import { flag, val } from "../components/wc";
 
 import { authenticate } from "../shopify.server";
 import { useLocale } from "../lib/i18n";
@@ -49,36 +49,28 @@ export default function HelpPage() {
   const failed = fetcher.data?.ok === false;
 
   return (
-    <Page>
-      <PageHero icon={QuestionCircleIcon} tone="sky" title={t("Get help")} sub={t("Send us a message — we usually reply within a day.")} />
-      <Card>
-        <BlockStack gap="400">
-          {sent && <Banner tone="success">{t("Thanks — your message is on its way.")}</Banner>}
-          {failed && <Banner tone="critical">{t("Please add a subject and a message.")}</Banner>}
-          <fetcher.Form method="post">
-            <BlockStack gap="300">
-              <TextField label={t("Subject")} name="subject" value={subject} onChange={setSubject} autoComplete="off" />
-              <TextField
-                label={t("Message")}
-                name="message"
-                value={message}
-                onChange={setMessage}
-                multiline={5}
-                autoComplete="off"
-              />
-              <TextField
-                label={t("Your email (optional)")}
-                name="email"
-                value={email}
-                onChange={setEmail}
-                type="email"
-                autoComplete="email"
-              />
-              <Button submit variant="primary" loading={busy}>{t("Send")}</Button>
-            </BlockStack>
-          </fetcher.Form>
-        </BlockStack>
-      </Card>
-    </Page>
+    <s-page inlineSize="large">
+      <div className="encore-stack">
+        <PageHero icon={QuestionCircleIcon} tone="sky" title={t("Get help")} sub={t("Send us a message — we usually reply within a day.")} />
+        <s-section>
+          <div className="encore-stack">
+            {sent && <s-banner tone="success">{t("Thanks — your message is on its way.")}</s-banner>}
+            {failed && <s-banner tone="critical">{t("Please add a subject and a message.")}</s-banner>}
+            <fetcher.Form method="post">
+              <div className="encore-stack encore-stack--tight">
+                <s-text-field label={t("Subject")} name="subject" value={subject} onInput={(e) => setSubject(val(e))} />
+                <s-text-area label={t("Message")} name="message" value={message} rows={5} onInput={(e) => setMessage(val(e))} />
+                <s-email-field label={t("Your email (optional)")} name="email" value={email} onInput={(e) => setEmail(val(e))} />
+                <div>
+                  <s-button type="submit" variant="primary" loading={flag(busy)}>
+                    {t("Send")}
+                  </s-button>
+                </div>
+              </div>
+            </fetcher.Form>
+          </div>
+        </s-section>
+      </div>
+    </s-page>
   );
 }

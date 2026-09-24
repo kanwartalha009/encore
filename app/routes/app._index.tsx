@@ -6,28 +6,11 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { getDashboard } from "../models/dashboard.server";
 import { getShopCurrency } from "../models/shop.server";
 import {
-  Page,
-  Layout,
-  Card,
-  BlockStack,
-  InlineStack,
-  Text,
-  Badge,
-  Button,
-  ProgressBar,
-  Divider,
-  Box,
-  EmptyState,
-  Banner,
-  Icon,
-} from "@shopify/polaris";
-import {
   PlusIcon,
   CartIcon,
   CashDollarIcon,
   PackageIcon,
   EmailIcon,
-  ArrowRightIcon,
   ChartVerticalIcon,
   CheckIcon,
   AlertCircleIcon,
@@ -43,6 +26,7 @@ import {
 import { authenticate } from "../shopify.server";
 import { useLocale } from "../lib/i18n";
 import { statusToTone } from "../lib/format";
+import { badgeTone } from "../components/wc";
 import {
   StatCard,
   QuickAction,
@@ -132,17 +116,17 @@ function ReliabilityStat({
 }) {
   const { t } = useLocale();
   return (
-    <InlineStack gap="300" blockAlign="center">
+    <s-stack direction="inline" gap="base" alignItems="center">
       <IconTile icon={alert ? AlertCircleIcon : icon} tone={alert ? "rose" : "emerald"} />
-      <BlockStack gap="050">
-        <Text as="span" variant="headingLg">
+      <s-stack direction="block" gap="none">
+        <s-text fontSize="large" fontWeight="semibold">
           {value}
-        </Text>
-        <Text as="span" variant="bodySm" tone="subdued">
+        </s-text>
+        <s-text color="subdued" fontSize="small">
           {t(label)}
-        </Text>
-      </BlockStack>
-    </InlineStack>
+        </s-text>
+      </s-stack>
+    </s-stack>
   );
 }
 
@@ -163,21 +147,21 @@ function ReliabilityBar({
       ? "—"
       : `${Math.round(r.waitlistDeliveryRate * 100)}%`;
   return (
-    <Card>
-      <BlockStack gap="300">
+    <s-section>
+      <s-stack direction="block" gap="base">
         <SectionHead
           icon={ShieldCheckMarkIcon}
           tone={r.clean ? "emerald" : "rose"}
           title={t("Reliability")}
           sub={t("The 'must never' guarantees — measured, not estimated.")}
           action={
-            <Badge tone={r.clean ? "success" : "critical"}>
+            <s-badge tone={r.clean ? "success" : "critical"}>
               {r.clean ? t("All clear") : t("Needs attention")}
-            </Badge>
+            </s-badge>
           }
         />
-        <Divider />
-        <InlineStack gap="1200" blockAlign="center" wrap>
+        <s-divider />
+        <s-stack direction="inline" gap="large-400" alignItems="center">
           <ReliabilityStat
             label="Oversell incidents"
             value={String(r.oversellIncidents)}
@@ -196,9 +180,9 @@ function ReliabilityBar({
             alert={r.waitlistFailed > 0}
             icon={EmailIcon}
           />
-        </InlineStack>
-      </BlockStack>
-    </Card>
+        </s-stack>
+      </s-stack>
+    </s-section>
   );
 }
 
@@ -211,28 +195,26 @@ function CohortRow({ cohort }: { cohort: Cohort }) {
   const ringTone: TileTone =
     cohort.status === "At risk" ? "amber" : cohort.status === "Ready to ship" ? "emerald" : "violet";
   return (
-    <InlineStack gap="400" blockAlign="center" wrap={false}>
+    <s-stack direction="inline" gap="base" alignItems="center">
       <ProgressRing percent={pct} tone={ringTone} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <BlockStack gap="150">
-          <InlineStack align="space-between" blockAlign="center">
-            <BlockStack gap="050">
-              <Text as="p" variant="bodyMd" fontWeight="semibold">
-                {cohort.name}
-              </Text>
-              <Text as="p" variant="bodySm" tone="subdued">
+        <s-stack direction="block" gap="small-200">
+          <div className="encore-row-between">
+            <s-stack direction="block" gap="none">
+              <s-text type="strong">{cohort.name}</s-text>
+              <s-text color="subdued" fontSize="small">
                 {cohort.shipDate} · {cohort.gmv} {t("pre-sold")}
-              </Text>
-            </BlockStack>
-            <Badge tone={statusToTone(cohort.status)}>{t(cohort.status)}</Badge>
-          </InlineStack>
-          <ProgressBar progress={pct} size="small" tone="primary" />
-          <Text as="span" variant="bodySm" tone="subdued">
+              </s-text>
+            </s-stack>
+            <s-badge tone={badgeTone(statusToTone(cohort.status))}>{t(cohort.status)}</s-badge>
+          </div>
+          <s-progress value={pct} max={100} accessibilityLabel={`${pct}%`} />
+          <s-text color="subdued" fontSize="small">
             {cohort.unitsSold.toLocaleString()} / {cohort.unitsForecast.toLocaleString()} {t("units")}
-          </Text>
-        </BlockStack>
+          </s-text>
+        </s-stack>
       </div>
-    </InlineStack>
+    </s-stack>
   );
 }
 
@@ -248,26 +230,24 @@ const ACTIVITY_TONES: TileTone[] = ["violet", "teal", "amber", "sky", "rose", "e
 function ActivityFeed({ items }: { items: ActivityItem[] }) {
   const { t } = useLocale();
   return (
-    <BlockStack gap="400">
+    <s-stack direction="block" gap="base">
       {items.map((a, i) => (
         <Reveal key={`${a.text}-${i}`} index={i}>
-          <InlineStack gap="300" blockAlign="start" wrap={false}>
+          <s-stack direction="inline" gap="base" alignItems="start">
             <IconTile icon={a.icon} tone={ACTIVITY_TONES[i % ACTIVITY_TONES.length]} size="sm" />
-            <BlockStack gap="050">
-              <Text as="p" variant="bodyMd" fontWeight="medium">
-                {t(a.text)}
-              </Text>
-              <Text as="p" variant="bodySm" tone="subdued">
+            <s-stack direction="block" gap="none">
+              <s-text fontWeight="medium">{t(a.text)}</s-text>
+              <s-text color="subdued" fontSize="small">
                 {t(a.detail)}
-              </Text>
-              <Text as="p" variant="bodySm" tone="subdued">
+              </s-text>
+              <s-text color="subdued" fontSize="small">
                 {a.time}
-              </Text>
-            </BlockStack>
-          </InlineStack>
+              </s-text>
+            </s-stack>
+          </s-stack>
         </Reveal>
       ))}
-    </BlockStack>
+    </s-stack>
   );
 }
 
@@ -282,7 +262,7 @@ function CampaignsList({ campaigns }: { campaigns: CampaignRow[] }) {
   const navigate = useNavigate();
   const rows = campaigns.slice(0, DASHBOARD_CAMPAIGN_LIMIT);
   return (
-    <BlockStack gap="0">
+    <div>
       {rows.map((c, i) => (
         <Reveal key={c.id} index={i}>
           <button
@@ -300,13 +280,13 @@ function CampaignsList({ campaigns }: { campaigns: CampaignRow[] }) {
             </span>
             <span className="encore-row__meta">
               <span className="encore-row__units">{c.units} {t("units")}</span>
-              <Badge tone={statusToTone(c.status)}>{t(c.status)}</Badge>
-              <span className="encore-row__arrow"><Icon source={ArrowRightIcon} /></span>
+              <s-badge tone={badgeTone(statusToTone(c.status))}>{t(c.status)}</s-badge>
+              <span className="encore-row__arrow"><s-icon type="arrow-right" /></span>
             </span>
           </button>
         </Reveal>
       ))}
-    </BlockStack>
+    </div>
   );
 }
 
@@ -348,8 +328,8 @@ export default function DashboardIndex() {
 
   const liveCount = CAMPAIGNS.filter((c) => c.status === "Live").length;
   return (
-    <Page fullWidth={false}>
-      <BlockStack gap="500">
+    <s-page inlineSize="large">
+      <div className="encore-stack">
         <Hero
           eyebrow={t("Encore")}
           title={t("Preorders, cohorts, and back-in-stock at a glance.")}
@@ -381,43 +361,25 @@ export default function DashboardIndex() {
           <QuickAction index={3} icon={SettingsIcon} tone="amber" title={t("Settings")} sub={t("Design, cart, notifications")} onClick={() => navigate("/app/settings")} />
         </div>
 
-        {/* Platform sync (Nova outbox). These are internal messages — install
-            confirmation, billing sync — that the merchant cannot act on, so the
-            tone is informational and never asks them to "contact support". */}
-        {data.outboxAlert && (
-          <Banner title={t("Platform sync is catching up")} tone="info">
-            <p>
-              {t("Encore's connection to its platform backend is retrying in the background")}
-              {" ("}
-              {[
-                data.outboxAlert.stuck > 0 ? `${data.outboxAlert.stuck} ${t("pending")}` : "",
-                data.outboxAlert.dead > 0 ? `${data.outboxAlert.dead} ${t("paused")}` : "",
-              ].filter(Boolean).join(", ")}
-              {"). "}
-              {t("Your store, preorders and checkout are not affected — no action needed.")}
-            </p>
-          </Banner>
-        )}
         {/* Onboarding banner — dismissible, persisted per browser (R0.3). */}
         {!welcomeDismissed && (
-        <Banner
-          title={t("Welcome to Encore")}
-          tone="info"
-          onDismiss={() => {
-            setWelcomeDismissed(true);
-            try { localStorage.setItem("encore_welcome_dismissed", "1"); } catch { /* private mode */ }
-          }}
-          action={{
-            content: t("Set up your first preorder"),
-            onAction: () => navigate("/app/onboarding"),
-          }}
-          secondaryAction={{
-            content: t("Get help"),
-            onAction: () => navigate("/app/help"),
-          }}
-        >
-          <p>{t("Preorders are set up at the variant level. Pick variants, set units, set a ship date — that's it. Customers pay full at checkout by default; toggle deposit or pay-later inside any preorder.")}</p>
-        </Banner>
+          <s-banner
+            heading={t("Welcome to Encore")}
+            tone="info"
+            dismissible
+            onDismiss={() => {
+              setWelcomeDismissed(true);
+              try { localStorage.setItem("encore_welcome_dismissed", "1"); } catch { /* private mode */ }
+            }}
+          >
+            {t("Preorders are set up at the variant level. Pick variants, set units, set a ship date — that's it. Customers pay full at checkout by default; toggle deposit or pay-later inside any preorder.")}
+            <s-button slot="secondary-actions" onClick={() => navigate("/app/onboarding")}>
+              {t("Set up your first preorder")}
+            </s-button>
+            <s-button slot="secondary-actions" variant="tertiary" onClick={() => navigate("/app/help")}>
+              {t("Get help")}
+            </s-button>
+          </s-banner>
         )}
 
         {/* KPI tiles */}
@@ -444,110 +406,97 @@ export default function DashboardIndex() {
 
         {/* Cohorts + activity */}
         <Reveal index={9}>
-        <Layout>
-          <Layout.Section>
-            <Card>
-              <BlockStack gap="400">
+          <div className="encore-layout">
+            <s-section>
+              <s-stack direction="block" gap="base">
                 <SectionHead
                   icon={DeliveryIcon}
                   tone="violet"
                   title={t("Active cohorts")}
                   sub={t("Group of preorders sharing a ship date.")}
                   action={
-                    <Button variant="plain" onClick={() => navigate("/app/cohorts")} icon={ArrowRightIcon}>
+                    <s-button variant="tertiary" icon="arrow-right" onClick={() => navigate("/app/cohorts")}>
                       {t("View all")}
-                    </Button>
+                    </s-button>
                   }
                 />
-                <Divider />
+                <s-divider />
                 {COHORTS.length === 0 ? (
-                  <BlockStack gap="200">
-                    <Text as="p" tone="subdued">
+                  <s-stack direction="block" gap="small">
+                    <s-paragraph color="subdued">
                       {t("Cohorts group preorders by ship date — your first one appears when a preorder goes live.")}
-                    </Text>
-                    <InlineStack>
-                      <Button size="slim" onClick={() => navigate("/app/onboarding")}>
-                        {t("Start setup")}
-                      </Button>
-                    </InlineStack>
-                  </BlockStack>
+                    </s-paragraph>
+                    <s-stack direction="inline">
+                      <s-button onClick={() => navigate("/app/onboarding")}>{t("Start setup")}</s-button>
+                    </s-stack>
+                  </s-stack>
                 ) : (
-                  <BlockStack gap="500">
+                  <s-stack direction="block" gap="large">
                     {COHORTS.map((c, i) => (
-                      <BlockStack key={c.id} gap="500">
+                      <s-stack key={c.id} direction="block" gap="large">
                         <CohortRow cohort={c} />
-                        {i < COHORTS.length - 1 && <Divider />}
-                      </BlockStack>
+                        {i < COHORTS.length - 1 && <s-divider />}
+                      </s-stack>
                     ))}
-                  </BlockStack>
+                  </s-stack>
                 )}
-              </BlockStack>
-            </Card>
-          </Layout.Section>
+              </s-stack>
+            </s-section>
 
-          <Layout.Section variant="oneThird">
-            <Card>
-              <BlockStack gap="400">
+            <s-section>
+              <s-stack direction="block" gap="base">
                 <SectionHead icon={ClockIcon} tone="sky" title={t("Recent activity")} />
-                <Divider />
+                <s-divider />
                 <ActivityFeed items={ACTIVITY} />
-              </BlockStack>
-            </Card>
-          </Layout.Section>
-        </Layout>
-
+              </s-stack>
+            </s-section>
+          </div>
         </Reveal>
 
-        {/* Campaigns table */}
+        {/* Preorders — top 5, click-through, View all */}
         <Reveal index={10}>
-        <Layout>
-          <Layout.Section>
-            <Card padding="0">
-              <Box padding="400">
-                <SectionHead
-                  icon={CartIcon}
-                  tone="violet"
-                  title={t("Preorders")}
-                  sub={t("Variant-level preorder rules.")}
-                  action={
-                    <Button variant="primary" icon={PlusIcon} onClick={() => navigate("/app/campaigns/new")}>
-                      {t("New preorder")}
-                    </Button>
-                  }
-                />
-              </Box>
-              <Divider />
-              {CAMPAIGNS.length === 0 ? (
-                <Box padding="600">
-                  <EmptyState
-                    heading={t("No preorders yet")}
-                    action={{
-                      content: t("Set up your first preorder"),
-                      onAction: () => navigate("/app/campaigns/new"),
-                    }}
-                    image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
-                  >
-                    <p>{t("Pre-sell upcoming launches, capture demand on sold-out SKUs, or build a back-in-stock waitlist.")}</p>
-                  </EmptyState>
-                </Box>
-              ) : (
-                <>
-                  <CampaignsList campaigns={CAMPAIGNS} />
-                  <Divider />
-                  <Box padding="300">
-                    <InlineStack align="end">
-                      <Button variant="plain" icon={ArrowRightIcon} onClick={() => navigate("/app/campaigns")}>
-                        {t("View all preorders")}
-                      </Button>
-                    </InlineStack>
-                  </Box>
-                </>
-              )}
-            </Card>
-          </Layout.Section>
-        </Layout>
+          <s-section padding="none">
+            <s-box padding="base">
+              <SectionHead
+                icon={CartIcon}
+                tone="violet"
+                title={t("Preorders")}
+                sub={t("Variant-level preorder rules.")}
+                action={
+                  <s-button variant="primary" icon="plus" onClick={() => navigate("/app/campaigns/new")}>
+                    {t("New preorder")}
+                  </s-button>
+                }
+              />
+            </s-box>
+            <s-divider />
+            {CAMPAIGNS.length === 0 ? (
+              <s-box padding="large">
+                <s-empty-state heading={t("No preorders yet")}>
+                  <s-paragraph slot="subheading">
+                    {t("Pre-sell upcoming launches, capture demand on sold-out SKUs, or build a back-in-stock waitlist.")}
+                  </s-paragraph>
+                  <s-button slot="primary-action" variant="primary" onClick={() => navigate("/app/campaigns/new")}>
+                    {t("Set up your first preorder")}
+                  </s-button>
+                </s-empty-state>
+              </s-box>
+            ) : (
+              <>
+                <CampaignsList campaigns={CAMPAIGNS} />
+                <s-divider />
+                <s-box padding="small">
+                  <s-stack direction="inline" justifyContent="end">
+                    <s-button variant="tertiary" icon="arrow-right" onClick={() => navigate("/app/campaigns")}>
+                      {t("View all preorders")}
+                    </s-button>
+                  </s-stack>
+                </s-box>
+              </>
+            )}
+          </s-section>
         </Reveal>
-      </BlockStack>
-    </Page>
+      </div>
+    </s-page>
   );
 }

@@ -17,38 +17,12 @@ import ConfirmModal from "./ConfirmModal";
 import { useLocale } from "../lib/i18n";
 import { useNavigate, useNavigation, useSubmit } from "react-router";
 import {
-  Page,
-  Layout,
-  Card,
-  BlockStack,
-  InlineStack,
-  Text,
-  Badge,
-  Button,
-  Box,
-  TextField,
-  Select,
-  Checkbox,
-  ChoiceList,
-  Divider,
-  Collapsible,
-  Banner,
-  Icon,
-  Tooltip,
-  FormLayout,
-  IndexTable,
-} from "@shopify/polaris";
-import {
-  ChevronDownIcon,
-  ChevronUpIcon,
-  InfoIcon,
   PlusIcon,
-  DeleteIcon,
-  XIcon,
   EditIcon,
   ViewIcon,
 } from "@shopify/polaris-icons";
 import { PageHero, SectionHead } from "./ui";
+import { SelectField, ChoiceListField, badgeTone, flag, isChecked, val, useLinkProps } from "./wc";
 
 
 // ---------- View-state shape ----------
@@ -246,22 +220,22 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <Card>
-      <BlockStack gap="400">
-        <BlockStack gap="100">
-          <Text as="h2" variant="headingMd">
+    <s-section>
+      <s-stack direction="block" gap="base">
+        <s-stack direction="block" gap="small-200">
+          <s-heading>
             {title}
-          </Text>
+          </s-heading>
           {helpText && (
-            <Text as="p" variant="bodySm" tone="subdued">
+            <s-paragraph fontSize="small" color="subdued">
               {helpText}
-            </Text>
+            </s-paragraph>
           )}
-        </BlockStack>
-        <Divider />
+        </s-stack>
+        <s-divider />
         {children}
-      </BlockStack>
-    </Card>
+      </s-stack>
+    </s-section>
   );
 }
 
@@ -277,28 +251,21 @@ function ScopeCard({
   onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
+    <s-clickable
       onClick={onClick}
-      style={{ all: "unset", outline: "revert", cursor: "pointer", display: "block", flex: 1, minWidth: 0 }}
+      padding="base"
+      border="base"
+      borderColor={active ? "strong" : "base"}
+      borderRadius="base"
+      background={active ? "subdued" : "transparent"}
     >
-      <Box
-        padding="400"
-        borderWidth={active ? "050" : "025"}
-        borderColor={active ? "border-emphasis" : "border"}
-        borderRadius="300"
-        background={active ? "bg-surface-secondary" : undefined}
-      >
-        <BlockStack gap="100">
-          <Text as="span" variant="headingSm">
-            {title}
-          </Text>
-          <Text as="span" variant="bodySm" tone="subdued">
-            {desc}
-          </Text>
-        </BlockStack>
-      </Box>
-    </button>
+      <s-stack direction="block" gap="small-200">
+        <s-heading fontSize="small">{title}</s-heading>
+        <s-text fontSize="small" color="subdued">
+          {desc}
+        </s-text>
+      </s-stack>
+    </s-clickable>
   );
 }
 
@@ -331,6 +298,7 @@ export default function CampaignForm({
   const marketChoices = marketsList ?? [];
   const { t, locale } = useLocale();
   const navigate = useNavigate();
+  const link = useLinkProps();
   const submit = useSubmit();
   const navigation = useNavigation();
   const isSubmitting =
@@ -611,8 +579,9 @@ export default function CampaignForm({
         ];
 
   return (
-    <Page backAction={{ content: t("Preorders"), url: backTo }}>
-      <BlockStack gap="500">
+    <s-page inlineSize="large">
+      <s-button slot="breadcrumb-actions" icon="arrow-left" accessibilityLabel={t("Preorders")} {...link(backTo)} />
+      <s-stack direction="block" gap="large">
         <PageHero
           icon={mode === "create" ? PlusIcon : EditIcon}
           tone={mode === "create" ? "violet" : "sky"}
@@ -621,56 +590,55 @@ export default function CampaignForm({
           actions={
             <>
               {secondaryActions.map((a) => (
-                <Button
+                <s-button
                   key={a.content}
-                  tone={(a as { destructive?: boolean }).destructive ? "critical" : undefined}
+                  tone={(a as { destructive?: boolean }).destructive ? "critical" : "auto"}
                   onClick={a.onAction}
                 >
                   {a.content}
-                </Button>
+                </s-button>
               ))}
-              <Button
+              <s-button
                 variant="primary"
                 onClick={primaryAction.onAction}
-                loading={primaryAction.loading}
-                disabled={(primaryAction as { disabled?: boolean }).disabled}
+                loading={flag(primaryAction.loading)}
+                disabled={flag((primaryAction as { disabled?: boolean }).disabled)}
               >
                 {primaryAction.content}
-              </Button>
+              </s-button>
             </>
           }
         />
         {dispatchError && (
-          <Banner
+          <s-banner
             tone="critical"
-            title={t("Something went wrong while saving")}
-            onDismiss={() => setDispatchError(null)}
+            heading={t("Something went wrong while saving")}
+            dismissible onDismiss={() => setDispatchError(null)}
           >
-            <Text as="p">{dispatchError}</Text>
-          </Banner>
+            <s-paragraph>{dispatchError}</s-paragraph>
+          </s-banner>
         )}
-        <Layout>
+        <div className="encore-layout">
           {/* ----- Left column ----- */}
-          <Layout.Section>
-            <BlockStack gap="500">
+          <div>
+            <s-stack direction="block" gap="large">
               {mode === "create" && (
-                <Banner tone="info">
-                  <Text as="span">{t("Three quick steps: name it, pick a ship date, and choose products below. Customers pay in full by default — open \"Customize payment\" for deposits or pay-later.")}</Text>
-                </Banner>
+                <s-banner tone="info">
+                  <s-text>{t("Three quick steps: name it, pick a ship date, and choose products below. Customers pay in full by default — open \"Customize payment\" for deposits or pay-later.")}</s-text>
+                </s-banner>
               )}
 
               <SectionCard
                 title={t("Preorder name")}
                 helpText={t("A short label only your team sees.")}
               >
-                <TextField
+                <s-text-field
                   label={t("Name")}
-                  labelHidden
+                  labelAccessibilityVisibility="exclusive"
                   value={name}
-                  onChange={setName}
-                  autoComplete="off"
+                  onInput={(e) => setName(val(e))}
                   placeholder={t("e.g. Aurora Hoodie — June drop")}
-                  requiredIndicator
+                  required
                 />
               </SectionCard>
 
@@ -678,25 +646,23 @@ export default function CampaignForm({
                 title={t("When will it ship?")}
                 helpText={t("Shown to customers and used to group orders into a fulfillment cohort.")}
               >
-                <FormLayout>
-                  <TextField
+                <s-stack direction="block" gap="base">
+                  <s-date-field
                     label={t("Expected ship date")}
-                    type="date"
                     value={shipDate}
-                    onChange={setShipDate}
-                    autoComplete="off"
-                    requiredIndicator
+                    onChange={(e) => setShipDate(val(e))}
+                    required
                   />
-                </FormLayout>
+                </s-stack>
               </SectionCard>
 
               {/* Payment */}
-              <Card>
-                <BlockStack gap="400">
-                  <InlineStack align="space-between" blockAlign="center">
-                    <BlockStack gap="050">
-                      <Text as="h2" variant="headingMd">{t("Payment")}</Text>
-                      <Text as="p" variant="bodySm" tone="subdued">
+              <s-section>
+                <s-stack direction="block" gap="base">
+                  <s-stack direction="inline" justifyContent="space-between" alignItems="center">
+                    <s-stack direction="block" gap="small-300">
+                      <s-heading>{t("Payment")}</s-heading>
+                      <s-paragraph fontSize="small" color="subdued">
                         {(() => {
                           // When not overridden, describe the STORE DEFAULT this rule
                           // inherits from Settings (F0.4) — not a hardcoded "pay now".
@@ -716,16 +682,17 @@ export default function CampaignForm({
                             ? desc
                             : `${desc} ${t("(from Settings)")}`;
                         })()}
-                      </Text>
-                    </BlockStack>
-                    <Checkbox
+                      </s-paragraph>
+                    </s-stack>
+                    <s-checkbox
                       label={t("Override for this preorder")}
-                      checked={customizePayment}
-                      onChange={(v) => {
-                        setCustomizePayment(v);
+                      checked={flag(customizePayment)}
+                      onChange={(e) => {
+                        const on = isChecked(e);
+                        setCustomizePayment(on);
                         // Un-checking returns this rule to the store default from
                         // Settings (F0.4) rather than a hardcoded "pay now".
-                        if (!v) {
+                        if (!on) {
                           setPaymentMode(initialValues.paymentMode);
                           setDepositKind(initialValues.depositKind);
                           setDepositAmount(initialValues.depositAmount);
@@ -733,15 +700,12 @@ export default function CampaignForm({
                         }
                       }}
                     />
-                  </InlineStack>
-                  <Collapsible
-                    id="payment"
-                    open={customizePayment}
-                    transition={{ duration: "200ms", timingFunction: "ease" }}
-                  >
-                    <BlockStack gap="400">
-                      <Divider />
-                      <Select
+                  </s-stack>
+                  {customizePayment && (
+                  <div id="payment">
+                    <s-stack direction="block" gap="base">
+                      <s-divider />
+                      <SelectField
                         label={t("Customer pays")}
                         options={[
                           { label: t("Full at checkout (default)"), value: "pay_now" },
@@ -754,10 +718,10 @@ export default function CampaignForm({
                         }
                       />
                       {paymentMode === "deposit" && (
-                        <Box padding="400" background="bg-surface-secondary" borderRadius="200">
-                          <FormLayout>
-                            <FormLayout.Group>
-                              <Select
+                        <s-box padding="base" background="subdued" borderRadius="base">
+                          <s-stack direction="block" gap="base">
+                            <s-grid gridTemplateColumns="repeat(2, minmax(0, 1fr))" gap="base">
+                              <SelectField
                                 label={t("Deposit type")}
                                 options={[
                                   { label: t("Percentage"), value: "percent" },
@@ -766,77 +730,70 @@ export default function CampaignForm({
                                 value={depositKind}
                                 onChange={(v) => setDepositKind(v as "percent" | "fixed")}
                               />
-                              <TextField
+                              <s-number-field
                                 label={t("Deposit amount")}
-                                type="number"
                                 value={depositAmount}
-                                onChange={setDepositAmount}
-                                autoComplete="off"
+                                onInput={(e) => setDepositAmount(val(e))}
                                 suffix={depositKind === "percent" ? "%" : currency}
                               />
-                            </FormLayout.Group>
-                            <TextField
+                            </s-grid>
+                            <s-number-field
                               label={t("Balance capture timing")}
-                              type="number"
                               value={balanceCaptureDays}
-                              onChange={setBalanceCaptureDays}
-                              autoComplete="off"
+                              onInput={(e) => setBalanceCaptureDays(val(e))}
                               suffix={t("days before ship date")}
                             />
-                          </FormLayout>
-                        </Box>
+                          </s-stack>
+                        </s-box>
                       )}
                       {paymentMode === "pay_later" && (
-                        <Banner tone="info">
-                          <Text as="span">{t("No money moves until you mark the cohort ready to ship. Card vaulted via Shopify Payments.")}</Text>
-                        </Banner>
+                        <s-banner tone="info">
+                          <s-text>{t("No money moves until you mark the cohort ready to ship. Card vaulted via Shopify Payments.")}</s-text>
+                        </s-banner>
                       )}
-                    </BlockStack>
-                  </Collapsible>
-                </BlockStack>
-              </Card>
+                    </s-stack>
+                  </div>
+                  )}
+                </s-stack>
+              </s-section>
 
               {/* Advanced (per-drop) */}
-              <Card>
-                <BlockStack gap="400">
-                  <InlineStack align="space-between" blockAlign="center">
-                    <BlockStack gap="050">
-                      <InlineStack gap="200" blockAlign="center">
-                        <Text as="h2" variant="headingMd">{t("Advanced")}</Text>
-                        <Tooltip content={t("Optional, per this drop. Store-wide options live in Settings.")}>
-                          <Icon source={InfoIcon} tone="subdued" />
-                        </Tooltip>
-                      </InlineStack>
-                      <Text as="p" variant="bodySm" tone="subdued">{t("Discount, delivery note, cohort name, internal notes.")}</Text>
-                    </BlockStack>
-                    <Button
+              <s-section>
+                <s-stack direction="block" gap="base">
+                  <s-stack direction="inline" justifyContent="space-between" alignItems="center">
+                    <s-stack direction="block" gap="small-300">
+                      <s-stack direction="inline" gap="small-100" alignItems="center">
+                        <s-heading>{t("Advanced")}</s-heading>
+                        <s-icon type="info" color="subdued" interestFor="advanced-tip" />
+                        <s-tooltip id="advanced-tip">{t("Optional, per this drop. Store-wide options live in Settings.")}</s-tooltip>
+                      </s-stack>
+                      <s-paragraph fontSize="small" color="subdued">{t("Discount, delivery note, cohort name, internal notes.")}</s-paragraph>
+                    </s-stack>
+                    <s-button
                       variant="tertiary"
-                      icon={advancedOpen ? ChevronUpIcon : ChevronDownIcon}
+                      icon={advancedOpen ? "chevron-up" : "chevron-down"}
                       onClick={() => setAdvancedOpen((v) => !v)}
                     >
                       {advancedOpen ? "Hide" : "Show"} advanced
-                    </Button>
-                  </InlineStack>
+                    </s-button>
+                  </s-stack>
 
-                  <Collapsible
-                    id="advanced"
-                    open={advancedOpen}
-                    transition={{ duration: "200ms", timingFunction: "ease" }}
-                  >
-                    <BlockStack gap="500">
-                      <Divider />
-                      <BlockStack gap="200">
-                        <Text as="h3" variant="headingSm">{t("Discount")}</Text>
-                        <Checkbox
+                  {advancedOpen && (
+                  <div id="advanced">
+                    <s-stack direction="block" gap="large">
+                      <s-divider />
+                      <s-stack direction="block" gap="small-100">
+                        <s-heading fontSize="small">{t("Discount")}</s-heading>
+                        <s-checkbox
                           label={t("Offer a discount on preorder")}
-                          checked={discountEnabled}
-                          onChange={setDiscountEnabled}
+                          checked={flag(discountEnabled)}
+                          onChange={(e) => setDiscountEnabled(isChecked(e))}
                         />
                         {discountEnabled && (
-                          <Box paddingInlineStart="600">
-                            <FormLayout>
-                              <FormLayout.Group>
-                                <Select
+                          <s-box paddingInlineStart="large-100">
+                            <s-stack direction="block" gap="base">
+                              <s-grid gridTemplateColumns="repeat(2, minmax(0, 1fr))" gap="base">
+                                <SelectField
                                   label={t("Discount type")}
                                   options={[
                                     { label: t("Percentage"), value: "percent" },
@@ -845,33 +802,30 @@ export default function CampaignForm({
                                   value={discountKind}
                                   onChange={(v) => setDiscountKind(v as "percent" | "fixed")}
                                 />
-                                <TextField
+                                <s-number-field
                                   label={t("Amount")}
-                                  type="number"
                                   value={discountAmount}
-                                  onChange={setDiscountAmount}
-                                  autoComplete="off"
+                                  onInput={(e) => setDiscountAmount(val(e))}
                                   suffix={discountKind === "percent" ? "%" : currency}
                                 />
-                              </FormLayout.Group>
-                            </FormLayout>
-                          </Box>
+                              </s-grid>
+                            </s-stack>
+                          </s-box>
                         )}
-                      </BlockStack>
-                      <Divider />
-                      <BlockStack gap="200">
-                        <Text as="h3" variant="headingSm">{t("Button")}</Text>
-                        <Text as="p" variant="bodySm" tone="subdued">
+                      </s-stack>
+                      <s-divider />
+                      <s-stack direction="block" gap="small-100">
+                        <s-heading fontSize="small">{t("Button")}</s-heading>
+                        <s-paragraph fontSize="small" color="subdued">
                           {t("Inherited from Settings. Change it here to override just this preorder.")}
-                        </Text>
-                        <FormLayout>
-                          <TextField
+                        </s-paragraph>
+                        <s-stack direction="block" gap="base">
+                          <s-text-field
                             label={t("Button text")}
                             value={ctaLabel}
-                            onChange={setCtaLabel}
-                            autoComplete="off"
+                            onInput={(e) => setCtaLabel(val(e))}
                           />
-                          <Select
+                          <SelectField
                             label={t("Where it appears")}
                             options={[
                               { label: t("Instead of Add to cart"), value: "replace" },
@@ -883,7 +837,7 @@ export default function CampaignForm({
                               setCtaPlacement(v as "replace" | "beside" | "stack")
                             }
                           />
-                          <Select
+                          <SelectField
                             label={t("When shoppers see it")}
                             options={[
                               { label: t("Always (presale — even while in stock)"), value: "always" },
@@ -891,72 +845,68 @@ export default function CampaignForm({
                             ]}
                             value={trigger}
                             onChange={(v) => setTrigger(v as "always" | "stock")}
-                            helpText={t("Only when sold out: the preorder button appears once the selected variant runs out.")}
+                            details={t("Only when sold out: the preorder button appears once the selected variant runs out.")}
                           />
-                        </FormLayout>
-                      </BlockStack>
-                      <Divider />
-                      <BlockStack gap="200">
-                        <Text as="h3" variant="headingSm">{t("Copy & reporting")}</Text>
-                        <FormLayout>
-                          <TextField
+                        </s-stack>
+                      </s-stack>
+                      <s-divider />
+                      <s-stack direction="block" gap="small-100">
+                        <s-heading fontSize="small">{t("Copy & reporting")}</s-heading>
+                        <s-stack direction="block" gap="base">
+                          <s-text-area
                             label={t("Delivery note (under the button)")}
                             value={deliveryNote}
-                            onChange={setDeliveryNote}
-                            autoComplete="off"
-                            multiline={2}
-                            helpText={t("Inherited from Settings; change it to override just this preorder. Use {{shipping_date}} to insert the ship date.")}
+                            onInput={(e) => setDeliveryNote(val(e))} rows={2}
+                            details={t("Inherited from Settings; change it to override just this preorder. Use {{shipping_date}} to insert the ship date.")}
                           />
-                          <TextField
+                          <s-text-field
                             label={t("Cohort name")}
                             value={cohortName}
-                            onChange={setCohortName}
-                            autoComplete="off"
+                            onInput={(e) => setCohortName(val(e))}
                             placeholder={t("Auto-generated")}
-                            helpText={t("Admin reporting only.")}
+                            details={t("Admin reporting only.")}
                           />
-                        </FormLayout>
-                      </BlockStack>
-                      <Divider />
-                      <BlockStack gap="200">
-                        <Text as="h3" variant="headingSm">{t("Internal notes")}</Text>
-                        <TextField
+                        </s-stack>
+                      </s-stack>
+                      <s-divider />
+                      <s-stack direction="block" gap="small-100">
+                        <s-heading fontSize="small">{t("Internal notes")}</s-heading>
+                        <s-text-area
                           label={t("Notes")}
-                          labelHidden
+                          labelAccessibilityVisibility="exclusive"
                           value={internalNotes}
-                          onChange={setInternalNotes}
-                          multiline={3}
-                          autoComplete="off"
+                          onInput={(e) => setInternalNotes(val(e))} rows={3}
                           placeholder={t("Ops handoff, forecasting context, etc.")}
                         />
-                      </BlockStack>
-                    </BlockStack>
-                  </Collapsible>
-                </BlockStack>
-              </Card>
-            </BlockStack>
-          </Layout.Section>
+                      </s-stack>
+                    </s-stack>
+                  </div>
+                  )}
+                </s-stack>
+              </s-section>
+            </s-stack>
+          </div>
 
           {/* ----- Right column ----- */}
-          <Layout.Section variant="oneThird">
-            <BlockStack gap="400">
+          <div>
+            <s-stack direction="block" gap="base">
               {/* Storefront preview */}
-              <Card>
-                <BlockStack gap="300">
+              <s-section>
+                <s-stack direction="block" gap="small">
                   <SectionHead icon={ViewIcon} tone="teal" title={t("Storefront preview")} sub={t("How the buy box will look on your product page.")} />
-                  <Divider />
-                  <Box padding="400" borderWidth="025" borderColor="border" borderRadius="300" background="bg-surface">
-                    <BlockStack gap="200">
-                      <div><Badge tone="warning">{t("Preorder")}</Badge></div>
-                      <Text as="span" variant="bodyMd" fontWeight="semibold">
+                  <s-divider />
+                  <s-box padding="base" border="base" borderRadius="base" background="base">
+                    <s-stack direction="block" gap="small-100">
+                      <div><s-badge tone="warning">{t("Preorder")}</s-badge></div>
+                      <s-text fontWeight="semibold">
                         {selectedVariants[0]
                           ? `${selectedVariants[0].productTitle}${selectedVariants[0].variantTitle && selectedVariants[0].variantTitle !== "Default Title" ? ` — ${selectedVariants[0].variantTitle}` : ""}`
                           : t("Your product")}
-                      </Text>
+                      </s-text>
                       {selectedVariants.length > 1 && (
-                        <Text as="span" variant="bodySm" tone="subdued">
+                        <s-text fontSize="small" color="subdued">
                           {`+${selectedVariants.length - 1} ${t("more variants")}`}
-                        </Text>
+                        </s-text>
                       )}
                       <button
                         type="button"
@@ -966,37 +916,37 @@ export default function CampaignForm({
                       >
                         {ctaLabel || t("Preorder")}
                       </button>
-                      <Text as="span" variant="bodySm" tone="subdued">
+                      <s-text fontSize="small" color="subdued">
                         {shipDate
                           ? deliveryNote.replace(/\{\{\s*shipping_date\s*\}\}/g, shipDate)
                           : deliveryNote.replace(/\{\{\s*shipping_date\s*\}\}/g, "soon")}
-                      </Text>
+                      </s-text>
                       {paymentMode !== "pay_now" && (
-                        <Text as="span" variant="bodySm" tone="subdued">
+                        <s-text fontSize="small" color="subdued">
                           {paymentMode === "deposit"
                             ? `Deposit ${depositAmount}${depositKind === "percent" ? "%" : ` ${currency}`} today`
                             : "Pay later — charged when it ships"}
-                        </Text>
+                        </s-text>
                       )}
-                    </BlockStack>
-                  </Box>
-                </BlockStack>
-              </Card>
+                    </s-stack>
+                  </s-box>
+                </s-stack>
+              </s-section>
 
               {/* Markets */}
-              <Card>
-                <BlockStack gap="300">
-                  <InlineStack align="space-between" blockAlign="center">
-                    <Text as="h2" variant="headingMd">{t("Markets")}</Text>
-                    <Badge tone={marketsAll ? undefined : "info"}>
+              <s-section>
+                <s-stack direction="block" gap="small">
+                  <s-stack direction="inline" justifyContent="space-between" alignItems="center">
+                    <s-heading>{t("Markets")}</s-heading>
+                    <s-badge tone={badgeTone(marketsAll ? undefined : "info")}>
                       {marketsAll ? "All markets" : `${markets.length} selected`}
-                    </Badge>
-                  </InlineStack>
-                  <Text as="p" variant="bodySm" tone="subdued">{t("Where this preorder is offered. Defaults to all markets.")}</Text>
-                  <Divider />
-                  <ChoiceList
-                    title={t("Market availability")}
-                    titleHidden
+                    </s-badge>
+                  </s-stack>
+                  <s-paragraph fontSize="small" color="subdued">{t("Where this preorder is offered. Defaults to all markets.")}</s-paragraph>
+                  <s-divider />
+                  <ChoiceListField
+                    label={t("Market availability")}
+                    labelHidden
                     choices={[
                       { label: t("All markets"), value: "all" },
                       { label: t("Specific markets"), value: "specific" },
@@ -1005,39 +955,39 @@ export default function CampaignForm({
                     onChange={(v) => setMarketScope(v[0] as "all" | "specific")}
                   />
                   {marketScope === "specific" && (
-                    <Box paddingInlineStart="200">
-                      <BlockStack gap="150">
+                    <s-box paddingInlineStart="small-100">
+                      <s-stack direction="block" gap="small-200">
                         {marketChoices.length === 0 && (
-                          <Text as="p" variant="bodySm" tone="subdued">
+                          <s-paragraph fontSize="small" color="subdued">
                             {t("No markets found.")}
-                          </Text>
+                          </s-paragraph>
                         )}
                         {marketChoices.map((m) => (
-                          <Checkbox
+                          <s-checkbox
                             key={m.id}
                             label={m.title}
-                            helpText={m.subtitle}
-                            checked={markets.includes(m.id)}
-                            onChange={(c) =>
+                            details={m.subtitle}
+                            checked={flag(markets.includes(m.id))}
+                            onChange={(e) =>
                               setMarkets((prev) =>
-                                c
+                                isChecked(e)
                                   ? [...prev, m.id]
                                   : prev.filter((x) => x !== m.id),
                               )
                             }
                           />
                         ))}
-                      </BlockStack>
-                    </Box>
+                      </s-stack>
+                    </s-box>
                   )}
-                </BlockStack>
-              </Card>
+                </s-stack>
+              </s-section>
 
               {/* Summary */}
-              <Card>
-                <BlockStack gap="300">
-                  <Text as="h2" variant="headingMd">{t("Summary")}</Text>
-                  <Divider />
+              <s-section>
+                <s-stack direction="block" gap="small">
+                  <s-heading>{t("Summary")}</s-heading>
+                  <s-divider />
                   <SummaryRow
                     label={t("Scope")}
                     value={
@@ -1064,32 +1014,32 @@ export default function CampaignForm({
                           : "Pay later (on ship)"
                     }
                   />
-                </BlockStack>
-              </Card>
+                </s-stack>
+              </s-section>
 
               {/* Checklist */}
-              <Card>
-                <BlockStack gap="200">
-                  <Text as="h2" variant="headingMd">{t("Ready to publish?")}</Text>
+              <s-section>
+                <s-stack direction="block" gap="small-100">
+                  <s-heading>{t("Ready to publish?")}</s-heading>
                   <ChecklistItem ok={!!name} label={t("Name set")} />
                   <ChecklistItem ok={productsChosen} label={t("Products chosen")} />
                   <ChecklistItem ok={!!shipDate} label={t("Ship date set")} />
-                </BlockStack>
-              </Card>
-            </BlockStack>
-          </Layout.Section>
-        </Layout>
+                </s-stack>
+              </s-section>
+            </s-stack>
+          </div>
+        </div>
 
         {/* ----- Full-width: Select product ----- */}
-        <Card padding="0">
-          <Box padding="400">
-            <BlockStack gap="100">
-              <Text as="h2" variant="headingMd">{t("Select product")}</Text>
-              <Text as="p" variant="bodySm" tone="subdued">{t("Choose which products sell as preorders, set unit limits, and (optionally) schedule when each is available.")}</Text>
-            </BlockStack>
-          </Box>
-          <Box padding="400" paddingBlockStart="0">
-            <InlineStack gap="300" wrap={false}>
+        <s-section padding="none">
+          <s-box padding="base">
+            <s-stack direction="block" gap="small-200">
+              <s-heading>{t("Select product")}</s-heading>
+              <s-paragraph fontSize="small" color="subdued">{t("Choose which products sell as preorders, set unit limits, and (optionally) schedule when each is available.")}</s-paragraph>
+            </s-stack>
+          </s-box>
+          <s-box padding="base" paddingBlockStart="none">
+            <s-stack direction="inline" gap="small">
               <ScopeCard
                 active={productMode === "specific"}
                 title={t("Specific products")}
@@ -1108,20 +1058,20 @@ export default function CampaignForm({
                 desc="Enable preorders across your entire catalog."
                 onClick={() => setProductMode("all")}
               />
-            </InlineStack>
-          </Box>
+            </s-stack>
+          </s-box>
 
-          <Divider />
+          <s-divider />
 
           {productMode === "all" ? (
-            <Box padding="400">
-              <Banner tone="info">
-                <Text as="span">{t("Preorders apply to every product, governed by the Inventory rules in Settings.")}</Text>
-              </Banner>
-            </Box>
+            <s-box padding="base">
+              <s-banner tone="info">
+                <s-text>{t("Preorders apply to every product, governed by the Inventory rules in Settings.")}</s-text>
+              </s-banner>
+            </s-box>
           ) : productMode === "collection" ? (
-            <Box padding="400">
-              <Select
+            <s-box padding="base">
+              <SelectField
                 label={t("Collection")}
                 options={[
                   { label: t("Choose a collection…"), value: "" },
@@ -1132,88 +1082,81 @@ export default function CampaignForm({
                 ]}
                 value={collectionId}
                 onChange={setCollectionId}
-                helpText={
+                details={
                   collectionChoices.length === 0
                     ? t("No collections found in your store.")
                     : undefined
                 }
               />
-            </Box>
+            </s-box>
           ) : (
-            <BlockStack gap="0">
-              <Box padding="400">
-                <InlineStack align="space-between" blockAlign="center">
-                  <Text as="span" variant="bodySm" tone="subdued">{t("Choose which products should use this offer.")}</Text>
-                  <Button icon={PlusIcon} onClick={openPicker}>{t("Add products")}</Button>
-                </InlineStack>
-              </Box>
+            <s-stack direction="block" gap="none">
+              <s-box padding="base">
+                <s-stack direction="inline" justifyContent="space-between" alignItems="center">
+                  <s-text fontSize="small" color="subdued">{t("Choose which products should use this offer.")}</s-text>
+                  <s-button icon="plus" onClick={openPicker}>{t("Add products")}</s-button>
+                </s-stack>
+              </s-box>
               {selectedVariants.length === 0 ? (
-                <Box padding="600" background="bg-surface-secondary">
-                  <BlockStack gap="200" inlineAlign="center">
-                    <Text as="p" variant="bodyMd" tone="subdued">{t("No products selected yet.")}</Text>
-                    <Button variant="primary" icon={PlusIcon} onClick={openPicker}>{t("Add products")}</Button>
-                  </BlockStack>
-                </Box>
+                <s-box padding="large-100" background="subdued">
+                  <s-stack direction="block" gap="small-100">
+                    <s-paragraph color="subdued">{t("No products selected yet.")}</s-paragraph>
+                    <s-button variant="primary" icon="plus" onClick={openPicker}>{t("Add products")}</s-button>
+                  </s-stack>
+                </s-box>
               ) : (
-                <IndexTable
-                  resourceName={{ singular: "product", plural: "products" }}
-                  itemCount={selectedVariants.length}
-                  selectable={false}
-                  headings={[
-                    { title: t("Product") },
-                    { title: t("Units sold") },
-                    { title: t("Limit quantity") },
-                    { title: t("End quantity") },
-                    { title: t("Availability") },
-                    { title: "" },
-                  ]}
-                >
-                  {selectedVariants.map((sv, index) => (
-                    <IndexTable.Row id={sv.variantId} key={sv.variantId} position={index}>
-                      <IndexTable.Cell>
-                        <BlockStack gap="050">
-                          <Text as="span" variant="bodyMd" fontWeight="semibold">
+                <s-table>
+                  <s-table-header-row>
+                    <s-table-header listSlot="primary">{t("Product")}</s-table-header>
+                    <s-table-header format="numeric">{t("Units sold")}</s-table-header>
+                    <s-table-header>{t("Limit quantity")}</s-table-header>
+                    <s-table-header>{t("End quantity")}</s-table-header>
+                    <s-table-header>{t("Availability")}</s-table-header>
+                    <s-table-header></s-table-header>
+                  </s-table-header-row>
+                  <s-table-body>
+                  {selectedVariants.map((sv) => (
+                    <s-table-row key={sv.variantId}>
+                      <s-table-cell>
+                        <s-stack direction="block" gap="small-300">
+                          <s-text fontWeight="semibold">
                             {sv.productTitle}
-                          </Text>
-                          <Text as="span" variant="bodySm" tone="subdued">
+                          </s-text>
+                          <s-text fontSize="small" color="subdued">
                             {sv.variantTitle}
-                          </Text>
-                        </BlockStack>
-                      </IndexTable.Cell>
-                      <IndexTable.Cell>
-                        <Text as="span" variant="bodySm" tone="subdued">—</Text>
-                      </IndexTable.Cell>
-                      <IndexTable.Cell>
-                        <Box minWidth="120px">
-                          <TextField
+                          </s-text>
+                        </s-stack>
+                      </s-table-cell>
+                      <s-table-cell>
+                        <s-text fontSize="small" color="subdued">—</s-text>
+                      </s-table-cell>
+                      <s-table-cell>
+                        <s-box>
+                          <s-number-field
                             label={t("Limit quantity")}
-                            labelHidden
-                            type="number"
+                            labelAccessibilityVisibility="exclusive"
                             value={sv.unitsOffered}
-                            onChange={(v) => updateVariant(sv.variantId, { unitsOffered: v })}
-                            autoComplete="off"
+                            onInput={(e) => updateVariant(sv.variantId, { unitsOffered: val(e) })}
                             min={0}
                           />
-                        </Box>
-                      </IndexTable.Cell>
-                      <IndexTable.Cell>
-                        <Box minWidth="120px">
-                          <TextField
+                        </s-box>
+                      </s-table-cell>
+                      <s-table-cell>
+                        <s-box>
+                          <s-number-field
                             label={t("End quantity")}
-                            labelHidden
-                            type="number"
+                            labelAccessibilityVisibility="exclusive"
                             value={sv.endQty}
-                            onChange={(v) => updateVariant(sv.variantId, { endQty: v })}
-                            autoComplete="off"
+                            onInput={(e) => updateVariant(sv.variantId, { endQty: val(e) })}
                             placeholder="—"
                             min={0}
                           />
-                        </Box>
-                      </IndexTable.Cell>
-                      <IndexTable.Cell>
-                        <Box minWidth="220px">
-                          <BlockStack gap="100">
-                            <Select
+                        </s-box>
+                      </s-table-cell>
+                      <s-table-cell>
+                        <s-box>
+                          <s-stack direction="block" gap="small-200">
+                            <SelectField
                               label={t("Availability")}
                               labelHidden
                               options={AVAIL_OPTIONS.map((o) => ({ ...o, label: t(o.label) }))}
@@ -1226,71 +1169,66 @@ export default function CampaignForm({
                             />
                             {(sv.availability === "from_start" ||
                               sv.availability === "between") && (
-                              <TextField
+                              <s-date-field
                                 label={t("Start date")}
-                                labelHidden
-                                type="date"
+                                labelAccessibilityVisibility="exclusive"
                                 value={sv.availStart}
-                                onChange={(v) => updateVariant(sv.variantId, { availStart: v })}
-                                autoComplete="off"
-                                prefix={t("From")}
+                                onChange={(e) => updateVariant(sv.variantId, { availStart: val(e) })}
                               />
                             )}
                             {(sv.availability === "now_until_end" ||
                               sv.availability === "between") && (
-                              <TextField
+                              <s-date-field
                                 label={t("End date")}
-                                labelHidden
-                                type="date"
+                                labelAccessibilityVisibility="exclusive"
                                 value={sv.availEnd}
-                                onChange={(v) => updateVariant(sv.variantId, { availEnd: v })}
-                                autoComplete="off"
-                                prefix={t("Until")}
+                                onChange={(e) => updateVariant(sv.variantId, { availEnd: val(e) })}
                               />
                             )}
-                          </BlockStack>
-                        </Box>
-                      </IndexTable.Cell>
-                      <IndexTable.Cell>
-                        <Button
+                          </s-stack>
+                        </s-box>
+                      </s-table-cell>
+                      <s-table-cell>
+                        <s-button
                           variant="tertiary"
                           tone="critical"
-                          icon={XIcon}
+                          icon="x"
                           accessibilityLabel={t("Remove product")}
                           onClick={() => removeVariant(sv.variantId)}
                         />
-                      </IndexTable.Cell>
-                    </IndexTable.Row>
+                      </s-table-cell>
+                    </s-table-row>
                   ))}
-                </IndexTable>
+                  </s-table-body>
+                </s-table>
               )}
-            </BlockStack>
+            </s-stack>
           )}
-        </Card>
+        </s-section>
 
         {/* Footer */}
-        <Card>
-          <InlineStack align="end" gap="200">
-            <Button onClick={() => navigate(backTo)}>Cancel</Button>
+        <s-section>
+          <s-stack direction="inline" justifyContent="end" gap="small-100">
+            <s-button onClick={() => navigate(backTo)}>Cancel</s-button>
             {mode === "create" ? (
               <>
-                <Button onClick={handleSaveDraft}>{t("Save draft")}</Button>
-                <Button
+                <s-button onClick={handleSaveDraft}>{t("Save draft")}</s-button>
+                <s-button
                   variant="primary"
                   onClick={handlePublish}
-                  loading={isSubmitting}
-                  disabled={!canPublish}
-                >{t("Publish preorder")}</Button>
+                  loading={flag(isSubmitting)}
+                  disabled={flag(!canPublish)}
+                >{t("Publish preorder")}</s-button>
               </>
             ) : (
               <>
-                <Button icon={DeleteIcon} tone="critical" onClick={handleDelete}>{t("Delete")}</Button>
-                <Button variant="primary" onClick={handleSaveChanges} loading={isSubmitting}>{t("Save changes")}</Button>
+                <s-button icon="delete" tone="critical" onClick={handleDelete}>{t("Delete")}</s-button>
+                <s-button variant="primary" onClick={handleSaveChanges} loading={flag(isSubmitting)}>{t("Save changes")}</s-button>
               </>
             )}
-          </InlineStack>
-        </Card>
-      </BlockStack>
+          </s-stack>
+        </s-section>
+      </s-stack>
       <ConfirmModal
         open={confirmDeleteOpen}
         title={t("Delete preorder")}
@@ -1302,37 +1240,29 @@ export default function CampaignForm({
         }}
         onCancel={() => setConfirmDeleteOpen(false)}
       />
-    </Page>
+    </s-page>
   );
 }
 
 // ---------- Sidebar primitives ----------
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
-    <InlineStack align="space-between" blockAlign="center">
-      <Text as="span" variant="bodySm" tone="subdued">
+    <s-stack direction="inline" justifyContent="space-between" alignItems="center">
+      <s-text fontSize="small" color="subdued">
         {label}
-      </Text>
-      <Text as="span" variant="bodyMd">
+      </s-text>
+      <s-text>
         {value}
-      </Text>
-    </InlineStack>
+      </s-text>
+    </s-stack>
   );
 }
 
 function ChecklistItem({ ok, label }: { ok: boolean; label: string }) {
   return (
-    <InlineStack gap="200" blockAlign="center">
-      <Box
-        background={ok ? "bg-fill-success" : "bg-surface-secondary"}
-        padding="100"
-        borderRadius="full"
-        minWidth="20px"
-        minHeight="20px"
-      />
-      <Text as="span" variant="bodyMd" tone={ok ? undefined : "subdued"}>
-        {label}
-      </Text>
-    </InlineStack>
+    <s-stack direction="inline" gap="small-100" alignItems="center">
+      <s-icon type={ok ? "check-circle-filled" : "circle"} tone={ok ? "success" : "neutral"} size="small" />
+      <s-text>{label}</s-text>
+    </s-stack>
   );
 }

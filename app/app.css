@@ -399,3 +399,24 @@
 .encore-row__arrow { display: inline-flex; color: var(--p-color-icon-secondary, #8a8a8a); transition: transform var(--encore-fast, 140ms) ease; }
 .encore-row:hover .encore-row__arrow { transform: translateX(3px); }
 @media (max-width: 720px) { .encore-row__units { display: none; } }
+
+/* ---------- Tabs (Polaris web components ship none; styled after the admin) ---------- */
+.encore-tabs { display: flex; gap: 4px; padding: 8px 8px 0; border-bottom: 1px solid var(--p-color-border-secondary, #e3e3e3); overflow-x: auto; }
+.encore-tab {
+  appearance: none; border: 0; background: transparent; cursor: pointer; font: inherit; font-size: 13px; font-weight: 500;
+  color: var(--p-color-text-secondary, #616161); padding: 8px 12px 10px; border-radius: 8px 8px 0 0; position: relative; white-space: nowrap;
+  transition: color var(--encore-fast, 140ms) ease, background var(--encore-fast, 140ms) ease;
+}
+.encore-tab:hover { background: var(--p-color-bg-surface-hover, #f3f3f3); color: var(--p-color-text, #303030); }
+.encore-tab--active { color: var(--p-color-text, #303030); font-weight: 600; }
+.encore-tab--active::after { content: ""; position: absolute; left: 8px; right: 8px; bottom: -1px; height: 2px; border-radius: 2px; background: var(--encore-accent, #5b4fd6); }
+.encore-tab:focus-visible { outline: 2px solid var(--encore-accent, #5b4fd6); outline-offset: -2px; }
+
+/* Layout grids used in place of Polaris React <Layout> (2/3 + 1/3 columns). */
+.encore-layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.encore-layout--equal { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 900px) { .encore-layout, .encore-layout--equal { grid-template-columns: 1fr; } }
+.encore-stack { display: flex; flex-direction: column; gap: 16px; }
+.encore-stack--tight { gap: 8px; }
+.encore-row-between { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.encore-page { max-width: 1120px; margin: 0 auto; padding: 0 0 40px; }

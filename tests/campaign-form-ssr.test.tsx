@@ -2,13 +2,13 @@
  * SSR reproduction: the live /edit page truncates after the "Advanced" card —
  * the "Select product" section never renders. Render CampaignForm in edit mode
  * exactly like app.campaigns.$id.edit.tsx does and catch the real error.
+ * Polaris web components render as plain custom-element tags on the server,
+ * so this also guards the port off Polaris React (2026-09-24).
  */
 import { describe, it, expect } from "vitest";
 import { renderToString } from "react-dom/server";
 import { createRoutesStub } from "react-router";
 import CampaignForm from "../app/components/CampaignForm";
-import { AppProvider } from "@shopify/polaris";
-import en from "@shopify/polaris/locales/en.json";
 
 const initialValues = {
   name: "test",
@@ -59,7 +59,7 @@ describe("CampaignForm SSR (edit mode)", () => {
       {
         path: "/app/campaigns/:id/edit",
         Component: () => (
-          <AppProvider i18n={en}><CampaignForm
+          <CampaignForm
             mode="edit"
             pageTitle="test"
             pageSubtitle="Edit preorder"
@@ -68,7 +68,7 @@ describe("CampaignForm SSR (edit mode)", () => {
             marketsList={null}
             currency="PKR"
             backTo="/app/campaigns"
-          /></AppProvider>
+          />
         ),
       },
     ]);
@@ -77,5 +77,9 @@ describe("CampaignForm SSR (edit mode)", () => {
     );
     expect(html).toContain("Select product");
     expect(html).toContain("Aurora Hoodie");
+    expect(html).toContain("<s-page");
+    expect(html).toContain("<s-table");
+    // React 18 must never emit a stringified false boolean on a custom element.
+    expect(html).not.toMatch(/(disabled|loading|checked|selected|required)="false"/);
   });
 });

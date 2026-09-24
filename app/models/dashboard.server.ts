@@ -35,7 +35,12 @@ export type DashboardData = {
   }[];
   activity: { kind: string; text: string; detail: string; time: string }[];
   reliability: ReliabilityReport;
-  /** R0.2 — Nova outbox health: stuck PENDING (>15 min) or DEAD deliveries. */
+  /**
+   * R0.2 — Nova outbox health: stuck PENDING (>15 min) or DEAD deliveries.
+   * Operator-only: never rendered to merchants (2026-09-24 — the dashboard
+   * banner read like an outage to a store owner). /health carries the same
+   * counts for Nova ops; kept here for the release-gate script.
+   */
   outboxAlert: { stuck: number; dead: number } | null;
 };
 
