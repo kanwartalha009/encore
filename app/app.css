@@ -321,8 +321,9 @@
 .encore-grid { display: grid; gap: 16px; }
 .encore-grid--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .encore-grid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.encore-grid--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 @media (max-width: 1040px) { .encore-grid--4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 720px)  { .encore-grid--4, .encore-grid--3 { grid-template-columns: 1fr; } }
+@media (max-width: 720px)  { .encore-grid--4, .encore-grid--3, .encore-grid--2 { grid-template-columns: 1fr; } }
 .encore-grid > .encore-reveal, .encore-grid > .encore-reveal > .encore-lift, .encore-grid .encore-lift > * { height: 100%; }
 .encore-delta { white-space: nowrap; }
 .encore-stat__foot { flex-wrap: wrap; row-gap: 4px; }
@@ -379,3 +380,22 @@
 .encore-page-hero { margin-bottom: 4px; }
 .Polaris-Page > .Polaris-Page__Content > .encore-reveal:first-child > .encore-page-hero,
 .Polaris-Page__Content > .encore-reveal:first-child > .encore-page-hero { margin-bottom: 16px; }
+
+/* ---------- Dashboard preorder rows (click-through list, max 5) ---------- */
+.encore-row {
+  display: flex; align-items: center; gap: 14px; width: 100%;
+  padding: 12px 16px; border: 0; border-bottom: 1px solid var(--p-color-border-secondary, #e3e3e3);
+  background: transparent; text-align: left; cursor: pointer; font: inherit; color: inherit;
+  transition: background var(--encore-fast, 140ms) ease;
+}
+.encore-row:last-child { border-bottom: 0; }
+.encore-row:hover { background: var(--p-color-bg-surface-hover, #f7f7f7); }
+.encore-row:focus-visible { outline: 2px solid var(--encore-accent, #5b4fd6); outline-offset: -2px; }
+.encore-row__main { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.encore-row__title { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.encore-row__sub { font-size: 12px; color: var(--p-color-text-secondary, #616161); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.encore-row__meta { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.encore-row__units { font-size: 12px; color: var(--p-color-text-secondary, #616161); font-variant-numeric: tabular-nums; }
+.encore-row__arrow { display: inline-flex; color: var(--p-color-icon-secondary, #8a8a8a); transition: transform var(--encore-fast, 140ms) ease; }
+.encore-row:hover .encore-row__arrow { transform: translateX(3px); }
+@media (max-width: 720px) { .encore-row__units { display: none; } }

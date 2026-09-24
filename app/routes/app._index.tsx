@@ -19,8 +19,7 @@ import {
   Box,
   EmptyState,
   Banner,
-  IndexTable,
-  useIndexResourceState,
+  Icon,
 } from "@shopify/polaris";
 import {
   PlusIcon,
@@ -87,6 +86,15 @@ const KPI_TONES: TileTone[] = ["emerald", "violet", "amber", "sky"];
 
 // Activity feed is event-log driven; until we wire that up, surface a small
 // curated list so the panel isn't empty on first install.
+const ACTIVITY_KIND_ICON: Record<string, typeof CheckIcon> = {
+  order: CartIcon,
+  paid: CashDollarIcon,
+  failed: AlertCircleIcon,
+  refunded: CashDollarIcon,
+  reminder: EmailIcon,
+  campaign: CheckIcon,
+};
+
 const FALLBACK_ACTIVITY = [
   {
     icon: CheckIcon,
@@ -263,53 +271,42 @@ function ActivityFeed({ items }: { items: ActivityItem[] }) {
   );
 }
 
-function CampaignsTable({ campaigns }: { campaigns: CampaignRow[] }) {
+const DASHBOARD_CAMPAIGN_LIMIT = 5;
+
+/**
+ * Up to five preorders, each row a link to its own page. No checkboxes —
+ * bulk actions live on the Preorders page, reached by "View all".
+ */
+function CampaignsList({ campaigns }: { campaigns: CampaignRow[] }) {
   const { t } = useLocale();
-  const resourceName = { singular: t("preorder"), plural: t("preorders") };
-  const { selectedResources, allResourcesSelected, handleSelectionChange } =
-    useIndexResourceState(campaigns.map((c) => ({ id: c.id })) as never);
-
-  const rows = campaigns.map((c, index) => (
-    <IndexTable.Row
-      id={c.id}
-      key={c.id}
-      position={index}
-      selected={selectedResources.includes(c.id)}
-    >
-      <IndexTable.Cell>
-        <Text as="span" variant="bodyMd" fontWeight="semibold">
-          {c.product}
-        </Text>
-      </IndexTable.Cell>
-      <IndexTable.Cell>{t(c.trigger)}</IndexTable.Cell>
-      <IndexTable.Cell>{t(c.payment)}</IndexTable.Cell>
-      <IndexTable.Cell>{c.units}</IndexTable.Cell>
-      <IndexTable.Cell>{c.shipDate}</IndexTable.Cell>
-      <IndexTable.Cell>
-        <Badge tone={statusToTone(c.status)}>{t(c.status)}</Badge>
-      </IndexTable.Cell>
-    </IndexTable.Row>
-  ));
-
+  const navigate = useNavigate();
+  const rows = campaigns.slice(0, DASHBOARD_CAMPAIGN_LIMIT);
   return (
-    <IndexTable
-      resourceName={resourceName}
-      itemCount={campaigns.length}
-      selectedItemsCount={
-        allResourcesSelected ? "All" : selectedResources.length
-      }
-      onSelectionChange={handleSelectionChange}
-      headings={[
-        { title: t("Product") },
-        { title: t("Trigger") },
-        { title: t("Payment") },
-        { title: t("Units") },
-        { title: t("Ship date") },
-        { title: t("Status") },
-      ]}
-    >
-      {rows}
-    </IndexTable>
+    <BlockStack gap="0">
+      {rows.map((c, i) => (
+        <Reveal key={c.id} index={i}>
+          <button
+            type="button"
+            className="encore-row"
+            onClick={() => navigate(`/app/campaigns/${c.id}`)}
+            aria-label={`${c.product} — ${t(c.status)}`}
+          >
+            <IconTile icon={CartIcon} tone={c.status === "Live" ? "emerald" : c.status === "Paused" ? "amber" : "slate"} size="sm" />
+            <span className="encore-row__main">
+              <span className="encore-row__title">{c.product}</span>
+              <span className="encore-row__sub">
+                {t(c.trigger)} · {t(c.payment)} · {t("Ships")} {c.shipDate}
+              </span>
+            </span>
+            <span className="encore-row__meta">
+              <span className="encore-row__units">{c.units} {t("units")}</span>
+              <Badge tone={statusToTone(c.status)}>{t(c.status)}</Badge>
+              <span className="encore-row__arrow"><Icon source={ArrowRightIcon} /></span>
+            </span>
+          </button>
+        </Reveal>
+      ))}
+    </BlockStack>
   );
 }
 
@@ -342,7 +339,7 @@ export default function DashboardIndex() {
   const CAMPAIGNS: CampaignRow[] = data.campaigns;
   const ACTIVITY = data.activity.length
     ? data.activity.map((a) => ({
-        icon: CheckIcon,
+        icon: ACTIVITY_KIND_ICON[a.kind] ?? CheckIcon,
         text: a.text,
         detail: a.detail,
         time: a.time,
@@ -534,7 +531,17 @@ export default function DashboardIndex() {
                   </EmptyState>
                 </Box>
               ) : (
-                <CampaignsTable campaigns={CAMPAIGNS} />
+                <>
+                  <CampaignsList campaigns={CAMPAIGNS} />
+                  <Divider />
+                  <Box padding="300">
+                    <InlineStack align="end">
+                      <Button variant="plain" icon={ArrowRightIcon} onClick={() => navigate("/app/campaigns")}>
+                        {t("View all preorders")}
+                      </Button>
+                    </InlineStack>
+                  </Box>
+                </>
               )}
             </Card>
           </Layout.Section>

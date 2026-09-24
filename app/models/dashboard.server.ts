@@ -4,6 +4,8 @@
 import prisma from "../db.server";
 import { formatGmv } from "./campaign.server";
 import { getReliability, type ReliabilityReport } from "../services/reliability.server";
+import { listShopActivity } from "./orders-view.server";
+import { relativeTime } from "../lib/format";
 
 export type DashboardData = {
   kpis: {
@@ -71,7 +73,7 @@ export async function getDashboard(
   currency = "USD",
   locale = "en",
 ): Promise<DashboardData> {
-  const [campaigns, cohorts, preOrders, waitlistCount, reliability] = await Promise.all([
+  const [campaigns, cohorts, preOrders, waitlistCount, reliability, recent] = await Promise.all([
     prisma.campaign.findMany({
       where: { shop },
       orderBy: { updatedAt: "desc" },
@@ -96,6 +98,7 @@ export async function getDashboard(
     }),
     prisma.waitlistSubscription.count({ where: { shop, subscribed: true } }),
     getReliability(shop),
+    listShopActivity(shop, 6),
   ]);
 
   // Outbox health — surfaces silently-failing delivery (unscheduled cron or
@@ -183,7 +186,7 @@ export async function getDashboard(
         status: COHORT_STATUS_LABEL[c.status] ?? "On track",
       };
     }),
-    campaigns: campaigns.slice(0, 6).map((c) => {
+    campaigns: campaigns.slice(0, 5).map((c) => {
       const sold = c.preOrders.reduce((a, p) => a + p.units, 0);
       const target = c.cohorts[0]?.unitsTarget;
       return {
@@ -197,7 +200,13 @@ export async function getDashboard(
         status: STATUS_LABEL[c.status] ?? "Draft",
       };
     }),
-    activity: [], // Populated by future event log; left empty for now.
+    // Derived from order / payment timestamps (no separate event log).
+    activity: recent.map((a) => ({
+      kind: a.kind,
+      text: a.text,
+      detail: a.detail,
+      time: relativeTime(a.at, locale),
+    })),
     reliability,
   };
 }

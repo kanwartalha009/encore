@@ -40,13 +40,15 @@ import {
   SettingsIcon,
   WandIcon,
 } from "@shopify/polaris-icons";
-import { PageHero, StatCard, SectionHead, ProgressRing } from "../components/ui";
+import { PageHero, StatCard, SectionHead, ProgressRing, IconTile } from "../components/ui";
 
 import { authenticate } from "../shopify.server";
 import { useLocale } from "../lib/i18n";
 import { statusToTone, relativeTime } from "../lib/format";
 import ConfirmModal from "../components/ConfirmModal";
 import { getShopCurrency } from "../models/shop.server";
+import { getCampaignOrdersAndActivity } from "../models/orders-view.server";
+import { OrdersTable, orderAdminUrl, type OrderRowView } from "../components/OrdersTable";
 
 const TRIGGER_LABEL: Record<string, string> = {
   STOCK: "Stock = 0",
@@ -82,7 +84,10 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const campaign = await getCampaign(session.shop, id);
   if (!campaign) throw new Response("Not found", { status: 404 });
 
-  const preorders = await listCustomersForCampaign(session.shop, id);
+  const [preorders, { orders, activity }] = await Promise.all([
+    listCustomersForCampaign(session.shop, id),
+    getCampaignOrdersAndActivity(session.shop, id),
+  ]);
 
   // Human product label for the subtitle (was a raw gid://…/Product/123).
   let productLabel: string | null = null;
@@ -199,6 +204,27 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       orderId: p.orderRef ?? "—",
       orderedAt: p.createdAt.toISOString().slice(0, 10),
     })),
+    orders: orders.map<OrderRowView>((o) => ({
+      id: o.id,
+      orderRef: o.orderRef,
+      shopifyUrl: orderAdminUrl(session.shop, o.shopifyOrderNumericId),
+      campaignId: o.campaignId,
+      campaignName: o.campaignName,
+      customerName: o.customerName,
+      customerEmail: o.customerEmail,
+      units: o.units,
+      amount: formatGmv(Math.round(o.amount * 100), currency),
+      paymentStatus: o.paymentStatus,
+      shipDate: o.shipDate ? o.shipDate.toISOString().slice(0, 10) : "TBD",
+      placedAt: o.placedAt.toISOString().slice(0, 10),
+    })),
+    activity: activity.map((a) => ({
+      id: a.id,
+      kind: a.kind,
+      text: a.text,
+      detail: a.detail,
+      at: a.at.toISOString(),
+    })),
   };
 };
 
@@ -282,16 +308,16 @@ export default function CampaignDetail() {
     searchParams.delete("welcome");
     setSearchParams(searchParams, { replace: true });
   };
-  const { campaign: c, customers: CUSTOMERS, shopDomain } =
+  const { campaign: c, customers: CUSTOMERS, shopDomain, orders: ORDERS, activity: ACTIVITY } =
     useLoaderData<typeof loader>();
   const id = c.id;
 
   const [tabIndex, setTabIndex] = useState(0);
   const tabs = [
     { id: "overview", content: t("Overview"), panelID: "overview-panel" },
-    { id: "customers", content: `Customers (${CUSTOMERS.length})`, panelID: "customers-panel" },
+    { id: "orders", content: `${t("Orders")} (${ORDERS.length})`, panelID: "orders-panel" },
+    { id: "customers", content: `${t("Customers")} (${CUSTOMERS.length})`, panelID: "customers-panel" },
     { id: "activity", content: t("Activity"), panelID: "activity-panel" },
-    { id: "settings", content: t("Settings"), panelID: "settings-panel" },
   ];
 
   // Only meaningful when the merchant actually set a target.
@@ -490,9 +516,9 @@ export default function CampaignDetail() {
                   onViewStorefront={handleViewStorefront}
                 />
               )}
-              {tabIndex === 1 && <CustomersTab customers={CUSTOMERS} />}
-              {tabIndex === 2 && <ActivityTab />}
-              {tabIndex === 3 && <SettingsTab campaign={c} />}
+              {tabIndex === 1 && <OrdersTable orders={ORDERS} />}
+              {tabIndex === 2 && <CustomersTab customers={CUSTOMERS} />}
+              {tabIndex === 3 && <ActivityTab items={ACTIVITY} />}
             </Box>
           </Tabs>
         </Card>
@@ -710,55 +736,62 @@ function CustomersTab({ customers }: { customers: Customer[] }) {
   );
 }
 
-function ActivityTab() {
-  const { t } = useLocale();
-  return (
-    <BlockStack gap="200">
-      <Text as="h2" variant="headingMd">
-        {t("Activity")}
-      </Text>
-      <Text as="p" tone="subdued">
-        {t(
-          "Activity tracking is coming soon — you'll see orders, notifications and payment events here.",
-        )}
-      </Text>
-    </BlockStack>
-  );
-}
+const ACTIVITY_ICON: Record<ActivityItem["kind"], typeof CartIcon> = {
+  order: CartIcon,
+  paid: CashDollarIcon,
+  failed: ClockIcon,
+  refunded: CashDollarIcon,
+  reminder: ClockIcon,
+  campaign: WandIcon,
+};
+const ACTIVITY_TONE: Record<ActivityItem["kind"], "violet" | "teal" | "amber" | "rose" | "sky" | "emerald"> = {
+  order: "violet",
+  paid: "emerald",
+  failed: "rose",
+  refunded: "amber",
+  reminder: "sky",
+  campaign: "teal",
+};
 
-function SettingsTab({ campaign }: { campaign: CampaignDetail }) {
-  const { t } = useLocale();
+type ActivityItem = {
+  id: string;
+  kind: "order" | "paid" | "failed" | "refunded" | "reminder" | "campaign";
+  text: string;
+  detail: string;
+  at: string;
+};
+
+/** Real timeline derived from orders and payment timestamps (no event log). */
+function ActivityTab({ items }: { items: ActivityItem[] }) {
+  const { t, locale } = useLocale();
+  if (items.length === 0) {
+    return (
+      <EmptyState
+        heading={t("Nothing has happened yet")}
+        image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
+      >
+        <p>{t("Orders, payments, refunds and reminders for this preorder will show up here as they happen.")}</p>
+      </EmptyState>
+    );
+  }
   return (
-    <BlockStack gap="500">
-      <Banner tone="info">
-        <Text as="span">
-          {t("Read-only view of this preorder's configuration.")}{" "}
-          {t("Use")} <strong>{t("Edit preorder")}</strong>{" "}
-          {t("to make changes.")}
-        </Text>
-      </Banner>
-      <Layout>
-        <Layout.Section>
-          <Card>
-            <BlockStack gap="300">
-              <Text as="h3" variant="headingSm">{t("Trigger")}</Text>
-              <SummaryRow label={t("Type")} value={campaign.trigger} />
-              <SummaryRow label={t("Cohort ID")} value={campaign.cohortId} />
-              <SummaryRow label={t("Ship date")} value={campaign.shipDate} />
-            </BlockStack>
-          </Card>
-        </Layout.Section>
-        <Layout.Section>
-          <Card>
-            <BlockStack gap="300">
-              <Text as="h3" variant="headingSm">{t("Payment")}</Text>
-              <SummaryRow label={t("Mode")} value={campaign.payment} />
-              <SummaryRow label={t("Discount")} value={campaign.discount} />
-              <SummaryRow label={t("Cart")} value={campaign.cartMode} />
-            </BlockStack>
-          </Card>
-        </Layout.Section>
-      </Layout>
+    <BlockStack gap="400">
+      {items.map((a) => (
+        <InlineStack key={a.id} gap="300" blockAlign="start" wrap={false}>
+          <IconTile icon={ACTIVITY_ICON[a.kind]} tone={ACTIVITY_TONE[a.kind]} size="sm" />
+          <BlockStack gap="050">
+            <Text as="p" variant="bodyMd" fontWeight="medium">
+              {t(a.text)}
+            </Text>
+            <Text as="p" variant="bodySm" tone="subdued">
+              {a.detail}
+            </Text>
+            <Text as="p" variant="bodySm" tone="subdued">
+              {relativeTime(a.at, locale)}
+            </Text>
+          </BlockStack>
+        </InlineStack>
+      ))}
     </BlockStack>
   );
 }

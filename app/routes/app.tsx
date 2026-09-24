@@ -114,6 +114,7 @@ function AppNav() {
       <s-link href="/app">{t("nav.dashboard")}</s-link>
       <s-link href="/app/campaigns">{t("nav.preorders")}</s-link>
       <s-link href="/app/waitlist">{t("nav.backinstock")}</s-link>
+      <s-link href="/app/low-stock">{t("nav.lowstock")}</s-link>
       <s-link href="/app/insights">{t("nav.insights")}</s-link>
       <s-link href="/app/settings">{t("nav.settings")}</s-link>
       <s-link href="/app/plans">{t("nav.plans")}</s-link>
