@@ -41,7 +41,7 @@ type PaymentMode =
   | "Deposit + balance"
   | "Pay later"
   | "Minimum to confirm";
-type CartMode = "Hard split" | "Warning only";
+type CartMode = "Ships separately" | "Mixed cart allowed";
 
 type Campaign = {
   id: string;
@@ -70,8 +70,8 @@ const PAYMENT_LABEL: Record<string, PaymentMode> = {
   PAY_LATER: "Pay later",
 };
 const CART_LABEL: Record<string, CartMode> = {
-  SPLIT: "Hard split",
-  WARNING: "Warning only",
+  SPLIT: "Ships separately",
+  WARNING: "Mixed cart allowed",
 };
 const STATUS_LABEL: Record<string, CampaignStatus> = {
   DRAFT: "Draft",
@@ -105,7 +105,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                 : r.name),
       trigger: TRIGGER_LABEL[r.triggerType] ?? r.triggerType,
       payment,
-      cartMode: CART_LABEL[r.cartMode] ?? "Hard split",
+      cartMode: CART_LABEL[r.cartMode] ?? "Ships separately",
       unitsSold: r.unitsSold,
       unitsTarget: r.unitsTarget,
       gmv: formatGmv(r.gmvCents, currency),
@@ -230,8 +230,8 @@ export default function CampaignsIndex() {
           title={t("Cart behavior")}
           titleHidden
           choices={[
-            { label: t("Hard split"), value: "Hard split" },
-            { label: t("Warning only"), value: "Warning only" },
+            { label: t("Ships separately"), value: "Ships separately" },
+            { label: t("Mixed cart allowed"), value: "Mixed cart allowed" },
           ]}
           selected={cartModeFilter}
           onChange={setCartModeFilter}
@@ -347,7 +347,7 @@ export default function CampaignsIndex() {
           <Badge tone={paymentBadgeTone(c.payment)}>{t(c.payment)}</Badge>
         </IndexTable.Cell>
         <IndexTable.Cell>
-          <Tooltip content={c.cartMode === "Hard split" ? t("Splits mixed carts into two orders") : t("Shows warning only")}>
+          <Tooltip content={c.cartMode === "Ships separately" ? t("Preorder items are split into their own order at checkout") : t("Shoppers see a mixed-cart notice; one order ships together")}>
             <Text as="span" variant="bodySm">{t(c.cartMode)}</Text>
           </Tooltip>
         </IndexTable.Cell>

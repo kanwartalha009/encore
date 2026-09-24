@@ -128,12 +128,22 @@ export function buildPlan(
     fixedBilling.remainingBalanceChargeTimeAfterCheckout =
       remainingBalanceChargeTimeAfterCheckout;
 
+  // Delivery policy: when the campaign has a future ship date we pass it as
+  // EXACT_TIME so Shopify's fulfillment hold on the order reads the real date
+  // (and releases automatically on it) instead of "Unknown delivery date"
+  // (observed on order #1017, 2026-09-24). A missing or past date falls back
+  // to UNKNOWN — Shopify rejects an exact time that is not in the future.
+  const deliveryPolicy: Record<string, unknown> =
+    c.shipDate && c.shipDate.getTime() > Date.now()
+      ? { fixed: { fulfillmentTrigger: "EXACT_TIME", fulfillmentExactTime: c.shipDate.toISOString() } }
+      : { fixed: { fulfillmentTrigger: "UNKNOWN" } };
+
   const plan: Record<string, unknown> = {
     name: `${c.name} — preorder`,
     category: "PRE_ORDER",
     options: "Preorder",
     billingPolicy: { fixed: fixedBilling },
-    deliveryPolicy: { fixed: { fulfillmentTrigger: "UNKNOWN" } },
+    deliveryPolicy,
     inventoryPolicy: { reserve: "ON_FULFILLMENT" },
   };
   if (opts.planId) plan.id = opts.planId;

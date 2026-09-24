@@ -361,12 +361,43 @@ export async function updateCampaign(
   input: Partial<CampaignInput>,
 ) {
   // `locale` is presentation-only (see createCampaign) — never a Campaign column.
-  const { locale: _locale, ...stored } = input;
-  void _locale;
-  return prisma.campaign.update({
+  const { locale, ...stored } = input;
+  const updated = await prisma.campaign.update({
     where: { id, shop },
     data: toStorage(stored),
   });
+
+  // Keep the primary cohort in step with the campaign's ship date. The cohort
+  // is what orders.server.ts stamps on the order (`encore.ship_date`) and what
+  // the detail page shows, so an edited ship date must land there too.
+  // Creating a campaign without a date and adding one later used to leave the
+  // campaign with no cohort at all ("Ship date TBD" on the detail page).
+  if (input.shipDate) {
+    const primary = await prisma.cohort.findFirst({
+      where: { shop, campaignId: id },
+      orderBy: { shipDate: "asc" },
+      select: { id: true },
+    });
+    const name = input.cohortName?.trim();
+    if (primary) {
+      await prisma.cohort.update({
+        where: { id: primary.id },
+        data: { shipDate: input.shipDate, ...(name ? { name } : {}) },
+      });
+    } else {
+      await prisma.cohort.create({
+        data: {
+          shop,
+          campaignId: id,
+          shipDate: input.shipDate,
+          name: name || autoCohortName(input.shipDate, updated.name, locale ?? undefined),
+          unitsTarget: input.moqEnabled ? input.moqUnits ?? null : null,
+          status: "ON_TRACK",
+        },
+      });
+    }
+  }
+  return updated;
 }
 
 export async function deleteCampaign(shop: string, id: string) {

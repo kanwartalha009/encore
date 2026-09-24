@@ -86,4 +86,22 @@ describe("buildPlan", () => {
     const b = billing(plan);
     expect(b.checkoutCharge).toEqual({ type: "PERCENTAGE", value: { percentage: 100 } });
   });
+
+  const delivery = (plan: Record<string, unknown>) =>
+    (plan.deliveryPolicy as { fixed: Record<string, unknown> }).fixed;
+
+  it("future ship date → EXACT_TIME delivery so the order hold shows the real date", () => {
+    const ship = new Date(Date.now() + 30 * 24 * 3600 * 1000);
+    const { plan } = buildPlan({ ...base, shipDate: ship }, {});
+    expect(delivery(plan)).toEqual({
+      fulfillmentTrigger: "EXACT_TIME",
+      fulfillmentExactTime: ship.toISOString(),
+    });
+  });
+
+  it("no ship date or a past one → UNKNOWN delivery (Shopify rejects past exact times)", () => {
+    expect(delivery(buildPlan({ ...base }, {}).plan)).toEqual({ fulfillmentTrigger: "UNKNOWN" });
+    const past = new Date(Date.now() - 24 * 3600 * 1000);
+    expect(delivery(buildPlan({ ...base, shipDate: past }, {}).plan)).toEqual({ fulfillmentTrigger: "UNKNOWN" });
+  });
 });
