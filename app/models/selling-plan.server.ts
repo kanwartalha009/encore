@@ -79,6 +79,12 @@ function isoMinusDays(date: Date, days: number): string {
   return d.toISOString();
 }
 
+function atNoonUtc(date: Date): string {
+  const d = new Date(date.getTime());
+  d.setUTCHours(12, 0, 0, 0);
+  return d.toISOString();
+}
+
 // Build the SellingPlanInput fragment from the campaign config. Exported for tests.
 export function buildPlan(
   c: RawCampaign,
@@ -133,9 +139,12 @@ export function buildPlan(
   // (and releases automatically on it) instead of "Unknown delivery date"
   // (observed on order #1017, 2026-09-24). A missing or past date falls back
   // to UNKNOWN — Shopify rejects an exact time that is not in the future.
+  // The date is stored at 00:00 UTC; we send it at 12:00 UTC so the admin
+  // shows the same calendar day in every store timezone (a US store showed
+  // "29 September" for a 30 September ship date at midnight UTC).
   const deliveryPolicy: Record<string, unknown> =
     c.shipDate && c.shipDate.getTime() > Date.now()
-      ? { fixed: { fulfillmentTrigger: "EXACT_TIME", fulfillmentExactTime: c.shipDate.toISOString() } }
+      ? { fixed: { fulfillmentTrigger: "EXACT_TIME", fulfillmentExactTime: atNoonUtc(c.shipDate) } }
       : { fixed: { fulfillmentTrigger: "UNKNOWN" } };
 
   const plan: Record<string, unknown> = {

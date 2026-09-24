@@ -87,3 +87,18 @@ So the industry pattern is exactly three layers, and Encore already has the firs
 - *Why:* layer 3 above — the escape hatch every mature app has for custom themes; turns "it doesn't show on my theme" support tickets into a 30-second fix.
 - *Scope:* 3 text fields + 3 config keys + ~20 lines in `placeBadge` / `autoMount` honouring overrides first. No new screens.
 - *Risk:* a bad selector could hide the wrong button — mitigated by a "Test on product page" link and by falling back to automatic when the selector matches nothing.
+
+## 8. Addendum 2026-09-24 — orders/* live, verified against a real order
+
+PCD granted on the Partner Dashboard, `npm run deploy` run 2026-09-24 18:18 (+04), test order **#1018** placed 18:39. Evidence is the Railway deploy log for deployment `e93f9ebe` and the Shopify admin order page.
+
+| Check | Evidence | Status |
+|---|---|---|
+| `orders/create` reaches Encore | Railway 18:39:06 `[webhook] ORDERS_CREATE from dev-novasolutions.myshopify.com` → `created 1 PreOrder(s) … order #1018` → `acked in 1340ms`, `POST /webhooks/orders/create 200` | VERIFIED |
+| Order tagged and stamped | #1018 shows tag `preorder`; line properties `_preorder: true`, `_preorder_ship_date: 2026-09-30…`, `Preorder: Ships September 30, 2026` | VERIFIED |
+| Units count moves | Preorders list: Short Sleeve preorder → Units 1, GMV PKR 100, "updated 2 minutes ago"; dashboard "Units pre-sold 1" | VERIFIED |
+| Fulfillment hold shows the real date | #1018 "Scheduled — Next fulfillment: 29 September 2026" (was "On hold — Unknown delivery date" on #1017). Cause: `deliveryPolicy.fixed.fulfillmentTrigger: UNKNOWN`; now `EXACT_TIME` + ship date (`selling-plan.server.ts`). Date sent at 12:00 UTC from commit a529419 so it reads the same day in every store timezone (the store's US timezone showed 29 for a 30 Sept midnight-UTC date) | FIXED — re-save the campaign once after pushing so the plan re-syncs with the noon time |
+| Cart & checkout cap validation active | Railway 18:37:35 `[preorder-cap] checkout validation created + enabled` (first activation, on the campaign re-save) | VERIFIED (activation) — over-cap block itself still needs an order beyond the cap |
+| Admin speed | `/app` 188–217 ms, `.data` loaders 160–220 ms, assets 300–475 ms (brotli, h2, `immutable`) measured from the Mac. Anything slower is Shopify's admin frame before it requests the page | VERIFIED (Encore side) |
+
+**Order #1017** (placed before the deploy) was never delivered to Encore — no webhook existed then — so it carries no tag and its 2 red units are not counted. It is a test order; cancelling it keeps the numbers honest. A "re-import missed orders" tool would be a new feature (Feature Rule — not built).

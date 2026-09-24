@@ -92,10 +92,12 @@ describe("buildPlan", () => {
 
   it("future ship date → EXACT_TIME delivery so the order hold shows the real date", () => {
     const ship = new Date(Date.now() + 30 * 24 * 3600 * 1000);
+    ship.setUTCHours(0, 0, 0, 0);
     const { plan } = buildPlan({ ...base, shipDate: ship }, {});
+    // Sent at 12:00 UTC so the calendar day matches in every store timezone.
     expect(delivery(plan)).toEqual({
       fulfillmentTrigger: "EXACT_TIME",
-      fulfillmentExactTime: ship.toISOString(),
+      fulfillmentExactTime: ship.toISOString().replace("T00:00:00", "T12:00:00"),
     });
   });
 
