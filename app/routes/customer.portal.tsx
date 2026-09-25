@@ -13,6 +13,7 @@
  * Bearer token (not cookies) is the trust boundary, so `*` is safe here.
  */
 import crypto from "node:crypto";
+import { displayOrderRef } from "../lib/format";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 
 import prisma from "../db.server";
@@ -145,7 +146,7 @@ async function buildPortal({ dest, sub }: Claims) {
         : po.balanceAmount ?? Math.max(0, po.amount - (po.depositAmount ?? 0));
     return {
       product: po.campaign?.name ?? "Preorder",
-      orderRef: po.orderRef ?? "",
+      orderRef: displayOrderRef(po.orderRef),
       units: po.units,
       shipDate: po.campaign?.shipDate
         ? po.campaign.shipDate.toISOString().slice(0, 10)

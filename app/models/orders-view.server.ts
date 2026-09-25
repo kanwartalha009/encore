@@ -12,6 +12,7 @@
  * Prisma-backed loaders sit at the bottom.
  */
 import prisma from "../db.server";
+import { displayOrderRef } from "../lib/format";
 
 export type PreOrderRowLike = {
   id: string;
@@ -73,7 +74,7 @@ export function groupOrders(rows: PreOrderRowLike[]): OrderRow[] {
     if (!existing) {
       byKey.set(key, {
         id: r.id,
-        orderRef: r.orderRef ?? "—",
+        orderRef: displayOrderRef(r.orderRef) || "—",
         shopifyOrderNumericId: numericOrderId(r.shopifyOrderId),
         campaignId: r.campaignId,
         campaignName: r.campaign?.name ?? "",
@@ -136,7 +137,7 @@ export function deriveActivity(
     });
   }
   for (const r of rows) {
-    const ref = r.orderRef ?? "—";
+    const ref = displayOrderRef(r.orderRef) || "—";
     if (r.paidAt)
       out.push({ id: `paid:${r.id}`, kind: "paid", text: "Payment received", detail: ref, at: r.paidAt });
     if (r.failedAt)

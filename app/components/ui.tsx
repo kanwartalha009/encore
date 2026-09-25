@@ -18,7 +18,7 @@ export function IconTile({
 }: {
   icon: IconSource;
   tone?: TileTone;
-  size?: "sm" | "md" | "lg";
+  size?: "xs" | "sm" | "md" | "lg";
   className?: string;
 }) {
   const Svg = icon;
@@ -324,5 +324,90 @@ export function PageHero({
         )}
       </header>
     </Reveal>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Dashboard v2 (2026-09-25) — denser, calmer primitives for the refreshed
+// Shopify admin: one metric strip instead of four tall cards, compact card
+// headers, list rows with hairline dividers. Page chrome is the native
+// `<s-page heading>` so the header matches every Shopify page.
+// ---------------------------------------------------------------------------
+
+export type Metric = {
+  label: string;
+  value: string;
+  delta?: string;
+  deltaTone?: "success" | "critical" | "subdued";
+  sub?: string;
+  icon: IconSource;
+  tone: TileTone;
+  onClick?: () => void;
+};
+
+function MetricCell({ m }: { m: Metric }) {
+  const shown = useCountUp(m.value, 450);
+  const deltaClass =
+    m.deltaTone === "success" ? "encore-delta encore-delta--up" : m.deltaTone === "critical" ? "encore-delta encore-delta--down" : "encore-delta";
+  const body = (
+    <>
+      <span className="encore-metric__label">
+        <IconTile icon={m.icon} tone={m.tone} size="xs" />
+        {m.label}
+      </span>
+      <span className="encore-metric__value">{shown}</span>
+      <span className="encore-metric__foot">
+        {m.delta && m.delta !== "—" && <span className={deltaClass}>{m.delta}</span>}
+        {m.sub && <span>{m.sub}</span>}
+      </span>
+    </>
+  );
+  return m.onClick ? (
+    <button type="button" className="encore-metric encore-metric--link" onClick={m.onClick}>
+      {body}
+    </button>
+  ) : (
+    <div className="encore-metric">{body}</div>
+  );
+}
+
+/** One card, N metrics side by side with hairline dividers (Shopify analytics style). */
+export function MetricStrip({ metrics }: { metrics: Metric[] }) {
+  return (
+    <Reveal>
+      <s-section padding="none">
+        <div className="encore-metrics" style={{ ["--n" as string]: metrics.length }}>
+          {metrics.map((m) => (
+            <MetricCell key={m.label} m={m} />
+          ))}
+        </div>
+      </s-section>
+    </Reveal>
+  );
+}
+
+/** Compact card header: small tile, title, optional count + trailing action. */
+export function CardHeader({
+  icon,
+  tone,
+  title,
+  sub,
+  action,
+}: {
+  icon: IconSource;
+  tone: TileTone;
+  title: string;
+  sub?: string;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="encore-card-head">
+      <IconTile icon={icon} tone={tone} size="xs" />
+      <div className="encore-card-head__text">
+        <span className="encore-card-head__title">{title}</span>
+        {sub && <span className="encore-card-head__sub">{sub}</span>}
+      </div>
+      {action && <div className="encore-card-head__action">{action}</div>}
+    </div>
   );
 }

@@ -150,7 +150,9 @@ export async function getDashboard(
       value: formatGmv(Math.round(cur30Gmv * 100), currency, locale),
       delta: gmvDelta,
       deltaTone: gmvDelta === "—" || cur30Gmv >= prev30Gmv ? "success" : "critical",
-      sub: "vs. previous 30 days",
+      // Without a prior period there is nothing to compare against — say so
+      // instead of printing "vs. previous 30 days" next to no number.
+      sub: gmvDelta === "—" ? "no sales in the previous 30 days" : "vs. previous 30 days",
     },
     {
       label: "Active preorders",

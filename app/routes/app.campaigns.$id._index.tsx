@@ -23,7 +23,7 @@ import { Tabs, badgeTone, flag, useLinkProps } from "../components/wc";
 
 import { authenticate } from "../shopify.server";
 import { useLocale } from "../lib/i18n";
-import { statusToTone, relativeTime } from "../lib/format";
+import { statusToTone, relativeTime, displayOrderRef } from "../lib/format";
 import ConfirmModal from "../components/ConfirmModal";
 import { getShopCurrency } from "../models/shop.server";
 import { getCampaignOrdersAndActivity } from "../models/orders-view.server";
@@ -180,7 +180,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       amount: formatGmv(Math.round(p.amount * 100), currency),
       paymentStatus:
         PAYMENT_STATUS_LABEL[p.paymentStatus] ?? "Deposit paid",
-      orderId: p.orderRef ?? "—",
+      orderId: displayOrderRef(p.orderRef) || "—",
       orderedAt: p.createdAt.toISOString().slice(0, 10),
     })),
     orders: orders.map<OrderRowView>((o) => ({

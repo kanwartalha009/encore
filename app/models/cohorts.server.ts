@@ -1,4 +1,5 @@
 import prisma from "../db.server";
+import { displayOrderRef } from "../lib/format";
 import { formatGmv } from "./campaign.server";
 
 export type CohortListRow = {
@@ -82,7 +83,7 @@ export async function listPreOrders(shop: string, currency = "USD", locale = "en
   });
   return rows.map((p) => ({
     id: p.id,
-    orderRef: p.orderRef ?? p.shopifyOrderId ?? p.id.slice(0, 8),
+    orderRef: displayOrderRef(p.orderRef) || p.shopifyOrderId || p.id.slice(0, 8),
     customer: p.customerName ?? p.customerEmail,
     product: p.campaign?.name ?? "—",
     cohort: p.cohort?.name ?? "—",

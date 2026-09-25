@@ -5,6 +5,7 @@
  * Flow trigger the merchant's workflow turns into an email.
  */
 import prisma from "../db.server";
+import { displayOrderRef } from "../lib/format";
 import {
   getNotificationSettings,
   resolveTemplate,
@@ -100,7 +101,7 @@ export async function notifyShipDateChanged(
         product: productName,
         old_ship_date: oldShipDate,
         new_ship_date: newShipDate,
-        order_name: r.orderRef || "",
+        order_name: displayOrderRef(r.orderRef),
       },
     );
     n += 1;
@@ -160,7 +161,7 @@ export async function remindBalancesDue(shop: string): Promise<number> {
         balance: (r.balanceAmount ?? 0).toFixed(2),
         due_date: new Date(ship).toISOString().slice(0, 10),
         pay_link: "",
-        order_name: r.orderRef || "",
+        order_name: displayOrderRef(r.orderRef),
       },
     );
     await po.preOrder.update({

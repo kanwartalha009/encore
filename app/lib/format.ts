@@ -105,3 +105,15 @@ export function relativeTime(date: Date | string, locale = "en"): string {
     return d.toISOString().slice(0, 10);
   }
 }
+
+/**
+ * Human order number for display. PreOrder.orderRef is stored as
+ * `#1019/L<lineItemId>` so each line is idempotent under the
+ * (shop, shopifyOrderId, orderRef) key (orders.server.ts); merchants and
+ * shoppers must only ever see `#1019` (found on the dashboard and in the
+ * `order_name` email variable, 2026-09-25).
+ */
+export function displayOrderRef(ref: string | null | undefined): string {
+  if (!ref) return "";
+  return ref.replace(/\/L\d+$/, "");
+}

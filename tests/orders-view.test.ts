@@ -53,6 +53,16 @@ describe("groupOrders", () => {
     expect(rows[0].shopifyOrderNumericId).toBeNull();
   });
 
+  it("hides the internal /L<lineItemId> suffix from order refs (UI + activity)", () => {
+    const rows = [
+      line({ id: "a", shopifyOrderId: "gid://shopify/Order/9", orderRef: "#1019/L123", paidAt: d("2026-09-21T00:00:00Z") }),
+    ];
+    expect(groupOrders(rows)[0].orderRef).toBe("#1019");
+    const acts = deriveActivity(rows);
+    expect(acts.every((a) => !a.detail.includes("/L"))).toBe(true);
+    expect(acts.find((a) => a.kind === "paid")?.detail).toBe("#1019");
+  });
+
   it("numericOrderId extracts the trailing id", () => {
     expect(numericOrderId("gid://shopify/Order/42")).toBe("42");
     expect(numericOrderId(null)).toBeNull();

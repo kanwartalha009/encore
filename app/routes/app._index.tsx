@@ -6,7 +6,6 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { getDashboard } from "../models/dashboard.server";
 import { getShopCurrency } from "../models/shop.server";
 import {
-  PlusIcon,
   CartIcon,
   CashDollarIcon,
   PackageIcon,
@@ -15,11 +14,7 @@ import {
   CheckIcon,
   AlertCircleIcon,
   ClockIcon,
-  NotificationIcon,
-  ChartLineIcon,
-  SettingsIcon,
   ShieldCheckMarkIcon,
-  OrderIcon,
   DeliveryIcon,
 } from "@shopify/polaris-icons";
 
@@ -28,14 +23,11 @@ import { useLocale } from "../lib/i18n";
 import { statusToTone } from "../lib/format";
 import { badgeTone } from "../components/wc";
 import {
-  StatCard,
-  QuickAction,
-  SectionHead,
-  ProgressRing,
   IconTile,
   Reveal,
-  Hero,
-  HeroButton,
+  MetricStrip,
+  CardHeader,
+  type Metric,
   type TileTone,
 } from "../components/ui";
 
@@ -67,9 +59,10 @@ const KPI_ICONS = [
   EmailIcon,
 ] as const;
 const KPI_TONES: TileTone[] = ["emerald", "violet", "amber", "sky"];
+const KPI_LINKS = ["/app/orders", "/app/campaigns", "/app/cohorts", "/app/waitlist"];
 
-// Activity feed is event-log driven; until we wire that up, surface a small
-// curated list so the panel isn't empty on first install.
+// Activity comes from order/payment timestamps (orders-view.server.ts); the
+// fallback only shows on a store with no preorder orders yet.
 const ACTIVITY_KIND_ICON: Record<string, typeof CheckIcon> = {
   order: CartIcon,
   paid: CashDollarIcon,
@@ -101,36 +94,38 @@ export const headers: HeadersFunction = (headersArgs) => {
   return boundary.headers(headersArgs);
 };
 
-// ---------- Helpers ----------
 // ---------- Sub-components ----------
-function ReliabilityStat({
+type Health = "ok" | "warn" | "bad" | "idle";
+
+function HealthRow({
+  status,
   label,
   value,
-  alert,
-  icon,
+  action,
 }: {
+  status: Health;
   label: string;
   value: string;
-  alert: boolean;
-  icon: typeof CashDollarIcon;
+  action?: React.ReactNode;
 }) {
-  const { t } = useLocale();
   return (
-    <s-stack direction="inline" gap="base" alignItems="center">
-      <IconTile icon={alert ? AlertCircleIcon : icon} tone={alert ? "rose" : "emerald"} />
-      <s-stack direction="block" gap="none">
-        <s-text fontSize="large" fontWeight="semibold">
-          {value}
-        </s-text>
-        <s-text color="subdued" fontSize="small">
-          {t(label)}
-        </s-text>
-      </s-stack>
-    </s-stack>
+    <div className="encore-list-row">
+      <span className={`encore-status-dot${status === "ok" ? "" : ` encore-status-dot--${status}`}`} aria-hidden="true" />
+      <span className="encore-list-row__main">
+        <span className="encore-list-row__title">{label}</span>
+      </span>
+      {action}
+      <span className={`encore-list-row__value${status === "bad" || status === "warn" ? ` encore-list-row__value--${status}` : ""}`}>{value}</span>
+    </div>
   );
 }
 
-function ReliabilityBar({
+/**
+ * Store health — the 'must never' guarantees, measured. Waitlist delivery
+ * counts: failed back-in-stock sends (usually no email provider chosen) are
+ * not "all clear" (the old card said "All clear" next to a red 0%).
+ */
+function HealthCard({
   r,
 }: {
   r: {
@@ -142,112 +137,125 @@ function ReliabilityBar({
   };
 }) {
   const { t } = useLocale();
-  const delivery =
-    r.waitlistDeliveryRate == null
-      ? "—"
-      : `${Math.round(r.waitlistDeliveryRate * 100)}%`;
+  const navigate = useNavigate();
+  const delivery: Health =
+    r.waitlistDeliveryRate == null ? "idle" : r.waitlistFailed > 0 ? "warn" : "ok";
+  const overall: Health = !r.clean ? "bad" : delivery === "warn" ? "warn" : "ok";
   return (
     <s-section>
-      <s-stack direction="block" gap="base">
-        <SectionHead
-          icon={ShieldCheckMarkIcon}
-          tone={r.clean ? "emerald" : "rose"}
-          title={t("Reliability")}
-          sub={t("The 'must never' guarantees — measured, not estimated.")}
+      <CardHeader
+        icon={ShieldCheckMarkIcon}
+        tone={overall === "bad" ? "rose" : overall === "warn" ? "amber" : "emerald"}
+        title={t("Store health")}
+        action={
+          <s-badge tone={overall === "bad" ? "critical" : overall === "warn" ? "caution" : "success"}>
+            {overall === "bad" ? t("Needs attention") : overall === "warn" ? t("Check") : t("All clear")}
+          </s-badge>
+        }
+      />
+      <div className="encore-card-body encore-list">
+        <HealthRow status={r.oversellIncidents > 0 ? "bad" : "ok"} label={t("Oversell incidents")} value={String(r.oversellIncidents)} />
+        <HealthRow status={r.untaggedOrders > 0 ? "bad" : "ok"} label={t("Untagged orders")} value={String(r.untaggedOrders)} />
+        <HealthRow
+          status={delivery}
+          label={t("Waitlist delivery")}
+          value={r.waitlistDeliveryRate == null ? "—" : `${Math.round(r.waitlistDeliveryRate * 100)}%`}
           action={
-            <s-badge tone={r.clean ? "success" : "critical"}>
-              {r.clean ? t("All clear") : t("Needs attention")}
-            </s-badge>
+            delivery === "warn" ? (
+              <s-button variant="tertiary" onClick={() => navigate("/app/notifications")}>
+                {t("Fix")}
+              </s-button>
+            ) : undefined
           }
         />
-        <s-divider />
-        <s-stack direction="inline" gap="large-400" alignItems="center">
-          <ReliabilityStat
-            label="Oversell incidents"
-            value={String(r.oversellIncidents)}
-            alert={r.oversellIncidents > 0}
-            icon={ShieldCheckMarkIcon}
-          />
-          <ReliabilityStat
-            label="Untagged orders"
-            value={String(r.untaggedOrders)}
-            alert={r.untaggedOrders > 0}
-            icon={OrderIcon}
-          />
-          <ReliabilityStat
-            label="Waitlist delivery"
-            value={delivery}
-            alert={r.waitlistFailed > 0}
-            icon={EmailIcon}
-          />
-        </s-stack>
-      </s-stack>
+      </div>
     </s-section>
   );
 }
 
-function CohortRow({ cohort }: { cohort: Cohort }) {
+function CohortsCard({ cohorts }: { cohorts: Cohort[] }) {
   const { t } = useLocale();
-  const pct = Math.min(
-    100,
-    Math.round((cohort.unitsSold / Math.max(1, cohort.unitsForecast)) * 100),
-  );
-  const ringTone: TileTone =
-    cohort.status === "At risk" ? "amber" : cohort.status === "Ready to ship" ? "emerald" : "violet";
+  const navigate = useNavigate();
   return (
-    <s-stack direction="inline" gap="base" alignItems="center">
-      <ProgressRing percent={pct} tone={ringTone} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <s-stack direction="block" gap="small-200">
-          <div className="encore-row-between">
-            <s-stack direction="block" gap="none">
-              <s-text type="strong">{cohort.name}</s-text>
-              <s-text color="subdued" fontSize="small">
-                {cohort.shipDate} · {cohort.gmv} {t("pre-sold")}
-              </s-text>
+    <s-section>
+      <CardHeader
+        icon={DeliveryIcon}
+        tone="violet"
+        title={t("Active cohorts")}
+        sub={t("Group of preorders sharing a ship date.")}
+        action={
+          cohorts.length > 0 ? (
+            <s-button variant="tertiary" onClick={() => navigate("/app/cohorts")}>
+              {t("View all")}
+            </s-button>
+          ) : undefined
+        }
+      />
+      <div className="encore-card-body">
+        {cohorts.length === 0 ? (
+          <s-stack direction="block" gap="small">
+            <s-text color="subdued">
+              {t("Cohorts group preorders by ship date — your first one appears when a preorder goes live.")}
+            </s-text>
+            <s-stack direction="inline">
+              <s-button onClick={() => navigate("/app/onboarding")}>{t("Start setup")}</s-button>
             </s-stack>
-            <s-badge tone={badgeTone(statusToTone(cohort.status))}>{t(cohort.status)}</s-badge>
+          </s-stack>
+        ) : (
+          <div className="encore-list">
+            {cohorts.slice(0, 4).map((c) => {
+              const pct = Math.min(100, Math.round((c.unitsSold / Math.max(1, c.unitsForecast)) * 100));
+              const bar = c.status === "At risk" ? " encore-bar--amber" : c.status === "Ready to ship" ? " encore-bar--emerald" : "";
+              return (
+                <div key={c.id} className="encore-list-row" style={{ alignItems: "stretch" }}>
+                  <span className="encore-list-row__main" style={{ gap: 6 }}>
+                    <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                      <span className="encore-list-row__title" style={{ flex: 1 }}>{c.name}</span>
+                      <s-badge tone={badgeTone(statusToTone(c.status))}>{t(c.status)}</s-badge>
+                    </span>
+                    <span className={`encore-bar${bar}`} aria-label={`${pct}%`}>
+                      <span style={{ width: `${Math.max(pct, 2)}%` }} />
+                    </span>
+                    <span className="encore-list-row__sub">
+                      {c.unitsSold.toLocaleString()} / {c.unitsForecast.toLocaleString()} {t("units")} · {c.gmv} {t("pre-sold")} · {c.shipDate}
+                    </span>
+                  </span>
+                </div>
+              );
+            })}
           </div>
-          <s-progress value={pct} max={100} accessibilityLabel={`${pct}%`} />
-          <s-text color="subdued" fontSize="small">
-            {cohort.unitsSold.toLocaleString()} / {cohort.unitsForecast.toLocaleString()} {t("units")}
-          </s-text>
-        </s-stack>
+        )}
       </div>
-    </s-stack>
+    </s-section>
   );
 }
 
 type ActivityItem = {
   icon: typeof CashDollarIcon;
+  tone: TileTone;
   text: string;
   detail: string;
   time: string;
 };
 
-const ACTIVITY_TONES: TileTone[] = ["violet", "teal", "amber", "sky", "rose", "emerald"];
-
-function ActivityFeed({ items }: { items: ActivityItem[] }) {
+function ActivityCard({ items }: { items: ActivityItem[] }) {
   const { t } = useLocale();
   return (
-    <s-stack direction="block" gap="base">
-      {items.map((a, i) => (
-        <Reveal key={`${a.text}-${i}`} index={i}>
-          <s-stack direction="inline" gap="base" alignItems="start">
-            <IconTile icon={a.icon} tone={ACTIVITY_TONES[i % ACTIVITY_TONES.length]} size="sm" />
-            <s-stack direction="block" gap="none">
-              <s-text fontWeight="medium">{t(a.text)}</s-text>
-              <s-text color="subdued" fontSize="small">
-                {t(a.detail)}
-              </s-text>
-              <s-text color="subdued" fontSize="small">
-                {a.time}
-              </s-text>
-            </s-stack>
-          </s-stack>
-        </Reveal>
-      ))}
-    </s-stack>
+    <s-section>
+      <CardHeader icon={ClockIcon} tone="sky" title={t("Recent activity")} />
+      <div className="encore-card-body encore-list">
+        {items.map((a, i) => (
+          <div key={`${a.text}-${i}`} className="encore-list-row">
+            <IconTile icon={a.icon} tone={a.tone} size="xs" />
+            <span className="encore-list-row__main">
+              <span className="encore-list-row__title">{t(a.text)}</span>
+              <span className="encore-list-row__sub">{t(a.detail)}</span>
+            </span>
+            <span className="encore-list-row__meta">{a.time}</span>
+          </div>
+        ))}
+      </div>
+    </s-section>
   );
 }
 
@@ -257,36 +265,63 @@ const DASHBOARD_CAMPAIGN_LIMIT = 5;
  * Up to five preorders, each row a link to its own page. No checkboxes —
  * bulk actions live on the Preorders page, reached by "View all".
  */
-function CampaignsList({ campaigns }: { campaigns: CampaignRow[] }) {
+function PreordersCard({ campaigns }: { campaigns: CampaignRow[] }) {
   const { t } = useLocale();
   const navigate = useNavigate();
   const rows = campaigns.slice(0, DASHBOARD_CAMPAIGN_LIMIT);
   return (
-    <div>
-      {rows.map((c, i) => (
-        <Reveal key={c.id} index={i}>
-          <button
-            type="button"
-            className="encore-row"
-            onClick={() => navigate(`/app/campaigns/${c.id}`)}
-            aria-label={`${c.product} — ${t(c.status)}`}
-          >
-            <IconTile icon={CartIcon} tone={c.status === "Live" ? "emerald" : c.status === "Paused" ? "amber" : "slate"} size="sm" />
-            <span className="encore-row__main">
-              <span className="encore-row__title">{c.product}</span>
-              <span className="encore-row__sub">
-                {t(c.trigger)} · {t(c.payment)} · {t("Ships")} {c.shipDate}
+    <s-section>
+      <CardHeader
+        icon={CartIcon}
+        tone="violet"
+        title={t("Preorders")}
+        sub={t("Variant-level preorder rules.")}
+        action={
+          rows.length > 0 ? (
+            <s-button variant="tertiary" onClick={() => navigate("/app/campaigns")}>
+              {t("View all")}
+            </s-button>
+          ) : undefined
+        }
+      />
+      {rows.length === 0 ? (
+        <div className="encore-card-body">
+          <s-empty-state heading={t("No preorders yet")}>
+            <s-paragraph slot="subheading">
+              {t("Pre-sell upcoming launches, capture demand on sold-out SKUs, or build a back-in-stock waitlist.")}
+            </s-paragraph>
+            <s-button slot="primary-action" variant="primary" onClick={() => navigate("/app/campaigns/new")}>
+              {t("Set up your first preorder")}
+            </s-button>
+          </s-empty-state>
+        </div>
+      ) : (
+        <div className="encore-card-body encore-flush">
+          {rows.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              className="encore-row"
+              onClick={() => navigate(`/app/campaigns/${c.id}`)}
+              aria-label={`${c.product} — ${t(c.status)}`}
+            >
+              <IconTile icon={CartIcon} tone={c.status === "Live" ? "emerald" : c.status === "Paused" ? "amber" : "slate"} size="xs" />
+              <span className="encore-row__main">
+                <span className="encore-row__title">{c.product}</span>
+                <span className="encore-row__sub">
+                  {t(c.trigger)} · {t(c.payment)} · {t("Ships")} {c.shipDate}
+                </span>
               </span>
-            </span>
-            <span className="encore-row__meta">
-              <span className="encore-row__units">{c.units} {t("units")}</span>
-              <s-badge tone={badgeTone(statusToTone(c.status))}>{t(c.status)}</s-badge>
-              <span className="encore-row__arrow"><s-icon type="arrow-right" /></span>
-            </span>
-          </button>
-        </Reveal>
-      ))}
-    </div>
+              <span className="encore-row__meta">
+                <span className="encore-row__units">{c.units} {t("units")}</span>
+                <s-badge tone={badgeTone(statusToTone(c.status))}>{t(c.status)}</s-badge>
+                <span className="encore-row__arrow"><s-icon type="chevron-right" size="small" /></span>
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </s-section>
   );
 }
 
@@ -303,9 +338,15 @@ export default function DashboardIndex() {
       setWelcomeDismissed(false);
     }
   }, []);
-  const KPIS = data.kpis.map((k, i) => ({
-    ...k,
+  const METRICS: Metric[] = data.kpis.map((k, i) => ({
+    label: t(k.label),
+    value: k.value,
+    delta: k.delta,
+    deltaTone: k.deltaTone,
+    sub: t(k.sub),
     icon: KPI_ICONS[i] ?? CashDollarIcon,
+    tone: KPI_TONES[i] ?? "violet",
+    onClick: KPI_LINKS[i] ? () => navigate(KPI_LINKS[i]) : undefined,
   }));
   const COHORTS: Cohort[] = data.cohorts.map((c) => ({
     id: c.id,
@@ -317,50 +358,37 @@ export default function DashboardIndex() {
     status: c.status,
   }));
   const CAMPAIGNS: CampaignRow[] = data.campaigns;
-  const ACTIVITY = data.activity.length
+  const ACTIVITY_TONES: Record<string, TileTone> = {
+    order: "violet",
+    paid: "emerald",
+    failed: "rose",
+    refunded: "amber",
+    reminder: "sky",
+    campaign: "teal",
+  };
+  const ACTIVITY: ActivityItem[] = data.activity.length
     ? data.activity.map((a) => ({
         icon: ACTIVITY_KIND_ICON[a.kind] ?? CheckIcon,
+        tone: ACTIVITY_TONES[a.kind] ?? "slate",
         text: a.text,
         detail: a.detail,
         time: a.time,
       }))
-    : FALLBACK_ACTIVITY;
+    : FALLBACK_ACTIVITY.map((a) => ({ ...a, tone: "violet" as TileTone }));
 
-  const liveCount = CAMPAIGNS.filter((c) => c.status === "Live").length;
   return (
-    <s-page inlineSize="large">
+    <s-page heading={t("Dashboard")} inlineSize="large">
+      <s-button slot="primary-action" variant="primary" icon="plus" onClick={() => navigate("/app/campaigns/new")}>
+        {t("New preorder")}
+      </s-button>
+      <s-button slot="secondary-actions" onClick={() => navigate("/app/cohorts")}>
+        {t("Cohorts")}
+      </s-button>
+      <s-button slot="secondary-actions" onClick={() => navigate("/app/waitlist")}>
+        {t("Back in stock")}
+      </s-button>
+
       <div className="encore-stack">
-        <Hero
-          eyebrow={t("Encore")}
-          title={t("Preorders, cohorts, and back-in-stock at a glance.")}
-          sub={t("Sell what isn't on the shelf yet — every preorder tagged, capped and tracked through to fulfillment.")}
-          actions={
-            <>
-              <HeroButton primary icon={PlusIcon} onClick={() => navigate("/app/campaigns/new")}>
-                {t("New preorder")}
-              </HeroButton>
-              <HeroButton icon={ClockIcon} onClick={() => navigate("/app/cohorts?view=cohorts")}>
-                {t("Cohorts")}
-              </HeroButton>
-              <HeroButton icon={NotificationIcon} onClick={() => navigate("/app/waitlist")}>
-                {t("Back in stock")}
-              </HeroButton>
-            </>
-          }
-          stats={[
-            { value: String(liveCount), label: t("live now") },
-            { value: KPIS[2]?.value ?? "0", label: t("units pre-sold") },
-            { value: KPIS[3]?.value ?? "0", label: t("on waitlists") },
-          ]}
-        />
-
-        {/* Quick actions */}
-        <div className="encore-grid encore-grid--3">
-          <QuickAction index={1} icon={CartIcon} tone="violet" title={t("Preorders")} sub={t("Create, pause, end, duplicate")} onClick={() => navigate("/app/campaigns")} />
-          <QuickAction index={2} icon={ChartLineIcon} tone="teal" title={t("Insights")} sub={t("Demand, cohorts, low stock")} onClick={() => navigate("/app/insights")} />
-          <QuickAction index={3} icon={SettingsIcon} tone="amber" title={t("Settings")} sub={t("Design, cart, notifications")} onClick={() => navigate("/app/settings")} />
-        </div>
-
         {/* Onboarding banner — dismissible, persisted per browser (R0.3). */}
         {!welcomeDismissed && (
           <s-banner
@@ -382,119 +410,19 @@ export default function DashboardIndex() {
           </s-banner>
         )}
 
-        {/* KPI tiles */}
-        <div className="encore-grid encore-grid--4">
-          {KPIS.map((kpi, i) => (
-            <StatCard
-              key={kpi.label}
-              index={4 + i}
-              label={t(kpi.label)}
-              value={kpi.value}
-              delta={kpi.delta}
-              deltaTone={kpi.deltaTone}
-              sub={t(kpi.sub)}
-              icon={kpi.icon}
-              tone={KPI_TONES[i] ?? "violet"}
-            />
-          ))}
-        </div>
+        <MetricStrip metrics={METRICS} />
 
-        {/* Reliability bar — §8 'must never' guarantees, from real audits */}
-        <Reveal index={8}>
-          <ReliabilityBar r={data.reliability} />
-        </Reveal>
-
-        {/* Cohorts + activity */}
-        <Reveal index={9}>
+        <Reveal index={1}>
           <div className="encore-layout">
-            <s-section>
-              <s-stack direction="block" gap="base">
-                <SectionHead
-                  icon={DeliveryIcon}
-                  tone="violet"
-                  title={t("Active cohorts")}
-                  sub={t("Group of preorders sharing a ship date.")}
-                  action={
-                    <s-button variant="tertiary" icon="arrow-right" onClick={() => navigate("/app/cohorts")}>
-                      {t("View all")}
-                    </s-button>
-                  }
-                />
-                <s-divider />
-                {COHORTS.length === 0 ? (
-                  <s-stack direction="block" gap="small">
-                    <s-paragraph color="subdued">
-                      {t("Cohorts group preorders by ship date — your first one appears when a preorder goes live.")}
-                    </s-paragraph>
-                    <s-stack direction="inline">
-                      <s-button onClick={() => navigate("/app/onboarding")}>{t("Start setup")}</s-button>
-                    </s-stack>
-                  </s-stack>
-                ) : (
-                  <s-stack direction="block" gap="large">
-                    {COHORTS.map((c, i) => (
-                      <s-stack key={c.id} direction="block" gap="large">
-                        <CohortRow cohort={c} />
-                        {i < COHORTS.length - 1 && <s-divider />}
-                      </s-stack>
-                    ))}
-                  </s-stack>
-                )}
-              </s-stack>
-            </s-section>
-
-            <s-section>
-              <s-stack direction="block" gap="base">
-                <SectionHead icon={ClockIcon} tone="sky" title={t("Recent activity")} />
-                <s-divider />
-                <ActivityFeed items={ACTIVITY} />
-              </s-stack>
-            </s-section>
+            <div className="encore-stack">
+              <PreordersCard campaigns={CAMPAIGNS} />
+              <CohortsCard cohorts={COHORTS} />
+            </div>
+            <div className="encore-stack">
+              <HealthCard r={data.reliability} />
+              <ActivityCard items={ACTIVITY} />
+            </div>
           </div>
-        </Reveal>
-
-        {/* Preorders — top 5, click-through, View all */}
-        <Reveal index={10}>
-          <s-section padding="none">
-            <s-box padding="base">
-              <SectionHead
-                icon={CartIcon}
-                tone="violet"
-                title={t("Preorders")}
-                sub={t("Variant-level preorder rules.")}
-                action={
-                  <s-button variant="primary" icon="plus" onClick={() => navigate("/app/campaigns/new")}>
-                    {t("New preorder")}
-                  </s-button>
-                }
-              />
-            </s-box>
-            <s-divider />
-            {CAMPAIGNS.length === 0 ? (
-              <s-box padding="large">
-                <s-empty-state heading={t("No preorders yet")}>
-                  <s-paragraph slot="subheading">
-                    {t("Pre-sell upcoming launches, capture demand on sold-out SKUs, or build a back-in-stock waitlist.")}
-                  </s-paragraph>
-                  <s-button slot="primary-action" variant="primary" onClick={() => navigate("/app/campaigns/new")}>
-                    {t("Set up your first preorder")}
-                  </s-button>
-                </s-empty-state>
-              </s-box>
-            ) : (
-              <>
-                <CampaignsList campaigns={CAMPAIGNS} />
-                <s-divider />
-                <s-box padding="small">
-                  <s-stack direction="inline" justifyContent="end">
-                    <s-button variant="tertiary" icon="arrow-right" onClick={() => navigate("/app/campaigns")}>
-                      {t("View all preorders")}
-                    </s-button>
-                  </s-stack>
-                </s-box>
-              </>
-            )}
-          </s-section>
         </Reveal>
       </div>
     </s-page>
