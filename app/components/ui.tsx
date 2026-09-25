@@ -5,6 +5,7 @@
  * take the tile's colour; everything else in the admin is an `<s-*>` element.
  */
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { ProductIcon } from "@shopify/polaris-icons";
 
 export type TileTone = "violet" | "teal" | "amber" | "rose" | "sky" | "emerald" | "slate";
 type IconSource = React.FunctionComponent<React.SVGProps<SVGSVGElement>>;
@@ -409,5 +410,16 @@ export function CardHeader({
       </div>
       {action && <div className="encore-card-head__action">{action}</div>}
     </div>
+  );
+}
+
+/** Product image, or a neutral tile when the product has none. */
+export function ProductThumb({ src, alt, size = 40 }: { src?: string | null; alt: string; size?: 32 | 40 | 48 }) {
+  return src ? (
+    <img className="encore-thumb" src={src} alt={alt} width={size} height={size} loading="lazy" style={{ width: size, height: size }} />
+  ) : (
+    <span className="encore-thumb encore-thumb--empty" style={{ width: size, height: size }} aria-hidden="true">
+      <ProductIcon />
+    </span>
   );
 }

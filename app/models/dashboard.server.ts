@@ -1,6 +1,7 @@
 /**
  * Dashboard aggregates. One module so the loader stays small.
  */
+import { parseProductIds } from "./product-thumbs.server";
 import prisma from "../db.server";
 import { formatGmv } from "./campaign.server";
 import { getReliability, type ReliabilityReport } from "../services/reliability.server";
@@ -32,6 +33,11 @@ export type DashboardData = {
     units: string;
     shipDate: string;
     status: "Live" | "Scheduled" | "Paused" | "Ended" | "Draft";
+    /** First product in the rule — the route resolves it to a thumbnail. */
+    productId: string | null;
+    productCount: number;
+    /** Filled by the route loader (needs the admin client); null = icon tile. */
+    thumb: string | null;
   }[];
   activity: { kind: string; text: string; detail: string; time: string }[];
   reliability: ReliabilityReport;
@@ -159,7 +165,7 @@ export async function getDashboard(
       value: String(activeCampaigns),
       delta: campaigns.length ? `${campaigns.length} total` : "—",
       deltaTone: "subdued",
-      sub: "including paused and ended",
+      sub: "",
     },
     {
       label: "Units pre-sold",
@@ -186,7 +192,7 @@ export async function getDashboard(
       return {
         id: c.id,
         name: c.name,
-        shipDate: `Ships ${c.shipDate.toISOString().slice(0, 10)}`,
+        shipDate: c.shipDate.toISOString().slice(0, 10),
         unitsSold: sold,
         unitsTarget: c.unitsTarget ?? Math.max(sold, 1),
         gmv: formatGmv(gmv, currency, locale),
@@ -205,6 +211,9 @@ export async function getDashboard(
         shipDate:
           c.cohorts[0]?.shipDate.toISOString().slice(0, 10) ?? "TBD",
         status: STATUS_LABEL[c.status] ?? "Draft",
+        productId: parseProductIds(c.productIds)[0] ?? null,
+        productCount: parseProductIds(c.productIds).length,
+        thumb: null,
       };
     }),
     // Derived from order / payment timestamps (no separate event log).

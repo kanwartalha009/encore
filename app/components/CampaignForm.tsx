@@ -1,11 +1,14 @@
 /**
- * Preorder setup form.
+ * Preorder setup form (create + edit).
  *
- * Layout:
- *   - Left column:  name · ship date · payment · advanced (per-drop only)
- *   - Right column: Markets card · summary · publish checklist
- *   - Full-width bottom: "Select product" — scope + product table with
- *     Limit quantity, End quantity, and per-row Availability scheduling.
+ * Layout v3 (2026-09-25) — Shopify product-page pattern:
+ *   - Title bar: native s-page heading, breadcrumb, Publish/Save as the primary
+ *     action (no custom hero; the admin's own chrome carries the title).
+ *   - Main column, in the order a merchant thinks: Products (with thumbnails
+ *     and per-variant limits/availability) → Details (name + ship date) →
+ *     Payment (three plain choices, store default marked) → More options.
+ *   - Sticky sidebar: live storefront buy-box preview, a summary that doubles
+ *     as the publish checklist, Markets.
  *
  * Store-wide behaviours (inventory rules, mixed-cart, button text, notification
  * cadence, CSS) live in Settings — not here. Those fields are still serialized
@@ -16,13 +19,10 @@ import { useState } from "react";
 import ConfirmModal from "./ConfirmModal";
 import { useLocale } from "../lib/i18n";
 import { useNavigate, useNavigation, useSubmit } from "react-router";
-import {
-  PlusIcon,
-  EditIcon,
-  ViewIcon,
-} from "@shopify/polaris-icons";
-import { PageHero, SectionHead } from "./ui";
-import { SelectField, ChoiceListField, badgeTone, flag, isChecked, val, useLinkProps } from "./wc";
+import { ProductIcon } from "@shopify/polaris-icons";
+import { ProductThumb } from "./ui";
+import { prettyDate } from "../lib/format";
+import { SelectField, ChoiceListField, flag, isChecked, val, useLinkProps } from "./wc";
 
 
 // ---------- View-state shape ----------
@@ -43,6 +43,8 @@ export type SelectedVariant = {
   availability: VariantAvailabilityUI;
   availStart: string;
   availEnd: string;
+  /** UI-only thumbnail (picker result or loader lookup); never submitted. */
+  image?: string | null;
 };
 
 export type CampaignFormValues = {
@@ -209,63 +211,31 @@ const AVAIL_OPTIONS: { label: string; value: VariantAvailabilityUI }[] = [
   { label: "Not available", value: "not_available" },
 ];
 
-// ---------- Section helper ----------
-function SectionCard({
+// ---------- Layout helpers ----------
+function FormCard({
   title,
-  helpText,
+  sub,
+  action,
   children,
 }: {
   title: string;
-  helpText?: string;
+  sub?: string;
+  action?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <s-section>
-      <s-stack direction="block" gap="base">
-        <s-stack direction="block" gap="small-200">
-          <s-heading>
-            {title}
-          </s-heading>
-          {helpText && (
-            <s-paragraph fontSize="small" color="subdued">
-              {helpText}
-            </s-paragraph>
-          )}
-        </s-stack>
-        <s-divider />
+      <div className="encore-form-card">
+        <div className="encore-form-card__head">
+          <div className="encore-form-card__titles">
+            <h2 className="encore-form-card__title">{title}</h2>
+            {sub && <p className="encore-form-card__sub">{sub}</p>}
+          </div>
+          {action}
+        </div>
         {children}
-      </s-stack>
+      </div>
     </s-section>
-  );
-}
-
-function ScopeCard({
-  active,
-  title,
-  desc,
-  onClick,
-}: {
-  active: boolean;
-  title: string;
-  desc: string;
-  onClick: () => void;
-}) {
-  return (
-    <s-clickable
-      onClick={onClick}
-      padding="base"
-      border="base"
-      borderColor={active ? "strong" : "base"}
-      borderRadius="base"
-      background={active ? "subdued" : "transparent"}
-    >
-      <s-stack direction="block" gap="small-200">
-        <s-heading fontSize="small">{title}</s-heading>
-        <s-text fontSize="small" color="subdued">
-          {desc}
-        </s-text>
-      </s-stack>
-    </s-clickable>
   );
 }
 
@@ -280,6 +250,8 @@ export type CampaignFormProps = {
    *  the form falls back to demo data so it still renders in isolation. */
   collections?: { id: string; title: string; count: number }[] | null;
   marketsList?: { id: string; title: string; subtitle: string }[] | null;
+  /** productId → thumbnail URL for variants already on the rule (edit). */
+  thumbs?: Record<string, string> | null;
 };
 
 // ---------- Component ----------
@@ -287,10 +259,10 @@ export default function CampaignForm({
   mode,
   initialValues,
   pageTitle,
-  pageSubtitle,
   backTo,
   collections,
   marketsList,
+  thumbs,
   currency = "USD",
 }: CampaignFormProps & { currency?: string }) {
   // Real catalog data from the loader; empty stores get an honest empty picker.
@@ -306,8 +278,8 @@ export default function CampaignForm({
 
   // ---------- Required ----------
   const [name, setName] = useState(initialValues.name);
-  const [selectedVariants, setSelectedVariants] = useState<SelectedVariant[]>(
-    initialValues.selectedVariants,
+  const [selectedVariants, setSelectedVariants] = useState<SelectedVariant[]>(() =>
+    initialValues.selectedVariants.map((v) => ({ ...v, image: v.image ?? thumbs?.[v.productId] ?? null })),
   );
   const [shipDate, setShipDate] = useState(initialValues.shipDate);
 
@@ -328,9 +300,6 @@ export default function CampaignForm({
   const [depositAmount, setDepositAmount] = useState(initialValues.depositAmount);
   const [balanceCaptureDays, setBalanceCaptureDays] = useState(
     initialValues.balanceCaptureDays,
-  );
-  const [customizePayment, setCustomizePayment] = useState(
-    initialValues.paymentMode !== "pay_now",
   );
 
   // ---------- Advanced (per-drop only) ----------
@@ -377,16 +346,22 @@ export default function CampaignForm({
         ).values(),
       ),
     })) as
-      | { id: string; title: string; variants?: { id: string; title?: string }[] }[]
+      | {
+          id: string;
+          title: string;
+          images?: { originalSrc?: string; url?: string }[];
+          variants?: { id: string; title?: string }[];
+        }[]
       | undefined;
     if (!selection) return;
     const existingById = new Map(selectedVariants.map((s) => [s.variantId, s]));
     const next: SelectedVariant[] = [];
     for (const p of selection) {
+      const image = p.images?.[0]?.originalSrc ?? p.images?.[0]?.url ?? null;
       for (const v of p.variants ?? []) {
         const existing = existingById.get(v.id);
         next.push(
-          existing ?? {
+          existing ? { ...existing, image: existing.image ?? image } : {
             productId: p.id,
             variantId: v.id,
             productTitle: p.title,
@@ -396,11 +371,17 @@ export default function CampaignForm({
             availability: "now",
             availStart: "",
             availEnd: "",
+            image,
           },
         );
       }
     }
     setSelectedVariants(next);
+    // One less field to fill: name the rule after the first product until the
+    // merchant types their own (they can always change it).
+    if (!name.trim() && selection[0]?.title) {
+      setName(`${selection[0].title} — ${t("Preorder")}`);
+    }
   };
 
   const updateVariant = (
@@ -553,585 +534,181 @@ export default function CampaignForm({
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const handleDelete = () => setConfirmDeleteOpen(true);
 
-  const primaryAction =
-    mode === "create"
-      ? {
-          content: t("Publish preorder"),
-          onAction: handlePublish,
-          loading: isSubmitting,
-          disabled: !canPublish,
-        }
-      : {
-          content: t("Save changes"),
-          onAction: handleSaveChanges,
-          loading: isSubmitting,
-        };
+  // ---------- Derived view values ----------
+  const storeDefaultMode = initialValues.paymentMode;
+  const PAYMENT_CHOICES: { value: "pay_now" | "deposit" | "pay_later"; label: string; helpText: string }[] = [
+    {
+      value: "pay_now",
+      label: t("Full payment at checkout"),
+      helpText: t("Customer pays the full price when they order."),
+    },
+    {
+      value: "deposit",
+      label: t("Deposit now, balance before shipping"),
+      helpText: t("Take a deposit at checkout; the rest is charged automatically before the ship date."),
+    },
+    {
+      value: "pay_later",
+      label: t("Pay later"),
+      helpText: t("Card is saved at checkout and charged when the order ships."),
+    },
+  ];
+  const paymentChoices = PAYMENT_CHOICES.map((c) => ({
+    ...c,
+    label: c.value === storeDefaultMode ? `${c.label} · ${t("store default")}` : c.label,
+  }));
+  const paySummary =
+    paymentMode === "pay_now"
+      ? t("Full at checkout")
+      : paymentMode === "deposit"
+        ? `${t("Deposit")} ${depositAmount}${depositKind === "percent" ? "%" : ` ${currency}`}`
+        : t("Pay later (on ship)");
+  const productsSummary =
+    productMode === "all"
+      ? t("All products")
+      : productMode === "collection"
+        ? collectionId
+          ? (collectionChoices.find((c) => c.id === collectionId)?.title ?? t("A collection"))
+          : ""
+        : selectedVariants.length > 0
+          ? `${uniqueProductIds.length} ${uniqueProductIds.length === 1 ? t("product") : t("products")} · ${selectedVariants.length} ${selectedVariants.length === 1 ? t("variant") : t("variants")}`
+          : "";
+  const stepsLeft = [productsChosen, !!shipDate, name.trim().length > 0].filter((x) => !x).length;
+  const first = selectedVariants[0];
+  const shipPretty = shipDate ? prettyDate(shipDate, locale) : "";
+  const previewNote = deliveryNote.replace(/\{\{\s*shipping_date\s*\}\}/g, shipPretty || t("soon"));
+  const SCOPES: { value: "specific" | "collection" | "all"; label: string; desc: string }[] = [
+    { value: "specific", label: t("Specific products"), desc: t("Only the products and variants you pick.") },
+    { value: "collection", label: t("Collection"), desc: t("Every product in one collection.") },
+    { value: "all", label: t("All products"), desc: t("Your whole catalog, governed by the inventory rules in Settings.") },
+  ];
 
-  const secondaryActions =
-    mode === "create"
-      ? [
-          { content: t("Save draft"), onAction: handleSaveDraft },
-          { content: t("Cancel"), onAction: () => navigate(backTo) },
-        ]
-      : [
-          { content: t("Cancel"), onAction: () => navigate(backTo) },
-          { content: t("Delete"), destructive: true, onAction: handleDelete },
-        ];
+  const primaryButton =
+    mode === "create" ? (
+      <s-button variant="primary" onClick={handlePublish} loading={flag(isSubmitting)} disabled={flag(!canPublish)}>
+        {t("Publish preorder")}
+      </s-button>
+    ) : (
+      <s-button variant="primary" onClick={handleSaveChanges} loading={flag(isSubmitting)}>
+        {t("Save changes")}
+      </s-button>
+    );
 
   return (
-    <s-page inlineSize="large">
-      <s-button slot="breadcrumb-actions" icon="arrow-left" accessibilityLabel={t("Preorders")} {...link(backTo)} />
-      <s-stack direction="block" gap="large">
-        <PageHero
-          icon={mode === "create" ? PlusIcon : EditIcon}
-          tone={mode === "create" ? "violet" : "sky"}
-          title={pageTitle}
-          sub={pageSubtitle}
-          actions={
-            <>
-              {secondaryActions.map((a) => (
-                <s-button
-                  key={a.content}
-                  tone={(a as { destructive?: boolean }).destructive ? "critical" : "auto"}
-                  onClick={a.onAction}
-                >
-                  {a.content}
-                </s-button>
-              ))}
-              <s-button
-                variant="primary"
-                onClick={primaryAction.onAction}
-                loading={flag(primaryAction.loading)}
-                disabled={flag((primaryAction as { disabled?: boolean }).disabled)}
-              >
-                {primaryAction.content}
-              </s-button>
-            </>
-          }
-        />
+    <s-page heading={pageTitle} inlineSize="base">
+      <s-link slot="breadcrumb-actions" {...link(backTo)}>
+        {t("Preorders")}
+      </s-link>
+      <s-button
+        slot="primary-action"
+        variant="primary"
+        onClick={mode === "create" ? handlePublish : handleSaveChanges}
+        loading={flag(isSubmitting)}
+        disabled={flag(mode === "create" && !canPublish)}
+      >
+        {mode === "create" ? t("Publish preorder") : t("Save changes")}
+      </s-button>
+      {mode === "create" ? (
+        <s-button slot="secondary-actions" onClick={handleSaveDraft}>
+          {t("Save draft")}
+        </s-button>
+      ) : (
+        <s-button slot="secondary-actions" tone="critical" onClick={handleDelete}>
+          {t("Delete")}
+        </s-button>
+      )}
+
+      <div className="encore-stack">
         {dispatchError && (
           <s-banner
             tone="critical"
             heading={t("Something went wrong while saving")}
-            dismissible onDismiss={() => setDispatchError(null)}
+            dismissible
+            onDismiss={() => setDispatchError(null)}
           >
             <s-paragraph>{dispatchError}</s-paragraph>
           </s-banner>
         )}
-        <div className="encore-layout">
-          {/* ----- Left column ----- */}
-          <div>
-            <s-stack direction="block" gap="large">
-              {mode === "create" && (
-                <s-banner tone="info">
-                  <s-text>{t("Three quick steps: name it, pick a ship date, and choose products below. Customers pay in full by default — open \"Customize payment\" for deposits or pay-later.")}</s-text>
-                </s-banner>
-              )}
 
-              <SectionCard
-                title={t("Preorder name")}
-                helpText={t("A short label only your team sees.")}
-              >
-                <s-text-field
-                  label={t("Name")}
-                  labelAccessibilityVisibility="exclusive"
-                  value={name}
-                  onInput={(e) => setName(val(e))}
-                  placeholder={t("e.g. Aurora Hoodie — June drop")}
-                  required
+        <div className="encore-layout encore-layout--form">
+          {/* ================= Main column ================= */}
+          <div className="encore-stack">
+            {/* ---- Products ---- */}
+            <FormCard
+              title={t("Products")}
+              sub={t("What customers can preorder.")}
+              action={
+                productMode === "specific" && selectedVariants.length > 0 ? (
+                  <s-button icon="plus" onClick={openPicker}>
+                    {t("Add products")}
+                  </s-button>
+                ) : undefined
+              }
+            >
+              <div className="encore-seg" role="radiogroup" aria-label={t("Products")}>
+                {SCOPES.map((sc) => (
+                  <button
+                    key={sc.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={productMode === sc.value}
+                    className={`encore-seg__btn${productMode === sc.value ? " encore-seg__btn--active" : ""}`}
+                    onClick={() => setProductMode(sc.value)}
+                  >
+                    {sc.label}
+                  </button>
+                ))}
+              </div>
+              <p className="encore-form-card__hint">{SCOPES.find((sc) => sc.value === productMode)?.desc}</p>
+
+              {productMode === "all" ? null : productMode === "collection" ? (
+                <SelectField
+                  label={t("Collection")}
+                  options={[
+                    { label: t("Choose a collection…"), value: "" },
+                    ...collectionChoices.map((c) => ({ label: `${c.title} (${c.count})`, value: c.id })),
+                  ]}
+                  value={collectionId}
+                  onChange={setCollectionId}
+                  details={collectionChoices.length === 0 ? t("No collections found in your store.") : undefined}
                 />
-              </SectionCard>
-
-              <SectionCard
-                title={t("When will it ship?")}
-                helpText={t("Shown to customers and used to group orders into a fulfillment cohort.")}
-              >
-                <s-stack direction="block" gap="base">
-                  <s-date-field
-                    label={t("Expected ship date")}
-                    value={shipDate}
-                    onChange={(e) => setShipDate(val(e))}
-                    required
-                  />
-                </s-stack>
-              </SectionCard>
-
-              {/* Payment */}
-              <s-section>
-                <s-stack direction="block" gap="base">
-                  <s-stack direction="inline" justifyContent="space-between" alignItems="center">
-                    <s-stack direction="block" gap="small-300">
-                      <s-heading>{t("Payment")}</s-heading>
-                      <s-paragraph fontSize="small" color="subdued">
-                        {(() => {
-                          // When not overridden, describe the STORE DEFAULT this rule
-                          // inherits from Settings (F0.4) — not a hardcoded "pay now".
-                          const mode = customizePayment ? paymentMode : initialValues.paymentMode;
-                          const dep = customizePayment ? depositAmount : initialValues.depositAmount;
-                          const kind = customizePayment ? depositKind : initialValues.depositKind;
-                          const days = customizePayment
-                            ? balanceCaptureDays
-                            : initialValues.balanceCaptureDays;
-                          const desc =
-                            mode === "deposit"
-                              ? `Deposit ${dep}${kind === "percent" ? "%" : ""} at checkout, balance ${days} days before ship.`
-                              : mode === "pay_later"
-                                ? t("Card vaulted at checkout, charged when the cohort ships.")
-                                : t("Customer pays in full at checkout.");
-                          return customizePayment
-                            ? desc
-                            : `${desc} ${t("(from Settings)")}`;
-                        })()}
-                      </s-paragraph>
-                    </s-stack>
-                    <s-checkbox
-                      label={t("Override for this preorder")}
-                      checked={flag(customizePayment)}
-                      onChange={(e) => {
-                        const on = isChecked(e);
-                        setCustomizePayment(on);
-                        // Un-checking returns this rule to the store default from
-                        // Settings (F0.4) rather than a hardcoded "pay now".
-                        if (!on) {
-                          setPaymentMode(initialValues.paymentMode);
-                          setDepositKind(initialValues.depositKind);
-                          setDepositAmount(initialValues.depositAmount);
-                          setBalanceCaptureDays(initialValues.balanceCaptureDays);
-                        }
-                      }}
-                    />
-                  </s-stack>
-                  {customizePayment && (
-                  <div id="payment">
-                    <s-stack direction="block" gap="base">
-                      <s-divider />
-                      <SelectField
-                        label={t("Customer pays")}
-                        options={[
-                          { label: t("Full at checkout (default)"), value: "pay_now" },
-                          { label: t("Deposit + balance before ship"), value: "deposit" },
-                          { label: t("Pay later (vault card, charge on ship)"), value: "pay_later" },
-                        ]}
-                        value={paymentMode}
-                        onChange={(v) =>
-                          setPaymentMode(v as "pay_now" | "deposit" | "pay_later")
-                        }
-                      />
-                      {paymentMode === "deposit" && (
-                        <s-box padding="base" background="subdued" borderRadius="base">
-                          <s-stack direction="block" gap="base">
-                            <s-grid gridTemplateColumns="repeat(2, minmax(0, 1fr))" gap="base">
-                              <SelectField
-                                label={t("Deposit type")}
-                                options={[
-                                  { label: t("Percentage"), value: "percent" },
-                                  { label: t("Fixed amount"), value: "fixed" },
-                                ]}
-                                value={depositKind}
-                                onChange={(v) => setDepositKind(v as "percent" | "fixed")}
-                              />
-                              <s-number-field
-                                label={t("Deposit amount")}
-                                value={depositAmount}
-                                onInput={(e) => setDepositAmount(val(e))}
-                                suffix={depositKind === "percent" ? "%" : currency}
-                              />
-                            </s-grid>
-                            <s-number-field
-                              label={t("Balance capture timing")}
-                              value={balanceCaptureDays}
-                              onInput={(e) => setBalanceCaptureDays(val(e))}
-                              suffix={t("days before ship date")}
-                            />
-                          </s-stack>
-                        </s-box>
-                      )}
-                      {paymentMode === "pay_later" && (
-                        <s-banner tone="info">
-                          <s-text>{t("No money moves until you mark the cohort ready to ship. Card vaulted via Shopify Payments.")}</s-text>
-                        </s-banner>
-                      )}
-                    </s-stack>
-                  </div>
-                  )}
-                </s-stack>
-              </s-section>
-
-              {/* Advanced (per-drop) */}
-              <s-section>
-                <s-stack direction="block" gap="base">
-                  <s-stack direction="inline" justifyContent="space-between" alignItems="center">
-                    <s-stack direction="block" gap="small-300">
-                      <s-stack direction="inline" gap="small-100" alignItems="center">
-                        <s-heading>{t("Advanced")}</s-heading>
-                        <s-icon type="info" color="subdued" interestFor="advanced-tip" />
-                        <s-tooltip id="advanced-tip">{t("Optional, per this drop. Store-wide options live in Settings.")}</s-tooltip>
-                      </s-stack>
-                      <s-paragraph fontSize="small" color="subdued">{t("Discount, delivery note, cohort name, internal notes.")}</s-paragraph>
-                    </s-stack>
-                    <s-button
-                      variant="tertiary"
-                      icon={advancedOpen ? "chevron-up" : "chevron-down"}
-                      onClick={() => setAdvancedOpen((v) => !v)}
-                    >
-                      {advancedOpen ? "Hide" : "Show"} advanced
-                    </s-button>
-                  </s-stack>
-
-                  {advancedOpen && (
-                  <div id="advanced">
-                    <s-stack direction="block" gap="large">
-                      <s-divider />
-                      <s-stack direction="block" gap="small-100">
-                        <s-heading fontSize="small">{t("Discount")}</s-heading>
-                        <s-checkbox
-                          label={t("Offer a discount on preorder")}
-                          checked={flag(discountEnabled)}
-                          onChange={(e) => setDiscountEnabled(isChecked(e))}
-                        />
-                        {discountEnabled && (
-                          <s-box paddingInlineStart="large-100">
-                            <s-stack direction="block" gap="base">
-                              <s-grid gridTemplateColumns="repeat(2, minmax(0, 1fr))" gap="base">
-                                <SelectField
-                                  label={t("Discount type")}
-                                  options={[
-                                    { label: t("Percentage"), value: "percent" },
-                                    { label: t("Fixed amount"), value: "fixed" },
-                                  ]}
-                                  value={discountKind}
-                                  onChange={(v) => setDiscountKind(v as "percent" | "fixed")}
-                                />
-                                <s-number-field
-                                  label={t("Amount")}
-                                  value={discountAmount}
-                                  onInput={(e) => setDiscountAmount(val(e))}
-                                  suffix={discountKind === "percent" ? "%" : currency}
-                                />
-                              </s-grid>
-                            </s-stack>
-                          </s-box>
-                        )}
-                      </s-stack>
-                      <s-divider />
-                      <s-stack direction="block" gap="small-100">
-                        <s-heading fontSize="small">{t("Button")}</s-heading>
-                        <s-paragraph fontSize="small" color="subdued">
-                          {t("Inherited from Settings. Change it here to override just this preorder.")}
-                        </s-paragraph>
-                        <s-stack direction="block" gap="base">
-                          <s-text-field
-                            label={t("Button text")}
-                            value={ctaLabel}
-                            onInput={(e) => setCtaLabel(val(e))}
-                          />
-                          <SelectField
-                            label={t("Where it appears")}
-                            options={[
-                              { label: t("Instead of Add to cart"), value: "replace" },
-                              { label: t("Next to Add to cart"), value: "beside" },
-                              { label: t("Below Add to cart"), value: "stack" },
-                            ]}
-                            value={ctaPlacement}
-                            onChange={(v) =>
-                              setCtaPlacement(v as "replace" | "beside" | "stack")
-                            }
-                          />
-                          <SelectField
-                            label={t("When shoppers see it")}
-                            options={[
-                              { label: t("Always (presale — even while in stock)"), value: "always" },
-                              { label: t("Only when sold out"), value: "stock" },
-                            ]}
-                            value={trigger}
-                            onChange={(v) => setTrigger(v as "always" | "stock")}
-                            details={t("Only when sold out: the preorder button appears once the selected variant runs out.")}
-                          />
-                        </s-stack>
-                      </s-stack>
-                      <s-divider />
-                      <s-stack direction="block" gap="small-100">
-                        <s-heading fontSize="small">{t("Copy & reporting")}</s-heading>
-                        <s-stack direction="block" gap="base">
-                          <s-text-area
-                            label={t("Delivery note (under the button)")}
-                            value={deliveryNote}
-                            onInput={(e) => setDeliveryNote(val(e))} rows={2}
-                            details={t("Inherited from Settings; change it to override just this preorder. Use {{shipping_date}} to insert the ship date.")}
-                          />
-                          <s-text-field
-                            label={t("Cohort name")}
-                            value={cohortName}
-                            onInput={(e) => setCohortName(val(e))}
-                            placeholder={t("Auto-generated")}
-                            details={t("Admin reporting only.")}
-                          />
-                        </s-stack>
-                      </s-stack>
-                      <s-divider />
-                      <s-stack direction="block" gap="small-100">
-                        <s-heading fontSize="small">{t("Internal notes")}</s-heading>
-                        <s-text-area
-                          label={t("Notes")}
-                          labelAccessibilityVisibility="exclusive"
-                          value={internalNotes}
-                          onInput={(e) => setInternalNotes(val(e))} rows={3}
-                          placeholder={t("Ops handoff, forecasting context, etc.")}
-                        />
-                      </s-stack>
-                    </s-stack>
-                  </div>
-                  )}
-                </s-stack>
-              </s-section>
-            </s-stack>
-          </div>
-
-          {/* ----- Right column ----- */}
-          <div>
-            <s-stack direction="block" gap="base">
-              {/* Storefront preview */}
-              <s-section>
-                <s-stack direction="block" gap="small">
-                  <SectionHead icon={ViewIcon} tone="teal" title={t("Storefront preview")} sub={t("How the buy box will look on your product page.")} />
-                  <s-divider />
-                  <s-box padding="base" border="base" borderRadius="base" background="base">
-                    <s-stack direction="block" gap="small-100">
-                      <div><s-badge tone="warning">{t("Preorder")}</s-badge></div>
-                      <s-text fontWeight="semibold">
-                        {selectedVariants[0]
-                          ? `${selectedVariants[0].productTitle}${selectedVariants[0].variantTitle && selectedVariants[0].variantTitle !== "Default Title" ? ` — ${selectedVariants[0].variantTitle}` : ""}`
-                          : t("Your product")}
-                      </s-text>
-                      {selectedVariants.length > 1 && (
-                        <s-text fontSize="small" color="subdued">
-                          {`+${selectedVariants.length - 1} ${t("more variants")}`}
-                        </s-text>
-                      )}
-                      <button
-                        type="button"
-                        tabIndex={-1}
-                        aria-hidden="true"
-                        style={{ background: "var(--p-color-bg-inverse)", color: "var(--p-color-text-inverse)", border: "none", borderRadius: 8, padding: "10px 14px", fontWeight: 600, width: "100%", cursor: "default" }}
-                      >
-                        {ctaLabel || t("Preorder")}
-                      </button>
-                      <s-text fontSize="small" color="subdued">
-                        {shipDate
-                          ? deliveryNote.replace(/\{\{\s*shipping_date\s*\}\}/g, shipDate)
-                          : deliveryNote.replace(/\{\{\s*shipping_date\s*\}\}/g, "soon")}
-                      </s-text>
-                      {paymentMode !== "pay_now" && (
-                        <s-text fontSize="small" color="subdued">
-                          {paymentMode === "deposit"
-                            ? `Deposit ${depositAmount}${depositKind === "percent" ? "%" : ` ${currency}`} today`
-                            : "Pay later — charged when it ships"}
-                        </s-text>
-                      )}
-                    </s-stack>
-                  </s-box>
-                </s-stack>
-              </s-section>
-
-              {/* Markets */}
-              <s-section>
-                <s-stack direction="block" gap="small">
-                  <s-stack direction="inline" justifyContent="space-between" alignItems="center">
-                    <s-heading>{t("Markets")}</s-heading>
-                    <s-badge tone={badgeTone(marketsAll ? undefined : "info")}>
-                      {marketsAll ? "All markets" : `${markets.length} selected`}
-                    </s-badge>
-                  </s-stack>
-                  <s-paragraph fontSize="small" color="subdued">{t("Where this preorder is offered. Defaults to all markets.")}</s-paragraph>
-                  <s-divider />
-                  <ChoiceListField
-                    label={t("Market availability")}
-                    labelHidden
-                    choices={[
-                      { label: t("All markets"), value: "all" },
-                      { label: t("Specific markets"), value: "specific" },
-                    ]}
-                    selected={[marketScope]}
-                    onChange={(v) => setMarketScope(v[0] as "all" | "specific")}
-                  />
-                  {marketScope === "specific" && (
-                    <s-box paddingInlineStart="small-100">
-                      <s-stack direction="block" gap="small-200">
-                        {marketChoices.length === 0 && (
-                          <s-paragraph fontSize="small" color="subdued">
-                            {t("No markets found.")}
-                          </s-paragraph>
-                        )}
-                        {marketChoices.map((m) => (
-                          <s-checkbox
-                            key={m.id}
-                            label={m.title}
-                            details={m.subtitle}
-                            checked={flag(markets.includes(m.id))}
-                            onChange={(e) =>
-                              setMarkets((prev) =>
-                                isChecked(e)
-                                  ? [...prev, m.id]
-                                  : prev.filter((x) => x !== m.id),
-                              )
-                            }
-                          />
-                        ))}
-                      </s-stack>
-                    </s-box>
-                  )}
-                </s-stack>
-              </s-section>
-
-              {/* Summary */}
-              <s-section>
-                <s-stack direction="block" gap="small">
-                  <s-heading>{t("Summary")}</s-heading>
-                  <s-divider />
-                  <SummaryRow
-                    label={t("Scope")}
-                    value={
-                      productMode === "all"
-                        ? "All products"
-                        : productMode === "collection"
-                          ? "A collection"
-                          : `${selectedVariants.length} variant${selectedVariants.length === 1 ? "" : "s"}`
-                    }
-                  />
-                  <SummaryRow
-                    label={t("Total units")}
-                    value={totalUnits.toLocaleString()}
-                  />
-                  <SummaryRow label={t("Markets")} value={marketsAll ? "All" : `${markets.length}`} />
-                  <SummaryRow label={t("Ships")} value={shipDate || "Not set"} />
-                  <SummaryRow
-                    label={t("Customer pays")}
-                    value={
-                      paymentMode === "pay_now"
-                        ? "Full at checkout"
-                        : paymentMode === "deposit"
-                          ? `Deposit ${depositAmount}${depositKind === "percent" ? "%" : ` ${currency}`}`
-                          : "Pay later (on ship)"
-                    }
-                  />
-                </s-stack>
-              </s-section>
-
-              {/* Checklist */}
-              <s-section>
-                <s-stack direction="block" gap="small-100">
-                  <s-heading>{t("Ready to publish?")}</s-heading>
-                  <ChecklistItem ok={!!name} label={t("Name set")} />
-                  <ChecklistItem ok={productsChosen} label={t("Products chosen")} />
-                  <ChecklistItem ok={!!shipDate} label={t("Ship date set")} />
-                </s-stack>
-              </s-section>
-            </s-stack>
-          </div>
-        </div>
-
-        {/* ----- Full-width: Select product ----- */}
-        <s-section padding="none">
-          <s-box padding="base">
-            <s-stack direction="block" gap="small-200">
-              <s-heading>{t("Select product")}</s-heading>
-              <s-paragraph fontSize="small" color="subdued">{t("Choose which products sell as preorders, set unit limits, and (optionally) schedule when each is available.")}</s-paragraph>
-            </s-stack>
-          </s-box>
-          <s-box padding="base" paddingBlockStart="none">
-            <s-stack direction="inline" gap="small">
-              <ScopeCard
-                active={productMode === "specific"}
-                title={t("Specific products")}
-                desc="Enable preorders for selected individual products only."
-                onClick={() => setProductMode("specific")}
-              />
-              <ScopeCard
-                active={productMode === "collection"}
-                title={t("Specific collection")}
-                desc="Allow preorders for all products within a collection."
-                onClick={() => setProductMode("collection")}
-              />
-              <ScopeCard
-                active={productMode === "all"}
-                title={t("All products")}
-                desc="Enable preorders across your entire catalog."
-                onClick={() => setProductMode("all")}
-              />
-            </s-stack>
-          </s-box>
-
-          <s-divider />
-
-          {productMode === "all" ? (
-            <s-box padding="base">
-              <s-banner tone="info">
-                <s-text>{t("Preorders apply to every product, governed by the Inventory rules in Settings.")}</s-text>
-              </s-banner>
-            </s-box>
-          ) : productMode === "collection" ? (
-            <s-box padding="base">
-              <SelectField
-                label={t("Collection")}
-                options={[
-                  { label: t("Choose a collection…"), value: "" },
-                  ...collectionChoices.map((c) => ({
-                    label: `${c.title} (${c.count})`,
-                    value: c.id,
-                  })),
-                ]}
-                value={collectionId}
-                onChange={setCollectionId}
-                details={
-                  collectionChoices.length === 0
-                    ? t("No collections found in your store.")
-                    : undefined
-                }
-              />
-            </s-box>
-          ) : (
-            <s-stack direction="block" gap="none">
-              <s-box padding="base">
-                <s-stack direction="inline" justifyContent="space-between" alignItems="center">
-                  <s-text fontSize="small" color="subdued">{t("Choose which products should use this offer.")}</s-text>
-                  <s-button icon="plus" onClick={openPicker}>{t("Add products")}</s-button>
-                </s-stack>
-              </s-box>
-              {selectedVariants.length === 0 ? (
-                <s-box padding="large-100" background="subdued">
-                  <s-stack direction="block" gap="small-100">
-                    <s-paragraph color="subdued">{t("No products selected yet.")}</s-paragraph>
-                    <s-button variant="primary" icon="plus" onClick={openPicker}>{t("Add products")}</s-button>
-                  </s-stack>
-                </s-box>
+              ) : selectedVariants.length === 0 ? (
+                <button type="button" className="encore-dropzone" onClick={openPicker}>
+                  <span className="encore-dropzone__icon" aria-hidden="true">
+                    <ProductIcon />
+                  </span>
+                  <span className="encore-dropzone__title">{t("Choose the products to sell on preorder")}</span>
+                  <span className="encore-dropzone__sub">{t("Pick whole products or single variants from your catalog.")}</span>
+                  <span className="encore-dropzone__cta">{t("Add products")}</span>
+                </button>
               ) : (
-                <s-table>
-                  <s-table-header-row>
-                    <s-table-header listSlot="primary">{t("Product")}</s-table-header>
-                    <s-table-header format="numeric">{t("Units sold")}</s-table-header>
-                    <s-table-header>{t("Limit quantity")}</s-table-header>
-                    <s-table-header>{t("End quantity")}</s-table-header>
-                    <s-table-header>{t("Availability")}</s-table-header>
-                    <s-table-header></s-table-header>
-                  </s-table-header-row>
-                  <s-table-body>
-                  {selectedVariants.map((sv) => (
-                    <s-table-row key={sv.variantId}>
-                      <s-table-cell>
-                        <s-stack direction="block" gap="small-300">
-                          <s-text fontWeight="semibold">
-                            {sv.productTitle}
-                          </s-text>
-                          <s-text fontSize="small" color="subdued">
-                            {sv.variantTitle}
-                          </s-text>
-                        </s-stack>
-                      </s-table-cell>
-                      <s-table-cell>
-                        <s-text fontSize="small" color="subdued">—</s-text>
-                      </s-table-cell>
-                      <s-table-cell>
-                        <s-box>
+                <div className="encore-vlist">
+                  <div className="encore-vlist__head" aria-hidden="true">
+                    <span>{t("Limit quantity")}</span>
+                    <span title={t("Stop taking preorders once this many have sold. Leave empty for no cap.")}>
+                      {t("End quantity")}
+                    </span>
+                    <span>{t("Availability")}</span>
+                  </div>
+                  {selectedVariants.map((sv) => {
+                    const variantLabel =
+                      sv.variantTitle && sv.variantTitle !== "Default Title" ? sv.variantTitle : t("Default variant");
+                    return (
+                      <div key={sv.variantId} className="encore-vrow">
+                        <div className="encore-vrow__head">
+                          <ProductThumb src={sv.image} alt={sv.productTitle} />
+                          <div className="encore-vrow__text">
+                            <span className="encore-vrow__title">{sv.productTitle}</span>
+                            <span className="encore-vrow__sub">{variantLabel}</span>
+                          </div>
+                          <s-button
+                            variant="tertiary"
+                            icon="x"
+                            accessibilityLabel={`${t("Remove product")}: ${sv.productTitle} ${variantLabel}`}
+                            onClick={() => removeVariant(sv.variantId)}
+                          />
+                        </div>
+                        <div className="encore-vrow__fields">
                           <s-number-field
                             label={t("Limit quantity")}
                             labelAccessibilityVisibility="exclusive"
@@ -1139,96 +716,344 @@ export default function CampaignForm({
                             onInput={(e) => updateVariant(sv.variantId, { unitsOffered: val(e) })}
                             min={0}
                           />
-                        </s-box>
-                      </s-table-cell>
-                      <s-table-cell>
-                        <s-box>
                           <s-number-field
                             label={t("End quantity")}
                             labelAccessibilityVisibility="exclusive"
                             value={sv.endQty}
                             onInput={(e) => updateVariant(sv.variantId, { endQty: val(e) })}
-                            placeholder="—"
+                            placeholder={t("None")}
                             min={0}
                           />
-                        </s-box>
-                      </s-table-cell>
-                      <s-table-cell>
-                        <s-box>
-                          <s-stack direction="block" gap="small-200">
-                            <SelectField
-                              label={t("Availability")}
-                              labelHidden
-                              options={AVAIL_OPTIONS.map((o) => ({ ...o, label: t(o.label) }))}
-                              value={sv.availability}
-                              onChange={(v) =>
-                                updateVariant(sv.variantId, {
-                                  availability: v as VariantAvailabilityUI,
-                                })
-                              }
+                          <SelectField
+                            label={t("Availability")}
+                            labelHidden
+                            options={AVAIL_OPTIONS.map((o) => ({ ...o, label: t(o.label) }))}
+                            value={sv.availability}
+                            onChange={(v) => updateVariant(sv.variantId, { availability: v as VariantAvailabilityUI })}
+                          />
+                          {sv.availability !== "now" && sv.availability !== "not_available" && (
+                            <div className="encore-vrow__dates">
+                          {(sv.availability === "from_start" || sv.availability === "between") && (
+                            <s-date-field
+                              label={t("Start date")}
+                              value={sv.availStart}
+                              onChange={(e) => updateVariant(sv.variantId, { availStart: val(e) })}
                             />
-                            {(sv.availability === "from_start" ||
-                              sv.availability === "between") && (
-                              <s-date-field
-                                label={t("Start date")}
-                                labelAccessibilityVisibility="exclusive"
-                                value={sv.availStart}
-                                onChange={(e) => updateVariant(sv.variantId, { availStart: val(e) })}
-                              />
-                            )}
-                            {(sv.availability === "now_until_end" ||
-                              sv.availability === "between") && (
-                              <s-date-field
-                                label={t("End date")}
-                                labelAccessibilityVisibility="exclusive"
-                                value={sv.availEnd}
-                                onChange={(e) => updateVariant(sv.variantId, { availEnd: val(e) })}
-                              />
-                            )}
-                          </s-stack>
-                        </s-box>
-                      </s-table-cell>
-                      <s-table-cell>
-                        <s-button
-                          variant="tertiary"
-                          tone="critical"
-                          icon="x"
-                          accessibilityLabel={t("Remove product")}
-                          onClick={() => removeVariant(sv.variantId)}
-                        />
-                      </s-table-cell>
-                    </s-table-row>
-                  ))}
-                  </s-table-body>
-                </s-table>
+                          )}
+                          {(sv.availability === "now_until_end" || sv.availability === "between") && (
+                            <s-date-field
+                              label={t("End date")}
+                              value={sv.availEnd}
+                              onChange={(e) => updateVariant(sv.variantId, { availEnd: val(e) })}
+                            />
+                          )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
-            </s-stack>
-          )}
-        </s-section>
+            </FormCard>
 
-        {/* Footer */}
-        <s-section>
-          <s-stack direction="inline" justifyContent="end" gap="small-100">
-            <s-button onClick={() => navigate(backTo)}>Cancel</s-button>
-            {mode === "create" ? (
-              <>
-                <s-button onClick={handleSaveDraft}>{t("Save draft")}</s-button>
-                <s-button
-                  variant="primary"
-                  onClick={handlePublish}
-                  loading={flag(isSubmitting)}
-                  disabled={flag(!canPublish)}
-                >{t("Publish preorder")}</s-button>
-              </>
-            ) : (
-              <>
-                <s-button icon="delete" tone="critical" onClick={handleDelete}>{t("Delete")}</s-button>
-                <s-button variant="primary" onClick={handleSaveChanges} loading={flag(isSubmitting)}>{t("Save changes")}</s-button>
-              </>
-            )}
-          </s-stack>
-        </s-section>
-      </s-stack>
+            {/* ---- Details ---- */}
+            <FormCard title={t("Details")}>
+              <div className="encore-form-grid">
+                <s-text-field
+                  label={t("Preorder name")}
+                  value={name}
+                  onInput={(e) => setName(val(e))}
+                  placeholder={t("e.g. Aurora Hoodie — June drop")}
+                  details={t("Only your team sees this.")}
+                  required
+                />
+                <s-date-field
+                  label={t("Expected ship date")}
+                  value={shipDate}
+                  onChange={(e) => setShipDate(val(e))}
+                  details={t("Shown to customers on the product page and in emails.")}
+                  required
+                />
+              </div>
+            </FormCard>
+
+            {/* ---- Payment ---- */}
+            <FormCard title={t("Payment")} sub={t("How customers pay for this preorder. The store default comes from Settings.")}>
+              <ChoiceListField
+                label={t("Customer pays")}
+                labelHidden
+                choices={paymentChoices}
+                selected={[paymentMode]}
+                onChange={(v) => setPaymentMode((v[0] ?? storeDefaultMode) as "pay_now" | "deposit" | "pay_later")}
+              />
+              {paymentMode === "deposit" && (
+                <div className="encore-subpanel">
+                  <div className="encore-form-grid encore-form-grid--3">
+                    <SelectField
+                      label={t("Deposit type")}
+                      options={[
+                        { label: t("Percentage"), value: "percent" },
+                        { label: t("Fixed amount"), value: "fixed" },
+                      ]}
+                      value={depositKind}
+                      onChange={(v) => setDepositKind(v as "percent" | "fixed")}
+                    />
+                    <s-number-field
+                      label={t("Deposit amount")}
+                      value={depositAmount}
+                      onInput={(e) => setDepositAmount(val(e))}
+                      suffix={depositKind === "percent" ? "%" : currency}
+                    />
+                    <s-number-field
+                      label={t("Charge balance")}
+                      value={balanceCaptureDays}
+                      onInput={(e) => setBalanceCaptureDays(val(e))}
+                      suffix={t("days before ship")}
+                    />
+                  </div>
+                </div>
+              )}
+              {paymentMode === "pay_later" && (
+                <div className="encore-subpanel">
+                  <s-text color="subdued">
+                    {t("No money moves until you mark the cohort ready to ship. Card vaulted via Shopify Payments.")}
+                  </s-text>
+                </div>
+              )}
+            </FormCard>
+
+            {/* ---- More options (per-drop, collapsed) ---- */}
+            <s-section>
+              <button
+                type="button"
+                className="encore-disclosure"
+                aria-expanded={advancedOpen}
+                aria-controls="advanced"
+                onClick={() => setAdvancedOpen((v) => !v)}
+              >
+                <span className="encore-form-card__titles">
+                  <span className="encore-form-card__title">{t("More options")}</span>
+                  <span className="encore-form-card__sub">{t("Discount, button text, delivery note, cohort name, internal notes.")}</span>
+                </span>
+                <s-icon type={advancedOpen ? "chevron-up" : "chevron-down"} />
+              </button>
+
+              {advancedOpen && (
+                <div id="advanced" className="encore-adv">
+                  <div className="encore-adv__group">
+                    <h3 className="encore-adv__title">{t("Discount")}</h3>
+                    <s-checkbox
+                      label={t("Offer a discount on preorder")}
+                      checked={flag(discountEnabled)}
+                      onChange={(e) => setDiscountEnabled(isChecked(e))}
+                    />
+                    {discountEnabled && (
+                      <div className="encore-form-grid">
+                        <SelectField
+                          label={t("Discount type")}
+                          options={[
+                            { label: t("Percentage"), value: "percent" },
+                            { label: t("Fixed amount"), value: "fixed" },
+                          ]}
+                          value={discountKind}
+                          onChange={(v) => setDiscountKind(v as "percent" | "fixed")}
+                        />
+                        <s-number-field
+                          label={t("Amount")}
+                          value={discountAmount}
+                          onInput={(e) => setDiscountAmount(val(e))}
+                          suffix={discountKind === "percent" ? "%" : currency}
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="encore-adv__group">
+                    <h3 className="encore-adv__title">{t("Button")}</h3>
+                    <p className="encore-form-card__sub">{t("Inherited from Settings. Change it here to override just this preorder.")}</p>
+                    <div className="encore-form-grid">
+                      <s-text-field label={t("Button text")} value={ctaLabel} onInput={(e) => setCtaLabel(val(e))} />
+                      <SelectField
+                        label={t("Where it appears")}
+                        options={[
+                          { label: t("Instead of Add to cart"), value: "replace" },
+                          { label: t("Next to Add to cart"), value: "beside" },
+                          { label: t("Below Add to cart"), value: "stack" },
+                        ]}
+                        value={ctaPlacement}
+                        onChange={(v) => setCtaPlacement(v as "replace" | "beside" | "stack")}
+                      />
+                    </div>
+                    <SelectField
+                      label={t("When shoppers see it")}
+                      options={[
+                        { label: t("Always (presale — even while in stock)"), value: "always" },
+                        { label: t("Only when sold out"), value: "stock" },
+                      ]}
+                      value={trigger}
+                      onChange={(v) => setTrigger(v as "always" | "stock")}
+                      details={t("Only when sold out: the preorder button appears once the selected variant runs out.")}
+                    />
+                  </div>
+
+                  <div className="encore-adv__group">
+                    <h3 className="encore-adv__title">{t("Copy & reporting")}</h3>
+                    <s-text-area
+                      label={t("Delivery note (under the button)")}
+                      value={deliveryNote}
+                      onInput={(e) => setDeliveryNote(val(e))}
+                      rows={2}
+                      details={t("Inherited from Settings; change it to override just this preorder. Use {{shipping_date}} to insert the ship date.")}
+                    />
+                    <s-text-field
+                      label={t("Cohort name")}
+                      value={cohortName}
+                      onInput={(e) => setCohortName(val(e))}
+                      placeholder={t("Auto-generated")}
+                      details={t("Admin reporting only.")}
+                    />
+                  </div>
+
+                  <div className="encore-adv__group">
+                    <h3 className="encore-adv__title">{t("Internal notes")}</h3>
+                    <s-text-area
+                      label={t("Notes")}
+                      labelAccessibilityVisibility="exclusive"
+                      value={internalNotes}
+                      onInput={(e) => setInternalNotes(val(e))}
+                      rows={3}
+                      placeholder={t("Ops handoff, forecasting context, etc.")}
+                    />
+                  </div>
+                </div>
+              )}
+            </s-section>
+          </div>
+
+          {/* ================= Sidebar ================= */}
+          <div className="encore-stack">
+            {/* Summary + publish checklist */}
+            <s-section>
+              <div className="encore-form-card">
+                <div className="encore-form-card__head">
+                  <h2 className="encore-form-card__title">{t("Summary")}</h2>
+                  {mode === "create" &&
+                    (stepsLeft === 0 ? (
+                      <s-badge tone="success">{t("Ready to publish")}</s-badge>
+                    ) : (
+                      <s-badge tone="caution">
+                        {stepsLeft === 1 ? t("1 step left") : `${stepsLeft} ${t("steps left")}`}
+                      </s-badge>
+                    ))}
+                </div>
+                <div className="encore-checklist">
+                  <CheckRow ok={productsChosen} label={t("Products")} value={productsSummary || t("Not chosen")} />
+                  <CheckRow ok={!!shipDate} label={t("Ship date")} value={shipPretty || t("Not set")} />
+                  <CheckRow ok={name.trim().length > 0} label={t("Name")} value={name.trim() || t("Not set")} />
+                </div>
+                <div className="encore-kv">
+                  <SummaryRow label={t("Customer pays")} value={paySummary} />
+                  <SummaryRow label={t("Units offered")} value={productMode === "specific" ? totalUnits.toLocaleString() : "—"} />
+                  <SummaryRow label={t("Markets")} value={marketsAll ? t("All markets") : `${markets.length} ${t("selected")}`} />
+                </div>
+              </div>
+            </s-section>
+
+            {/* Storefront preview */}
+            <s-section>
+              <div className="encore-form-card">
+                <div className="encore-form-card__head">
+                  <h2 className="encore-form-card__title">{t("Storefront preview")}</h2>
+                </div>
+                <div className="encore-preview" aria-label={t("How the buy box will look on your product page.")}>
+                  <div className="encore-preview__media">
+                    {first?.image ? (
+                      <img src={first.image} alt="" />
+                    ) : (
+                      <span className="encore-preview__ph" aria-hidden="true">
+                        <ProductIcon />
+                      </span>
+                    )}
+                    <span className="encore-preview__badge">{t("Preorder")}</span>
+                  </div>
+                  <div className="encore-preview__body">
+                    <span className="encore-preview__title">{first ? first.productTitle : t("Your product")}</span>
+                    {first && selectedVariants.length > 1 && (
+                      <span className="encore-preview__meta">{`+${selectedVariants.length - 1} ${t("more variants")}`}</span>
+                    )}
+                    <span className="encore-preview__btn">{ctaLabel || t("Preorder")}</span>
+                    <span className="encore-preview__note">{previewNote}</span>
+                    {paymentMode !== "pay_now" && (
+                      <span className="encore-preview__pay">
+                        {paymentMode === "deposit"
+                          ? `${t("Deposit")} ${depositAmount}${depositKind === "percent" ? "%" : ` ${currency}`} ${t("today")}`
+                          : t("Pay later — charged when it ships")}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </s-section>
+
+            {/* Markets */}
+            <s-section>
+              <div className="encore-form-card">
+                <div className="encore-form-card__head">
+                  <div className="encore-form-card__titles">
+                    <h2 className="encore-form-card__title">{t("Markets")}</h2>
+                    <p className="encore-form-card__sub">{t("Where this preorder is offered. Defaults to all markets.")}</p>
+                  </div>
+                </div>
+                <ChoiceListField
+                  label={t("Market availability")}
+                  labelHidden
+                  choices={[
+                    { label: t("All markets"), value: "all" },
+                    { label: t("Specific markets"), value: "specific" },
+                  ]}
+                  selected={[marketScope]}
+                  onChange={(v) => setMarketScope(v[0] as "all" | "specific")}
+                />
+                {marketScope === "specific" && (
+                  <div className="encore-subpanel">
+                    {marketChoices.length === 0 && (
+                      <s-paragraph color="subdued">{t("No markets found.")}</s-paragraph>
+                    )}
+                    {marketChoices.map((m) => (
+                      <s-checkbox
+                        key={m.id}
+                        label={m.title}
+                        details={m.subtitle}
+                        checked={flag(markets.includes(m.id))}
+                        onChange={(e) =>
+                          setMarkets((prev) => (isChecked(e) ? [...prev, m.id] : prev.filter((x) => x !== m.id)))
+                        }
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </s-section>
+          </div>
+        </div>
+
+        {/* Bottom action bar — mirrors the title bar for long forms */}
+        <div className="encore-actionbar">
+          {mode === "edit" ? (
+            <s-button tone="critical" onClick={handleDelete}>
+              {t("Delete preorder")}
+            </s-button>
+          ) : (
+            <span />
+          )}
+          <div className="encore-actionbar__right">
+            <s-button onClick={() => navigate(backTo)}>{t("Cancel")}</s-button>
+            {mode === "create" && <s-button onClick={handleSaveDraft}>{t("Save draft")}</s-button>}
+            {primaryButton}
+          </div>
+        </div>
+      </div>
       <ConfirmModal
         open={confirmDeleteOpen}
         title={t("Delete preorder")}
@@ -1247,22 +1072,19 @@ export default function CampaignForm({
 // ---------- Sidebar primitives ----------
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
-    <s-stack direction="inline" justifyContent="space-between" alignItems="center">
-      <s-text fontSize="small" color="subdued">
-        {label}
-      </s-text>
-      <s-text>
-        {value}
-      </s-text>
-    </s-stack>
+    <div className="encore-kv__row">
+      <span className="encore-kv__label">{label}</span>
+      <span className="encore-kv__value">{value}</span>
+    </div>
   );
 }
 
-function ChecklistItem({ ok, label }: { ok: boolean; label: string }) {
+function CheckRow({ ok, label, value }: { ok: boolean; label: string; value: string }) {
   return (
-    <s-stack direction="inline" gap="small-100" alignItems="center">
+    <div className={`encore-check${ok ? " encore-check--ok" : ""}`}>
       <s-icon type={ok ? "check-circle-filled" : "circle"} tone={ok ? "success" : "neutral"} size="small" />
-      <s-text>{label}</s-text>
-    </s-stack>
+      <span className="encore-check__label">{label}</span>
+      <span className="encore-check__value">{value}</span>
+    </div>
   );
 }

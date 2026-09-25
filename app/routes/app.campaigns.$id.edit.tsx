@@ -26,6 +26,7 @@ import { syncContinueSellingSafe } from "../services/inventory-policy.server";
 import { notifyShipDateChanged } from "../services/notify-events.server";
 import { listCollections } from "../models/collections.server";
 import { fetchMarkets } from "../models/markets.server";
+import { getProductThumbs } from "../models/product-thumbs.server";
 import CampaignForm, {
   type CampaignFormValues,
 } from "../components/CampaignForm";
@@ -45,17 +46,23 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const campaign = await getCampaign(session.shop, id);
   if (!campaign) throw new Response("Not found", { status: 404 });
 
-  const [collections, markets, currency] = await Promise.all([
+  const initialValues = dbToFormValues(campaign) as CampaignFormValues;
+  const [collections, markets, currency, thumbs] = await Promise.all([
     listCollections(admin),
     fetchMarkets(admin),
     getShopCurrency(admin, session.shop),
+    getProductThumbs(
+      admin,
+      initialValues.selectedVariants.map((v) => v.productId),
+    ),
   ]);
 
   return {
     currency,
     id: campaign.id,
     name: campaign.name,
-    initialValues: dbToFormValues(campaign) as CampaignFormValues,
+    initialValues,
+    thumbs,
     collections,
     marketsList:
       markets?.map((m) => ({ id: m.id, title: m.name, subtitle: m.handle })) ?? null,
@@ -134,7 +141,7 @@ export const headers: HeadersFunction = (headersArgs) => {
 };
 
 export default function CampaignsEdit() {
-  const { id, name, initialValues, collections, marketsList, currency } =
+  const { id, name, initialValues, collections, marketsList, currency, thumbs } =
     useLoaderData<typeof loader>();
   const { t } = useLocale();
 
@@ -148,6 +155,7 @@ export default function CampaignsEdit() {
       backTo={`/app/campaigns/${id}`}
       collections={collections}
       marketsList={marketsList}
+      thumbs={thumbs}
     />
   );
 }

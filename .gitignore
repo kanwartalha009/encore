@@ -32,3 +32,6 @@ database.sqlite
 
 # Files parked for deletion (device bridge cannot rm)
 _to_delete/
+
+# Local design previews (generated)
+.preview/

@@ -486,3 +486,105 @@
 .encore-list-row__value--bad { color: var(--tile-rose-fg); }
 .encore-list-row__value--warn { color: var(--tile-amber-fg); }
 .encore-card-foot { display: flex; justify-content: flex-end; margin: 4px -8px -8px 0; }
+
+/* ==========================================================================
+   Preorder form v3 (2026-09-25) — Shopify product-page pattern
+   ========================================================================== */
+.encore-layout--form { grid-template-columns: minmax(0, 1fr) 300px; }
+@media (max-width: 900px) { .encore-layout--form { grid-template-columns: 1fr; } }
+
+/* Card anatomy: 14px/650 title, 13px subdued sub, 16px rhythm */
+.encore-form-card { display: flex; flex-direction: column; gap: 14px; }
+.encore-form-card__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.encore-form-card__titles { display: flex; flex-direction: column; gap: 2px; min-width: 0; text-align: left; }
+.encore-form-card__title { margin: 0; font-size: 14px; line-height: 20px; font-weight: 650; color: var(--s-color-text, #303030); }
+.encore-form-card__sub { margin: 0; font-size: 13px; line-height: 18px; color: var(--s-color-text-secondary, #616161); font-weight: 450; }
+.encore-form-card__hint { margin: -4px 0 0; font-size: 12px; line-height: 16px; color: var(--s-color-text-secondary, #616161); }
+
+/* Segmented control (product scope) */
+.encore-seg { display: inline-flex; align-self: flex-start; padding: 3px; gap: 2px; border-radius: 10px; background: var(--tile-slate-bg); max-width: 100%; overflow-x: auto; }
+.encore-seg__btn {
+  appearance: none; border: 0; background: transparent; font: inherit; cursor: pointer; white-space: nowrap;
+  padding: 6px 12px; border-radius: 8px; font-size: 13px; font-weight: 550; color: var(--s-color-text-secondary, #616161);
+  transition: background var(--dur-fast, 140ms) ease, color var(--dur-fast, 140ms) ease, box-shadow var(--dur-fast, 140ms) ease;
+}
+.encore-seg__btn:hover { color: var(--s-color-text, #303030); }
+.encore-seg__btn--active { background: #fff; color: var(--s-color-text, #303030); box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 0 0 1px rgba(0,0,0,.04); }
+.encore-seg__btn:focus-visible { outline: 2px solid var(--encore-accent); outline-offset: 1px; }
+
+/* Empty product state: one obvious action */
+.encore-dropzone {
+  appearance: none; font: inherit; cursor: pointer; width: 100%;
+  display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center;
+  padding: 28px 16px; border-radius: 12px; border: 1.5px dashed #d4d4d8; background: #fafafa; color: inherit;
+  transition: border-color var(--dur-fast, 140ms) ease, background var(--dur-fast, 140ms) ease;
+}
+.encore-dropzone:hover { border-color: var(--encore-accent); background: var(--tile-violet-bg); }
+.encore-dropzone:focus-visible { outline: 2px solid var(--encore-accent); outline-offset: 2px; }
+.encore-dropzone__icon { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.06), 0 0 0 1px rgba(0,0,0,.05); color: var(--tile-violet-fg); margin-bottom: 4px; }
+.encore-dropzone__icon svg { width: 20px; height: 20px; fill: currentColor; }
+.encore-dropzone__title { font-size: 14px; font-weight: 650; }
+.encore-dropzone__sub { font-size: 13px; color: var(--s-color-text-secondary, #616161); }
+.encore-dropzone__cta { margin-top: 8px; padding: 6px 14px; border-radius: 8px; background: #303030; color: #fff; font-size: 13px; font-weight: 600; box-shadow: inset 0 -1px 0 rgba(0,0,0,.4), 0 1px 1px rgba(0,0,0,.1); }
+
+/* Thumbnails */
+.encore-thumb { flex-shrink: 0; display: inline-grid; place-items: center; border-radius: 8px; object-fit: cover; background: #f4f4f5; border: 1px solid rgba(0,0,0,.08); color: #8a8a8a; }
+.encore-thumb--empty svg { width: 55%; height: 55%; fill: currentColor; }
+
+/* Variant rows */
+.encore-vlist { display: flex; flex-direction: column; border: 1px solid var(--s-color-border-secondary, #ebebeb); border-radius: 12px; overflow: hidden; }
+.encore-vrow { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-top: 1px solid var(--s-color-border-secondary, #ebebeb); }
+.encore-vrow:first-child { border-top: 0; }
+.encore-vrow__head { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.encore-vrow__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.encore-vrow__title { font-size: 13px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.encore-vrow__sub { font-size: 12px; color: var(--s-color-text-secondary, #616161); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.encore-vrow__fields, .encore-vlist__head { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding-left: 52px; }
+.encore-vrow__dates { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.encore-vlist__head { padding: 8px 14px 8px 66px; background: #f7f7f7; border-bottom: 1px solid var(--s-color-border-secondary, #ebebeb); font-size: 12px; font-weight: 550; color: var(--s-color-text-secondary, #616161); }
+.encore-vlist__head span[title] { text-decoration: underline dotted; text-underline-offset: 3px; cursor: help; }
+.encore-vlist__head + .encore-vrow { border-top: 0; }
+@media (max-width: 640px) { .encore-vrow__fields { grid-template-columns: 1fr 1fr; padding-left: 0; } .encore-vlist__head { display: none; } }
+
+/* Field grids + nested panel */
+.encore-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 14px; align-items: start; }
+.encore-form-grid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 640px) { .encore-form-grid, .encore-form-grid--3 { grid-template-columns: 1fr; } }
+.encore-subpanel { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 10px; background: #f7f7f7; }
+
+/* Disclosure card (More options) */
+.encore-disclosure { appearance: none; border: 0; background: transparent; font: inherit; color: inherit; cursor: pointer; width: 100%; padding: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.encore-disclosure:focus-visible { outline: 2px solid var(--encore-accent); outline-offset: 4px; border-radius: 6px; }
+.encore-adv { display: flex; flex-direction: column; margin-top: 16px; }
+.encore-adv__group { display: flex; flex-direction: column; gap: 10px; padding: 16px 0; border-top: 1px solid var(--s-color-border-secondary, #ebebeb); }
+.encore-adv__group:last-child { padding-bottom: 0; }
+.encore-adv__title { margin: 0; font-size: 13px; font-weight: 650; }
+
+/* Summary / checklist */
+.encore-checklist { display: flex; flex-direction: column; gap: 10px; }
+.encore-check { display: grid; grid-template-columns: 16px auto minmax(0, 1fr); align-items: center; gap: 8px; font-size: 13px; }
+.encore-check__label { color: var(--s-color-text-secondary, #616161); }
+.encore-check__value { text-align: right; color: var(--s-color-text-secondary, #8a8a8a); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.encore-check--ok .encore-check__value { color: var(--s-color-text, #303030); font-weight: 550; }
+.encore-kv { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--s-color-border-secondary, #ebebeb); }
+.encore-kv__row { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
+.encore-kv__label { color: var(--s-color-text-secondary, #616161); }
+.encore-kv__value { font-weight: 550; text-align: right; }
+
+/* Storefront buy-box preview */
+.encore-preview { border: 1px solid var(--s-color-border-secondary, #ebebeb); border-radius: 12px; overflow: hidden; background: #fff; }
+.encore-preview__media { position: relative; aspect-ratio: 16 / 10; background: linear-gradient(135deg, #f4f4f5, #ececf1); display: grid; place-items: center; }
+.encore-preview__media img { width: 100%; height: 100%; object-fit: cover; }
+.encore-preview__ph { width: 44px; height: 44px; color: #b5b5bd; }
+.encore-preview__ph svg { width: 100%; height: 100%; fill: currentColor; }
+.encore-preview__badge { position: absolute; top: 10px; left: 10px; padding: 2px 8px; border-radius: 999px; background: #303030; color: #fff; font-size: 11px; font-weight: 650; letter-spacing: .02em; }
+.encore-preview__body { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px 14px; }
+.encore-preview__title { font-size: 14px; font-weight: 650; line-height: 1.3; }
+.encore-preview__meta { font-size: 12px; color: var(--s-color-text-secondary, #616161); }
+.encore-preview__btn { margin-top: 6px; display: block; text-align: center; padding: 10px 12px; border-radius: 8px; background: #303030; color: #fff; font-size: 13px; font-weight: 650; }
+.encore-preview__note { font-size: 12px; color: var(--s-color-text-secondary, #616161); text-align: center; }
+.encore-preview__pay { font-size: 12px; font-weight: 600; color: var(--tile-emerald-fg); text-align: center; }
+
+/* Bottom action bar */
+.encore-actionbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 16px; border-top: 1px solid var(--s-color-border, #e3e3e3); }
+.encore-actionbar__right { display: flex; gap: 8px; }

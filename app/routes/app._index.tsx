@@ -5,6 +5,7 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 
 import { getDashboard } from "../models/dashboard.server";
 import { getShopCurrency } from "../models/shop.server";
+import { getProductThumbs } from "../models/product-thumbs.server";
 import {
   CartIcon,
   CashDollarIcon,
@@ -20,10 +21,11 @@ import {
 
 import { authenticate } from "../shopify.server";
 import { useLocale } from "../lib/i18n";
-import { statusToTone } from "../lib/format";
+import { prettyDate, statusToTone } from "../lib/format";
 import { badgeTone } from "../components/wc";
 import {
   IconTile,
+  ProductThumb,
   Reveal,
   MetricStrip,
   CardHeader,
@@ -50,6 +52,7 @@ type CampaignRow = {
   units: string;
   shipDate: string;
   status: "Live" | "Scheduled" | "Paused" | "Ended" | "Draft";
+  thumb?: string | null;
 };
 
 const KPI_ICONS = [
@@ -87,7 +90,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // A6: money renders in the SHOP's currency, not a hardcoded USD.
   const currency = await getShopCurrency(admin, session.shop);
   const data = await getDashboard(session.shop, currency);
-  return data;
+  // Product thumbnails for the preorder rows (best-effort; icon tile fallback).
+  const thumbs = await getProductThumbs(
+    admin,
+    data.campaigns.map((c) => c.productId).filter((x): x is string => !!x),
+  );
+  return {
+    ...data,
+    campaigns: data.campaigns.map((c) => ({ ...c, thumb: c.productId ? thumbs[c.productId] ?? null : null })),
+  };
 };
 
 export const headers: HeadersFunction = (headersArgs) => {
@@ -174,7 +185,7 @@ function HealthCard({
 }
 
 function CohortsCard({ cohorts }: { cohorts: Cohort[] }) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const navigate = useNavigate();
   return (
     <s-section>
@@ -217,7 +228,7 @@ function CohortsCard({ cohorts }: { cohorts: Cohort[] }) {
                       <span style={{ width: `${Math.max(pct, 2)}%` }} />
                     </span>
                     <span className="encore-list-row__sub">
-                      {c.unitsSold.toLocaleString()} / {c.unitsForecast.toLocaleString()} {t("units")} · {c.gmv} {t("pre-sold")} · {c.shipDate}
+                      {c.unitsSold.toLocaleString()} / {c.unitsForecast.toLocaleString()} {t("units")} · {c.gmv} {t("pre-sold")} · {t("Ships")} {prettyDate(c.shipDate, locale)}
                     </span>
                   </span>
                 </div>
@@ -266,7 +277,7 @@ const DASHBOARD_CAMPAIGN_LIMIT = 5;
  * bulk actions live on the Preorders page, reached by "View all".
  */
 function PreordersCard({ campaigns }: { campaigns: CampaignRow[] }) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const navigate = useNavigate();
   const rows = campaigns.slice(0, DASHBOARD_CAMPAIGN_LIMIT);
   return (
@@ -275,7 +286,7 @@ function PreordersCard({ campaigns }: { campaigns: CampaignRow[] }) {
         icon={CartIcon}
         tone="violet"
         title={t("Preorders")}
-        sub={t("Variant-level preorder rules.")}
+        sub={t("Your most recent preorders.")}
         action={
           rows.length > 0 ? (
             <s-button variant="tertiary" onClick={() => navigate("/app/campaigns")}>
@@ -305,11 +316,11 @@ function PreordersCard({ campaigns }: { campaigns: CampaignRow[] }) {
               onClick={() => navigate(`/app/campaigns/${c.id}`)}
               aria-label={`${c.product} — ${t(c.status)}`}
             >
-              <IconTile icon={CartIcon} tone={c.status === "Live" ? "emerald" : c.status === "Paused" ? "amber" : "slate"} size="xs" />
+              <ProductThumb src={c.thumb} alt={c.product} size={32} />
               <span className="encore-row__main">
                 <span className="encore-row__title">{c.product}</span>
                 <span className="encore-row__sub">
-                  {t(c.trigger)} · {t(c.payment)} · {t("Ships")} {c.shipDate}
+                  {t(c.payment)} · {t("Ships")} {prettyDate(c.shipDate, locale)}
                 </span>
               </span>
               <span className="encore-row__meta">
@@ -377,7 +388,7 @@ export default function DashboardIndex() {
     : FALLBACK_ACTIVITY.map((a) => ({ ...a, tone: "violet" as TileTone }));
 
   return (
-    <s-page heading={t("Dashboard")} inlineSize="large">
+    <s-page heading={t("Dashboard")} inlineSize="base">
       <s-button slot="primary-action" variant="primary" icon="plus" onClick={() => navigate("/app/campaigns/new")}>
         {t("New preorder")}
       </s-button>

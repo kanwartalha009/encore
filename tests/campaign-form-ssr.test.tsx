@@ -54,7 +54,7 @@ const initialValues = {
 } as never;
 
 describe("CampaignForm SSR (edit mode)", () => {
-  it("renders the full form including the Select product section", () => {
+  it("renders the full form including the Products section", () => {
     const Stub = createRoutesStub([
       {
         path: "/app/campaigns/:id/edit",
@@ -75,11 +75,17 @@ describe("CampaignForm SSR (edit mode)", () => {
     const html = renderToString(
       <Stub initialEntries={["/app/campaigns/abc/edit"]} />,
     );
-    expect(html).toContain("Select product");
+    expect(html).toContain("Products");
     expect(html).toContain("Aurora Hoodie");
+    expect(html).toContain("Indigo / L");
     expect(html).toContain("<s-page");
-    expect(html).toContain("<s-table");
+    // Layout v3: one row per variant with its own limit / availability fields.
+    expect(html.match(/class="encore-vrow"/g)?.length).toBe(3);
+    // Native title bar: heading + primary action slot (no custom hero).
+    expect(html).toContain('heading="test"');
+    expect(html).toContain('slot="primary-action"');
     // React 18 must never emit a stringified false boolean on a custom element.
-    expect(html).not.toMatch(/(disabled|loading|checked|selected|required)="false"/);
+    // (aria-checked="false" on native radio buttons is valid ARIA, hence the \s anchor.)
+    expect(html).not.toMatch(/\s(disabled|loading|checked|selected|required)="false"/);
   });
 });

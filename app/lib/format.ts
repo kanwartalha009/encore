@@ -117,3 +117,18 @@ export function displayOrderRef(ref: string | null | undefined): string {
   if (!ref) return "";
   return ref.replace(/\/L\d+$/, "");
 }
+
+/** "2026-09-30" → "Sep 30, 2026" in the admin locale (UTC, no off-by-one). */
+export function prettyDate(iso: string, locale: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso;
+  try {
+    return new Date(`${iso}T12:00:00Z`).toLocaleDateString(locale, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+  } catch {
+    return iso;
+  }
+}
