@@ -4,7 +4,7 @@ import type {
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
-import { useFetcher, useLoaderData, useSubmit } from "react-router";
+import { useFetcher, useLoaderData, useNavigate, useSubmit } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import {
   LanguageIcon,
@@ -17,9 +17,12 @@ import {
   PaintBrushFlatIcon,
   SettingsIcon,
   MenuHorizontalIcon,
+  GlobeIcon,
+  EmailIcon,
+  QuestionCircleIcon,
 } from "@shopify/polaris-icons";
-import { AppPage, IconTile, type TileTone } from "../components/ui";
-import { SelectField, ChoiceListField, badgeTone, flag, isChecked, val, useLinkProps } from "../components/wc";
+import { AppPage, IconTile, NavList, type TileTone } from "../components/ui";
+import { SelectField, ChoiceListField, badgeTone, flag, isChecked, val } from "../components/wc";
 
 type IconSource = React.FunctionComponent<React.SVGProps<SVGSVGElement>>;
 import { useAppBridge } from "@shopify/app-bridge-react";
@@ -79,7 +82,7 @@ export default function SettingsPage() {
   const discountTone = (s: DiscountCompatRow["status"]) =>
     s === "CONFLICT" ? "critical" : s === "REVIEW" ? "attention" : "success";
   const { locale, setLocale, t } = useLocale();
-  const link = useLinkProps();
+  const navigate = useNavigate();
   // Klaviyo OAuth starts with an authenticated fetch, then a top-level hop
   // (the route answers JSON; a plain link inside the iframe used to show it).
   const klaviyoConnect = useFetcher<{ url?: string; error?: string }>();
@@ -302,10 +305,6 @@ export default function SettingsPage() {
         </div>
 
         <s-stack direction="block" gap="large">
-          <s-banner tone="info">
-            <s-text>{t("These defaults pre-fill new preorders. You can change anything per preorder at any time.")}</s-text>
-          </s-banner>
-
         <div id="sec-language" />
         <s-section>
           <s-stack direction="block" gap="base">
@@ -951,40 +950,16 @@ export default function SettingsPage() {
         </s-section>
 
         <div id="sec-more" />
-        <s-section>
-          <s-stack direction="block" gap="base">
-            <s-stack direction="block" gap="small-200">
-              <s-heading>{t("More settings")}</s-heading>
-              <s-paragraph fontSize="small" color="subdued">{t("Less-common areas, kept out of the way until you need them.")}</s-paragraph>
-            </s-stack>
-            <s-divider />
-            {(
-              [
-                ["/app/markets", t("Markets"), t("Per-region preorder rules and availability.")],
-                ["/app/translations", t("nav.translations"), t("Translate storefront and email text for your buyers.")],
-                ["/app/notifications", t("Notifications"), t("Customer emails via Shopify Flow or Klaviyo — no added cost.")],
-                ["/app/help", t("Get help"), t("Send us a message — we usually reply within a day.")],
-              ] as [string, string, string][]
-            ).map(([url, label, desc]) => (
-              <s-stack direction="inline" key={url} justifyContent="space-between" alignItems="center">
-                <s-stack direction="block" gap="small-300">
-                  <s-paragraph fontWeight="semibold">{label}</s-paragraph>
-                  <s-paragraph fontSize="small" color="subdued">{desc}</s-paragraph>
-                </s-stack>
-                <s-button {...link(url)}>{t("Open")}</s-button>
-              </s-stack>
-            ))}
-          </s-stack>
-        </s-section>
-
-        <s-box paddingBlockEnd="base">
-          <s-paragraph fontSize="small" color="subdued">
-            Need help?{" "}
-            <s-link {...link("/app/help")}>{t("Get help")}</s-link>{" "}
-            or contact{" "}
-            <s-link {...link("/app/help")}>support</s-link>.
-          </s-paragraph>
-        </s-box>
+        <NavList
+          heading={t("More settings")}
+          sub={t("Less-common areas, kept out of the way until you need them.")}
+          items={[
+            { icon: GlobeIcon, tone: "sky", title: t("Markets"), sub: t("Per-region preorder rules and availability."), onClick: () => navigate("/app/markets") },
+            { icon: LanguageIcon, tone: "violet", title: t("nav.translations"), sub: t("Translate storefront and email text for your buyers."), onClick: () => navigate("/app/translations") },
+            { icon: EmailIcon, tone: "teal", title: t("Notifications"), sub: t("Customer emails via Shopify Flow or Klaviyo — no added cost."), onClick: () => navigate("/app/notifications") },
+            { icon: QuestionCircleIcon, tone: "slate", title: t("Get help"), sub: t("Send us a message — we usually reply within a day."), onClick: () => navigate("/app/help") },
+          ]}
+        />
       </s-stack>
       </div>
     </AppPage>

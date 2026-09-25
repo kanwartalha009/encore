@@ -84,7 +84,6 @@ export default function OrdersPage() {
   return (
     <AppPage
       heading={t("Orders")}
-      size="large"
       breadcrumb={{ label: t("Insights"), to: "/app/insights" }}
       intro={t("Every Shopify order that includes a preorder item, with its payment state and ship date.")}
     >

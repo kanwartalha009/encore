@@ -6,8 +6,9 @@ import type {
 } from "react-router";
 import { useLoaderData, useSubmit } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import { AppPage } from "../components/ui";
-import { val, useLinkProps } from "../components/wc";
+import { ProductIcon } from "@shopify/polaris-icons";
+import { ActionBar, AppPage, Disclosure, FormCard, KvRow } from "../components/ui";
+import { SelectField, val, useLinkProps } from "../components/wc";
 import { useAppBridge } from "@shopify/app-bridge-react";
 
 import { authenticate } from "../shopify.server";
@@ -151,30 +152,34 @@ function PresetCard({
   preset,
   active,
   onClick,
+  sample,
 }: {
   preset: LowStockPreset;
   active: boolean;
   onClick: () => void;
+  sample: React.ReactNode;
 }) {
   const { t } = useLocale();
   return (
-    <s-clickable
+    <button
+      type="button"
+      role="radio"
+      aria-checked={active}
+      className={`encore-style-card${active ? " encore-style-card--active" : ""}`}
       onClick={onClick}
-      padding="base"
-      border="base"
-      borderColor={active ? "strong" : "base"}
-      borderRadius="base"
-      background={active ? "subdued" : "transparent"}
     >
-      <s-stack direction="block" gap="none">
-        <s-text type="strong">{t(preset.name)}</s-text>
-        <s-text color="subdued" fontSize="small">
-          {t(preset.desc)}
-        </s-text>
-      </s-stack>
-    </s-clickable>
+      <span className="encore-style-card__sample">{sample}</span>
+      <span className="encore-style-card__name">{t(preset.name)}</span>
+      <span className="encore-style-card__desc">{t(preset.desc)}</span>
+    </button>
   );
 }
+
+const POSITION_OPTIONS = [
+  { value: "below_price", label: "Below the price" },
+  { value: "above_atc", label: "Above Add to cart" },
+  { value: "below_atc", label: "Below Add to cart" },
+];
 
 export default function LowStockPage() {
   const shopify = useAppBridge();
@@ -209,8 +214,10 @@ export default function LowStockPage() {
   const [excludeCollections, setExcludeCollections] = useState<string[]>(
     v.excludeCollections ?? [],
   );
+  const [moreOpen, setMoreOpen] = useState(false);
 
-  const n = Math.min(5, Number(threshold) || 10);
+  const thresholdNum = Number(threshold) || 10;
+  const n = Math.min(5, thresholdNum);
   const save = (overrides: { enabled?: boolean } = {}) => {
     submit(
       {
@@ -224,172 +231,233 @@ export default function LowStockPage() {
     );
     shopify.toast.show(t("Low-stock settings saved"));
   };
+  // One click to go live: enabling saves straight away with the defaults
+  // (previously it only flipped local state and still needed a Save).
+  const turnOn = () => {
+    setEnabled(true);
+    save({ enabled: true });
+  };
+  const turnOff = () => {
+    setEnabled(false);
+    save({ enabled: false });
+  };
+
+  const indicator = (
+    <>
+      <style dangerouslySetInnerHTML={{ __html: customCss }} />
+      <LowStockPreview
+        preset={preset}
+        text={text}
+        barColor={barColor}
+        bgColor={bgColor}
+        textColor={textColor}
+        n={n}
+        threshold={thresholdNum}
+      />
+    </>
+  );
+  /** Product-page mock with the indicator in the chosen position. */
+  const productMock = (
+    <div className="encore-preview" aria-label={t("Live preview")}>
+      <div className="encore-preview__media">
+        <span className="encore-preview__ph" aria-hidden="true">
+          <ProductIcon />
+        </span>
+      </div>
+      <div className="encore-preview__body">
+        <span className="encore-preview__title">{t("Aurora Hoodie — Indigo")}</span>
+        <span className="encore-preview__meta">$54.00</span>
+        {position === "below_price" && <div className="encore-preview__slot">{indicator}</div>}
+        {position === "above_atc" && <div className="encore-preview__slot">{indicator}</div>}
+        <span className="encore-preview__btn">{t("Add to cart")}</span>
+        {position === "below_atc" && <div className="encore-preview__slot">{indicator}</div>}
+      </div>
+    </div>
+  );
+  const positionLabel = POSITION_OPTIONS.find((p) => p.value === position)?.label ?? position;
+  const presetName = LOW_STOCK_PRESETS.find((p) => p.id === preset)?.name ?? preset;
+  const excludedCount =
+    excludeCollections.length +
+    excludeTags
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean).length;
+  const saveButton = (
+    <s-button variant="primary" onClick={() => save()}>
+      {t("common.save")}
+    </s-button>
+  );
 
   return (
     <AppPage
       heading={t("lowstock.title")}
       intro={t("lowstock.subtitle")}
-      primaryAction={
-        enabled ? (
-          <s-button variant="primary" onClick={() => save()}>
-            {t("common.save")}
-          </s-button>
-        ) : undefined
+      primaryAction={enabled ? saveButton : undefined}
+      secondaryActions={
+        enabled
+          ? [
+              <s-button key="off" tone="critical" onClick={turnOff}>
+                {t("Turn off")}
+              </s-button>,
+            ]
+          : []
       }
     >
-        {!enabled ? (
-          // ----- Enable-first guide -----
-          <s-section heading={t("Show shoppers when stock is running low")}>
-            <s-stack direction="block" gap="base">
-              <s-paragraph color="subdued">
-                {t("A small “only a few left” indicator on the product page nudges hesitant shoppers to buy now. It appears automatically when a variant's available inventory drops to your threshold, and reads live inventory from your store.")}
-              </s-paragraph>
-              <s-divider />
-              <s-stack direction="block" gap="small">
-                <s-text>{t("What you'll set up next:")}</s-text>
-                <s-text color="subdued">{t("1 · The threshold (e.g. show when 10 or fewer left).")}</s-text>
-                <s-text color="subdued">{t("2 · A design — text, a progress bar, a badge, and your colours.")}</s-text>
-                <s-text color="subdued">{t("3 · Any products to exclude, by tag or collection.")}</s-text>
-              </s-stack>
-              <s-stack direction="inline">
-                <s-button variant="primary" onClick={() => setEnabled(true)}>
-                  {t("Enable low stock")}
-                </s-button>
-              </s-stack>
-            </s-stack>
-          </s-section>
-        ) : (
-          // ----- Full settings -----
-          <>
-            <s-section>
-              <div className="encore-row-between">
-                <s-stack direction="block" gap="none">
-                  <s-heading>{t("Low stock is on")}</s-heading>
-                  <s-text color="subdued" fontSize="small">
-                    {t("Shown on product pages when available is at or below your threshold.")}
-                  </s-text>
-                </s-stack>
-                <s-button
-                  variant="tertiary"
-                  tone="critical"
-                  onClick={() => {
-                    setEnabled(false);
-                    save({ enabled: false });
-                  }}
-                >
-                  {t("Turn off")}
-                </s-button>
-              </div>
-            </s-section>
+      {!enabled ? (
+        // ----- Enable-first: what it does + what it looks like, one button -----
+        <div className="encore-layout encore-layout--form">
+          <FormCard
+            title={t("Show shoppers when stock is running low")}
+            sub={t("A small “only a few left” indicator on the product page nudges hesitant shoppers to buy now. It appears automatically when a variant's available inventory drops to your threshold, and reads live inventory from your store.")}
+          >
+            <div className="encore-steps">
+              <span className="encore-steps__title">{t("What you'll set up next:")}</span>
+              <span>{t("1 · The threshold (e.g. show when 10 or fewer left).")}</span>
+              <span>{t("2 · A design — text, a progress bar, a badge, and your colours.")}</span>
+              <span>{t("3 · Any products to exclude, by tag or collection.")}</span>
+            </div>
+            <div>
+              <s-button variant="primary" onClick={turnOn}>
+                {t("Enable low stock")}
+              </s-button>
+            </div>
+          </FormCard>
+          <FormCard title={t("Storefront preview")}>{productMock}</FormCard>
+        </div>
+      ) : (
+        <>
+          <div className="encore-layout encore-layout--form">
+            {/* ================= Main column ================= */}
+            <div className="encore-stack">
+              <FormCard title={t("When to show")} sub={t("Shown on product pages when available is at or below your threshold.")}>
+                <div className="encore-form-grid">
+                  <s-number-field
+                    label={t("Show when available is at or below")}
+                    value={threshold}
+                    onInput={(e) => setThreshold(val(e))}
+                    suffix={t("units")}
+                    min={1}
+                    details={t("Hidden above this number, and when the product is out of stock.")}
+                  />
+                  <SelectField
+                    label={t("Position")}
+                    options={POSITION_OPTIONS.map((p) => ({ value: p.value, label: t(p.label) }))}
+                    value={position}
+                    onChange={setPosition}
+                  />
+                </div>
+              </FormCard>
 
-            <s-section heading={t("Products running low will appear here once inventory tracking picks them up.")}>
-              <s-stack direction="block" gap="small">
-                <s-paragraph color="subdued">
-                  {t("As inventory drops to your threshold, the indicator shows on those product pages automatically — and suggestions for what to preorder next will appear here.")}
-                </s-paragraph>
-                <s-stack direction="inline">
-                  <s-button {...link("/app/campaigns")}>{t("View preorders")}</s-button>
-                </s-stack>
-              </s-stack>
-            </s-section>
-
-            <s-section heading={t("When to show")}>
-              <s-stack direction="block" gap="base">
-                <s-number-field
-                  label={t("Show when available is at or below")}
-                  value={threshold}
-                  onInput={(e) => setThreshold(val(e))}
-                  suffix={t("units")}
-                  min={1}
-                  details={t("Hidden above this number, and when the product is out of stock.")}
-                />
-                <s-select label={t("Position")} value={position} onChange={(e) => setPosition(val(e))}>
-                  <s-option value="below_price">{t("Below the price")}</s-option>
-                  <s-option value="above_atc">{t("Above Add to cart")}</s-option>
-                  <s-option value="below_atc">{t("Below Add to cart")}</s-option>
-                </s-select>
-              </s-stack>
-            </s-section>
-
-            <s-section heading={t("Design")} subheading={t("Pick a style, then customise everything.")}>
-              <s-stack direction="block" gap="base">
-                <s-grid gridTemplateColumns="repeat(3, minmax(0, 1fr))" gap="base">
+              <FormCard title={t("Design")} sub={t("Pick a style, then customise everything.")}>
+                <div className="encore-style-grid" role="radiogroup" aria-label={t("Design")}>
                   {LOW_STOCK_PRESETS.map((p) => (
-                    <PresetCard key={p.id} preset={p} active={preset === p.id} onClick={() => setPreset(p.id)} />
+                    <PresetCard
+                      key={p.id}
+                      preset={p}
+                      active={preset === p.id}
+                      onClick={() => setPreset(p.id)}
+                      sample={
+                        <LowStockPreview
+                          preset={p.id}
+                          text={text}
+                          barColor={barColor}
+                          bgColor={bgColor}
+                          textColor={textColor}
+                          n={n}
+                          threshold={thresholdNum}
+                        />
+                      }
+                    />
                   ))}
-                </s-grid>
+                </div>
                 <s-text-field
                   label={t("Text")}
                   value={text}
                   onInput={(e) => setText(val(e))}
                   details={t("Variables: {n} or {available} (remaining), {threshold}.")}
                 />
-                <s-grid gridTemplateColumns="repeat(3, minmax(0, 1fr))" gap="base">
+                <div className="encore-form-grid encore-form-grid--3">
                   <ColorField label={t("Bar / accent colour")} value={barColor} onChange={setBarColor} />
                   <ColorField label={t("Bar background colour")} value={bgColor} onChange={setBgColor} />
                   <ColorField label={t("Text colour")} value={textColor} onChange={setTextColor} />
-                </s-grid>
-                <s-text-area
-                  label={t("Custom CSS")}
-                  value={customCss}
-                  onInput={(e) => setCustomCss(val(e))}
-                  rows={4}
-                  placeholder=".encore-lowstock { font-weight: 700; }"
-                  details={t("Targets .encore-lowstock in the theme block.")}
-                />
+                </div>
+              </FormCard>
 
-                <s-divider />
-                <s-heading>{t("Live preview")}</s-heading>
-                <s-box padding="large" border="base" borderRadius="base" background="base">
-                  <s-stack direction="block" gap="small-200">
-                    <s-text type="strong">Aurora Hoodie — Indigo</s-text>
-                    <s-text color="subdued">$54.00</s-text>
-                    <s-box paddingBlockStart="small">
-                      <style dangerouslySetInnerHTML={{ __html: customCss }} />
-                      <LowStockPreview
-                        preset={preset}
-                        text={text}
-                        barColor={barColor}
-                        bgColor={bgColor}
-                        textColor={textColor}
-                        n={n}
-                        threshold={Number(threshold) || 10}
-                      />
-                    </s-box>
-                  </s-stack>
-                </s-box>
-              </s-stack>
-            </s-section>
+              <Disclosure
+                id="lowstock-more"
+                title={t("More options")}
+                sub={t("Exclusions and custom CSS.")}
+                open={moreOpen}
+                onToggle={() => setMoreOpen((o) => !o)}
+              >
+                <div className="encore-adv__group">
+                  <h3 className="encore-adv__title">{t("Exclusions")}</h3>
+                  <s-text-field
+                    label={t("Exclude products with these tags")}
+                    value={excludeTags}
+                    onInput={(e) => setExcludeTags(val(e))}
+                    details={t("Comma-separated, e.g. archived, clearance.")}
+                  />
+                  <CollectionPicker
+                    collections={collections}
+                    selected={excludeCollections}
+                    onChange={setExcludeCollections}
+                    label={t("Exclude collections")}
+                  />
+                  {collections.length === 0 && (
+                    <s-text color="subdued" fontSize="small">
+                      {t("No collections found in your store.")}
+                    </s-text>
+                  )}
+                </div>
+                <div className="encore-adv__group">
+                  <h3 className="encore-adv__title">{t("Custom CSS")}</h3>
+                  <s-text-area
+                    label={t("Custom CSS")}
+                    labelAccessibilityVisibility="exclusive"
+                    value={customCss}
+                    onInput={(e) => setCustomCss(val(e))}
+                    rows={4}
+                    placeholder=".encore-lowstock { font-weight: 700; }"
+                    details={t("Targets .encore-lowstock in the theme block.")}
+                  />
+                </div>
+              </Disclosure>
+            </div>
 
-            <s-section heading={t("Exclusions")}>
-              <s-stack direction="block" gap="base">
-                <s-text-field
-                  label={t("Exclude products with these tags")}
-                  value={excludeTags}
-                  onInput={(e) => setExcludeTags(val(e))}
-                  details={t("Comma-separated, e.g. archived, clearance.")}
-                />
-                <CollectionPicker
-                  collections={collections}
-                  selected={excludeCollections}
-                  onChange={setExcludeCollections}
-                  label={t("Exclude collections")}
-                />
-                {collections.length === 0 && (
-                  <s-text color="subdued" fontSize="small">
-                    {t("No collections found in your store.")}
-                  </s-text>
-                )}
-              </s-stack>
-            </s-section>
+            {/* ================= Sidebar ================= */}
+            <div className="encore-stack">
+              <FormCard title={t("Summary")} action={<s-badge tone="success">{t("Live")}</s-badge>}>
+                <div className="encore-kv encore-kv--flush">
+                  <KvRow label={t("Shows at")} value={`≤ ${thresholdNum} ${t("units")}`} />
+                  <KvRow label={t("Position")} value={t(positionLabel)} />
+                  <KvRow label={t("Style")} value={t(presetName)} />
+                  <KvRow label={t("Exclusions")} value={excludedCount > 0 ? String(excludedCount) : t("None")} />
+                </div>
+              </FormCard>
+              <FormCard title={t("Storefront preview")}>{productMock}</FormCard>
+              <FormCard
+                title={t("Running low → preorder")}
+                sub={t("As inventory drops to your threshold, the indicator shows on those product pages automatically — and suggestions for what to preorder next will appear here.")}
+              >
+                <div>
+                  <s-button {...link("/app/campaigns")}>{t("View preorders")}</s-button>
+                </div>
+              </FormCard>
+            </div>
+          </div>
 
-            <s-stack direction="inline" justifyContent="end">
-              <s-button variant="primary" onClick={() => save()}>
-                {t("common.save")}
+          <ActionBar
+            left={
+              <s-button tone="critical" onClick={turnOff}>
+                {t("Turn off")}
               </s-button>
-            </s-stack>
-          </>
-        )}
+            }
+          >
+            {saveButton}
+          </ActionBar>
+        </>
+      )}
     </AppPage>
   );
 }

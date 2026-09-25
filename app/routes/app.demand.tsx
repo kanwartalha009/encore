@@ -153,19 +153,15 @@ export default function DemandPage() {
         <s-section heading={t("Size curve")} subheading={t("Demand across sizes — the reorder-depth view.")}>
           <s-stack direction="block" gap="base">
             {sizeCurve.map((s) => (
-              <s-stack key={s.size} direction="inline" gap="base" alignItems="center">
-                <div style={{ minWidth: 56 }}>
-                  <s-text type="strong">{s.size}</s-text>
+              <div key={s.size} className="encore-curve-row">
+                <s-text type="strong">{s.size}</s-text>
+                <div className="encore-bar encore-bar--lg">
+                  <span style={{ width: `${Math.max(2, Math.round((s.total / sizeMax) * 100))}%` }} />
                 </div>
-                <div style={{ flex: 1, background: "var(--s-color-bg-fill-secondary, #f1f1f1)", borderRadius: 999, height: 14, overflow: "hidden" }}>
-                  <div style={{ width: `${Math.round((s.total / sizeMax) * 100)}%`, height: "100%", background: "var(--encore-accent, #5b4fd6)", borderRadius: 999 }} />
-                </div>
-                <div style={{ minWidth: 40, textAlign: "end" }}>
-                  <s-text color="subdued" fontSize="small">
-                    {s.total}
-                  </s-text>
-                </div>
-              </s-stack>
+                <s-text color="subdued" fontSize="small">
+                  {s.total}
+                </s-text>
+              </div>
             ))}
           </s-stack>
         </s-section>

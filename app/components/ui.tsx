@@ -430,8 +430,8 @@ export function ProductThumb({ src, alt, size = 40 }: { src?: string | null; alt
  * `<s-page heading>` with primary / secondary actions and an optional
  * breadcrumb in their slots — instead of a custom hero, so Encore reads as
  * part of Shopify. An optional one-line intro sits above the content, and
- * `size="base"` keeps line lengths readable on wide screens; data-table
- * index pages pass `size="large"` (Shopify's own index pages are full width).
+ * `size="base"` (every page, including tables — one width across the app)
+ * keeps line lengths readable on wide screens.
  *
  * Action elements are cloned with the right `slot`; pass plain `<s-button>`s.
  */
@@ -483,12 +483,22 @@ export function AppPage({
 /** A card of click-through rows (Shopify settings-list style). */
 export function NavList({
   items,
+  heading,
+  sub,
 }: {
   items: { icon: IconSource; tone: TileTone; title: string; sub?: string; meta?: ReactNode; onClick: () => void }[];
+  heading?: string;
+  sub?: string;
 }) {
   return (
     <s-section padding="none">
       <div className="encore-navlist">
+        {heading && (
+          <div className="encore-navlist__head">
+            <span className="encore-card-head__title">{heading}</span>
+            {sub && <span className="encore-card-head__sub">{sub}</span>}
+          </div>
+        )}
         {items.map((it) => (
           <button key={it.title} type="button" className="encore-row" onClick={it.onClick}>
             <IconTile icon={it.icon} tone={it.tone} size="sm" />
@@ -506,5 +516,135 @@ export function NavList({
         ))}
       </div>
     </s-section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Form v3 building blocks (2026-09-25) — shared by the preorder form, Back in
+// stock and Low stock so every settings screen has the same anatomy:
+// titled cards in a main column, a summary/checklist + live preview sidebar,
+// optional "More options" disclosure and a bottom action bar.
+// ---------------------------------------------------------------------------
+
+/** Card with a 14px title, optional subtitle and a right-aligned action. */
+export function FormCard({
+  title,
+  sub,
+  action,
+  children,
+}: {
+  title: string;
+  sub?: string;
+  action?: ReactNode;
+  children?: ReactNode;
+}) {
+  return (
+    <s-section>
+      <div className="encore-form-card">
+        <div className="encore-form-card__head">
+          <div className="encore-form-card__titles">
+            <h2 className="encore-form-card__title">{title}</h2>
+            {sub && <p className="encore-form-card__sub">{sub}</p>}
+          </div>
+          {action}
+        </div>
+        {children}
+      </div>
+    </s-section>
+  );
+}
+
+/** Collapsed card for optional settings ("More options"). */
+export function Disclosure({
+  title,
+  sub,
+  open,
+  onToggle,
+  id,
+  children,
+}: {
+  title: string;
+  sub?: string;
+  open: boolean;
+  onToggle: () => void;
+  id: string;
+  children: ReactNode;
+}) {
+  return (
+    <s-section>
+      <button type="button" className="encore-disclosure" aria-expanded={open} aria-controls={id} onClick={onToggle}>
+        <span className="encore-form-card__titles">
+          <span className="encore-form-card__title">{title}</span>
+          {sub && <span className="encore-form-card__sub">{sub}</span>}
+        </span>
+        <s-icon type={open ? "chevron-up" : "chevron-down"} />
+      </button>
+      {open && (
+        <div id={id} className="encore-adv">
+          {children}
+        </div>
+      )}
+    </s-section>
+  );
+}
+
+/** Label → value row (sidebar summaries). */
+export function KvRow({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="encore-kv__row">
+      <span className="encore-kv__label">{label}</span>
+      <span className="encore-kv__value">{value}</span>
+    </div>
+  );
+}
+
+/** Checklist row: done/not-done icon, label, value. */
+export function CheckRow({ ok, label, value }: { ok: boolean; label: string; value: string }) {
+  return (
+    <div className={`encore-check${ok ? " encore-check--ok" : ""}`}>
+      <s-icon type={ok ? "check-circle-filled" : "circle"} tone={ok ? "success" : "neutral"} size="small" />
+      <span className="encore-check__label">{label}</span>
+      <span className="encore-check__value">{value}</span>
+    </div>
+  );
+}
+
+/** Bottom action bar for long forms (mirrors the title-bar actions). */
+export function ActionBar({ left, children }: { left?: ReactNode; children: ReactNode }) {
+  return (
+    <div className="encore-actionbar">
+      {left ?? <span />}
+      <div className="encore-actionbar__right">{children}</div>
+    </div>
+  );
+}
+
+/** Pill segmented control (single choice). */
+export function Segmented<T extends string>({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="encore-seg" role="radiogroup" aria-label={label}>
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          role="radio"
+          aria-checked={value === o.value}
+          className={`encore-seg__btn${value === o.value ? " encore-seg__btn--active" : ""}`}
+          onClick={() => onChange(o.value)}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
   );
 }

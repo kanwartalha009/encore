@@ -221,7 +221,9 @@ export default function CampaignsIndex() {
                 <s-text type="strong">{c.name}</s-text>
               </s-link>
               <s-text color="subdued" fontSize="small">
-                {c.product && c.product !== c.name ? `${c.product} · ${t(c.trigger)}` : t(c.trigger)}
+                {[c.product && c.product !== c.name ? c.product : null, t(c.trigger), t(c.cartMode)]
+                  .filter(Boolean)
+                  .join(" · ")}
               </s-text>
             </s-stack>
           </div>
@@ -231,16 +233,6 @@ export default function CampaignsIndex() {
         </s-table-cell>
         <s-table-cell>
           <s-badge tone={badgeTone(paymentBadgeTone(c.payment))}>{t(c.payment)}</s-badge>
-        </s-table-cell>
-        <s-table-cell>
-          <s-text fontSize="small" interestFor={`cart-tip-${c.id}`}>
-            {t(c.cartMode)}
-          </s-text>
-          <s-tooltip id={`cart-tip-${c.id}`}>
-            {c.cartMode === "Ships separately"
-              ? t("Preorder items are split into their own order at checkout")
-              : t("Shoppers see a mixed-cart notice; one order ships together")}
-          </s-tooltip>
         </s-table-cell>
         <s-table-cell>{progressLabel}</s-table-cell>
         <s-table-cell>{c.gmv}</s-table-cell>
@@ -257,7 +249,6 @@ export default function CampaignsIndex() {
   return (
     <AppPage
       heading={t("Preorders")}
-      size="large"
       primaryAction={
         <s-button variant="primary" icon="plus" onClick={() => navigate("/app/campaigns/new")}>
           {t("New preorder")}
@@ -394,7 +385,6 @@ export default function CampaignsIndex() {
                     <s-table-header listSlot="primary">{t("Preorder")}</s-table-header>
                     <s-table-header listSlot="inline">{t("Status")}</s-table-header>
                     <s-table-header listSlot="kicker">{t("Payment")}</s-table-header>
-                    <s-table-header>{t("Cart")}</s-table-header>
                     <s-table-header format="numeric">{t("Units")}</s-table-header>
                     <s-table-header format="currency">{t("GMV")}</s-table-header>
                     <s-table-header listSlot="secondary">{t("Ship date")}</s-table-header>

@@ -100,17 +100,15 @@ export default function BenchmarkPage() {
       ]}
     >
         {noData ? (
-          <s-section heading={t("Nothing to score yet")}>
-            <s-stack direction="block" gap="small">
-              <s-paragraph color="subdued">
+          <s-section>
+            <s-empty-state heading={t("Nothing to score yet")}>
+              <s-paragraph slot="subheading">
                 {t("Your recovered-demand scorecard fills in after your first back-in-stock alerts convert to orders — set up the waitlist to start capturing demand.")}
               </s-paragraph>
-              <s-stack direction="inline">
-                <s-button variant="primary" {...link("/app/waitlist")}>
-                  {t("Set up back-in-stock")}
-                </s-button>
-              </s-stack>
-            </s-stack>
+              <s-button slot="primary-action" variant="primary" {...link("/app/waitlist")}>
+                {t("Set up back-in-stock")}
+              </s-button>
+            </s-empty-state>
           </s-section>
         ) : (
           <MetricStrip

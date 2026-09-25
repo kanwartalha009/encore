@@ -5,6 +5,7 @@
  */
 import { useNavigate } from "react-router";
 import { useLocale } from "../lib/i18n";
+import { prettyDate } from "../lib/format";
 
 export type OrderRowView = {
   id: string;
@@ -53,7 +54,7 @@ export function OrdersTable({
   orders: OrderRowView[];
   showCampaign?: boolean;
 }) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const navigate = useNavigate();
 
   if (orders.length === 0) {
@@ -78,14 +79,25 @@ export function OrdersTable({
         <s-table-header format="currency">{t("Amount")}</s-table-header>
         <s-table-header listSlot="inline">{t("Payment")}</s-table-header>
         <s-table-header>{t("Ships")}</s-table-header>
-        <s-table-header>{t("Placed")}</s-table-header>
-        <s-table-header></s-table-header>
       </s-table-header-row>
       <s-table-body>
         {orders.map((o) => (
           <s-table-row key={o.id}>
             <s-table-cell>
-              <s-text type="strong">{o.orderRef}</s-text>
+              {/* Order number opens the order in Shopify (Shopify list convention);
+                  the placed date sits under it. */}
+              <s-stack direction="block" gap="none">
+                {o.shopifyUrl ? (
+                  <s-link href={o.shopifyUrl} target="_blank" accessibilityLabel={`${t("Open in Shopify")}: ${o.orderRef}`}>
+                    <s-text type="strong">{o.orderRef}</s-text>
+                  </s-link>
+                ) : (
+                  <s-text type="strong">{o.orderRef}</s-text>
+                )}
+                <s-text color="subdued" fontSize="small">
+                  {prettyDate(o.placedAt, locale)}
+                </s-text>
+              </s-stack>
             </s-table-cell>
             <s-table-cell>
               <s-stack direction="block" gap="none">
@@ -97,9 +109,15 @@ export function OrdersTable({
             </s-table-cell>
             {showCampaign && (
               <s-table-cell>
-                <s-button variant="tertiary" onClick={() => navigate(`/app/campaigns/${o.campaignId}`)}>
+                <s-link
+                  href={`/app/campaigns/${o.campaignId}`}
+                  onClick={(e: Event) => {
+                    e.preventDefault();
+                    navigate(`/app/campaigns/${o.campaignId}`);
+                  }}
+                >
                   {o.campaignName || "—"}
-                </s-button>
+                </s-link>
               </s-table-cell>
             )}
             <s-table-cell>{o.units}</s-table-cell>
@@ -107,19 +125,7 @@ export function OrdersTable({
             <s-table-cell>
               <s-badge tone={tone(o.paymentStatus)}>{t(STATUS_LABEL[o.paymentStatus] ?? o.paymentStatus)}</s-badge>
             </s-table-cell>
-            <s-table-cell>{o.shipDate === "TBD" ? t("TBD") : o.shipDate}</s-table-cell>
-            <s-table-cell>
-              <s-text color="subdued" fontSize="small">
-                {o.placedAt}
-              </s-text>
-            </s-table-cell>
-            <s-table-cell>
-              {o.shopifyUrl && (
-                <s-button variant="tertiary" icon="external" href={o.shopifyUrl} target="_blank">
-                  {t("Open in Shopify")}
-                </s-button>
-              )}
-            </s-table-cell>
+            <s-table-cell>{o.shipDate === "TBD" ? t("TBD") : prettyDate(o.shipDate, locale)}</s-table-cell>
           </s-table-row>
         ))}
       </s-table-body>

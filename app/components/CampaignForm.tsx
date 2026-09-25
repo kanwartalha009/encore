@@ -20,7 +20,7 @@ import ConfirmModal from "./ConfirmModal";
 import { useLocale } from "../lib/i18n";
 import { useNavigate, useNavigation, useSubmit } from "react-router";
 import { ProductIcon } from "@shopify/polaris-icons";
-import { ProductThumb } from "./ui";
+import { ActionBar, CheckRow, Disclosure, FormCard, KvRow, ProductThumb, Segmented } from "./ui";
 import { prettyDate } from "../lib/format";
 import { SelectField, ChoiceListField, flag, isChecked, val, useLinkProps } from "./wc";
 
@@ -210,34 +210,6 @@ const AVAIL_OPTIONS: { label: string; value: VariantAvailabilityUI }[] = [
   { label: "Available between start & end date", value: "between" },
   { label: "Not available", value: "not_available" },
 ];
-
-// ---------- Layout helpers ----------
-function FormCard({
-  title,
-  sub,
-  action,
-  children,
-}: {
-  title: string;
-  sub?: string;
-  action?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <s-section>
-      <div className="encore-form-card">
-        <div className="encore-form-card__head">
-          <div className="encore-form-card__titles">
-            <h2 className="encore-form-card__title">{title}</h2>
-            {sub && <p className="encore-form-card__sub">{sub}</p>}
-          </div>
-          {action}
-        </div>
-        {children}
-      </div>
-    </s-section>
-  );
-}
 
 // ---------- Props ----------
 export type CampaignFormProps = {
@@ -645,20 +617,12 @@ export default function CampaignForm({
                 ) : undefined
               }
             >
-              <div className="encore-seg" role="radiogroup" aria-label={t("Products")}>
-                {SCOPES.map((sc) => (
-                  <button
-                    key={sc.value}
-                    type="button"
-                    role="radio"
-                    aria-checked={productMode === sc.value}
-                    className={`encore-seg__btn${productMode === sc.value ? " encore-seg__btn--active" : ""}`}
-                    onClick={() => setProductMode(sc.value)}
-                  >
-                    {sc.label}
-                  </button>
-                ))}
-              </div>
+              <Segmented
+                label={t("Products")}
+                options={SCOPES.map((sc) => ({ value: sc.value, label: sc.label }))}
+                value={productMode}
+                onChange={setProductMode}
+              />
               <p className="encore-form-card__hint">{SCOPES.find((sc) => sc.value === productMode)?.desc}</p>
 
               {productMode === "all" ? null : productMode === "collection" ? (
@@ -824,23 +788,13 @@ export default function CampaignForm({
             </FormCard>
 
             {/* ---- More options (per-drop, collapsed) ---- */}
-            <s-section>
-              <button
-                type="button"
-                className="encore-disclosure"
-                aria-expanded={advancedOpen}
-                aria-controls="advanced"
-                onClick={() => setAdvancedOpen((v) => !v)}
-              >
-                <span className="encore-form-card__titles">
-                  <span className="encore-form-card__title">{t("More options")}</span>
-                  <span className="encore-form-card__sub">{t("Discount, button text, delivery note, cohort name, internal notes.")}</span>
-                </span>
-                <s-icon type={advancedOpen ? "chevron-up" : "chevron-down"} />
-              </button>
-
-              {advancedOpen && (
-                <div id="advanced" className="encore-adv">
+            <Disclosure
+              id="advanced"
+              title={t("More options")}
+              sub={t("Discount, button text, delivery note, cohort name, internal notes.")}
+              open={advancedOpen}
+              onToggle={() => setAdvancedOpen((v) => !v)}
+            >
                   <div className="encore-adv__group">
                     <h3 className="encore-adv__title">{t("Discount")}</h3>
                     <s-checkbox
@@ -926,9 +880,7 @@ export default function CampaignForm({
                       placeholder={t("Ops handoff, forecasting context, etc.")}
                     />
                   </div>
-                </div>
-              )}
-            </s-section>
+            </Disclosure>
           </div>
 
           {/* ================= Sidebar ================= */}
@@ -953,9 +905,9 @@ export default function CampaignForm({
                   <CheckRow ok={name.trim().length > 0} label={t("Name")} value={name.trim() || t("Not set")} />
                 </div>
                 <div className="encore-kv">
-                  <SummaryRow label={t("Customer pays")} value={paySummary} />
-                  <SummaryRow label={t("Units offered")} value={productMode === "specific" ? totalUnits.toLocaleString() : "—"} />
-                  <SummaryRow label={t("Markets")} value={marketsAll ? t("All markets") : `${markets.length} ${t("selected")}`} />
+                  <KvRow label={t("Customer pays")} value={paySummary} />
+                  <KvRow label={t("Units offered")} value={productMode === "specific" ? totalUnits.toLocaleString() : "—"} />
+                  <KvRow label={t("Markets")} value={marketsAll ? t("All markets") : `${markets.length} ${t("selected")}`} />
                 </div>
               </div>
             </s-section>
@@ -1039,20 +991,19 @@ export default function CampaignForm({
         </div>
 
         {/* Bottom action bar — mirrors the title bar for long forms */}
-        <div className="encore-actionbar">
-          {mode === "edit" ? (
-            <s-button tone="critical" onClick={handleDelete}>
-              {t("Delete preorder")}
-            </s-button>
-          ) : (
-            <span />
-          )}
-          <div className="encore-actionbar__right">
-            <s-button onClick={() => navigate(backTo)}>{t("Cancel")}</s-button>
-            {mode === "create" && <s-button onClick={handleSaveDraft}>{t("Save draft")}</s-button>}
-            {primaryButton}
-          </div>
-        </div>
+        <ActionBar
+          left={
+            mode === "edit" ? (
+              <s-button tone="critical" onClick={handleDelete}>
+                {t("Delete preorder")}
+              </s-button>
+            ) : undefined
+          }
+        >
+          <s-button onClick={() => navigate(backTo)}>{t("Cancel")}</s-button>
+          {mode === "create" && <s-button onClick={handleSaveDraft}>{t("Save draft")}</s-button>}
+          {primaryButton}
+        </ActionBar>
       </div>
       <ConfirmModal
         open={confirmDeleteOpen}
@@ -1066,25 +1017,5 @@ export default function CampaignForm({
         onCancel={() => setConfirmDeleteOpen(false)}
       />
     </s-page>
-  );
-}
-
-// ---------- Sidebar primitives ----------
-function SummaryRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="encore-kv__row">
-      <span className="encore-kv__label">{label}</span>
-      <span className="encore-kv__value">{value}</span>
-    </div>
-  );
-}
-
-function CheckRow({ ok, label, value }: { ok: boolean; label: string; value: string }) {
-  return (
-    <div className={`encore-check${ok ? " encore-check--ok" : ""}`}>
-      <s-icon type={ok ? "check-circle-filled" : "circle"} tone={ok ? "success" : "neutral"} size="small" />
-      <span className="encore-check__label">{label}</span>
-      <span className="encore-check__value">{value}</span>
-    </div>
   );
 }

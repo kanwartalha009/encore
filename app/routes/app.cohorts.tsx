@@ -14,6 +14,7 @@ import {
   type CohortListRow,
 } from "../models/cohorts.server";
 import { useLocale } from "../lib/i18n";
+import { prettyDate } from "../lib/format";
 import { getShopCurrency } from "../models/shop.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -64,7 +65,7 @@ function payTone(
 export default function OrdersPage() {
   const { orders, cohorts } = useLoaderData<typeof loader>();
   const shopify = useAppBridge();
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const [params] = useSearchParams();
   const [tab, setTab] = useState(params.get("view") === "cohorts" ? 1 : 0);
 
@@ -90,9 +91,15 @@ export default function OrdersPage() {
         <s-text type="strong">{o.orderRef}</s-text>
       </s-table-cell>
       <s-table-cell>{o.customer}</s-table-cell>
-      <s-table-cell>{o.product}</s-table-cell>
-      <s-table-cell>{o.cohort}</s-table-cell>
-      <s-table-cell>{o.shipDate}</s-table-cell>
+      <s-table-cell>
+        <s-stack direction="block" gap="none">
+          <s-text>{o.product}</s-text>
+          <s-text color="subdued" fontSize="small">
+            {o.cohort}
+          </s-text>
+        </s-stack>
+      </s-table-cell>
+      <s-table-cell>{prettyDate(o.shipDate, locale)}</s-table-cell>
       <s-table-cell>{o.units}</s-table-cell>
       <s-table-cell>{o.amount}</s-table-cell>
       <s-table-cell>
@@ -116,13 +123,20 @@ export default function OrdersPage() {
         <s-table-cell>
           <s-badge tone={badgeTone(cohortTone(c.status))}>{t(COHORT_STATUS_LABEL[c.status])}</s-badge>
         </s-table-cell>
-        <s-table-cell>{c.shipDate}</s-table-cell>
+        <s-table-cell>{prettyDate(c.shipDate, locale)}</s-table-cell>
         <s-table-cell>
-          <s-text color="subdued" fontSize="small">
-            {c.unitsSold.toLocaleString()}
-            {c.unitsTarget ? ` / ${c.unitsTarget.toLocaleString()}` : ""}
-            {pct != null ? ` (${pct}%)` : ""}
-          </s-text>
+          <div className="encore-cell-progress">
+            {pct != null && (
+              <div className={`encore-bar${c.status === "AT_RISK" ? " encore-bar--amber" : c.status === "READY_TO_SHIP" ? " encore-bar--emerald" : ""}`}>
+                <span style={{ width: `${Math.max(pct, 2)}%` }} />
+              </div>
+            )}
+            <s-text color="subdued" fontSize="small">
+              {c.unitsSold.toLocaleString()}
+              {c.unitsTarget ? ` / ${c.unitsTarget.toLocaleString()}` : ""}
+              {pct != null ? ` (${pct}%)` : ""}
+            </s-text>
+          </div>
         </s-table-cell>
         <s-table-cell>{c.gmv}</s-table-cell>
       </s-table-row>
@@ -132,7 +146,6 @@ export default function OrdersPage() {
   return (
     <AppPage
       heading={t("Cohorts")}
-      size="large"
       breadcrumb={{ label: t("Insights"), to: "/app/insights" }}
       intro={t("orders.subtitle")}
       primaryAction={
@@ -172,8 +185,7 @@ export default function OrdersPage() {
                 <s-table-header-row>
                   <s-table-header listSlot="primary">{t("Order")}</s-table-header>
                   <s-table-header listSlot="secondary">{t("Customer")}</s-table-header>
-                  <s-table-header>{t("Product")}</s-table-header>
-                  <s-table-header listSlot="kicker">{t("Cohort")}</s-table-header>
+                  <s-table-header listSlot="kicker">{t("Product")}</s-table-header>
                   <s-table-header>{t("Ship date")}</s-table-header>
                   <s-table-header format="numeric">{t("Units")}</s-table-header>
                   <s-table-header format="currency">{t("Amount")}</s-table-header>

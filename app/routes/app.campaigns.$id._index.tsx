@@ -551,10 +551,10 @@ function OverviewTab({
                 <s-progress value={progressPct} max={100} accessibilityLabel={`${progressPct}%`} />
                 <div className="encore-row-between">
                   <s-text color="subdued" fontSize="small">
-                    {campaign.unitsSold.toLocaleString()} of {campaign.unitsTarget.toLocaleString()} units
+                    {campaign.unitsSold.toLocaleString()} / {campaign.unitsTarget.toLocaleString()} {t("units")}
                   </s-text>
                   <s-text color="subdued" fontSize="small">
-                    {campaign.unitsTarget - campaign.unitsSold} units remaining
+                    {Math.max(0, campaign.unitsTarget - campaign.unitsSold)} {t("units remaining")}
                   </s-text>
                 </div>
               </>
@@ -627,7 +627,7 @@ function OverviewTab({
 }
 
 function CustomersTab({ customers }: { customers: Customer[] }) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
 
   if (customers.length === 0) {
     return (
@@ -668,7 +668,7 @@ function CustomersTab({ customers }: { customers: Customer[] }) {
             </s-table-cell>
             <s-table-cell>
               <s-text color="subdued" fontSize="small">
-                {c.orderedAt}
+                {prettyDate(c.orderedAt, locale)}
               </s-text>
             </s-table-cell>
           </s-table-row>

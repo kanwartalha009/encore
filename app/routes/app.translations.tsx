@@ -96,12 +96,11 @@ export default function TranslationsPage() {
         </s-button>
       }
     >
-        <s-banner tone="info">
-          {t("The admin language follows your Shopify account automatically. Below you translate the storefront text we add (button, badge, cart, popup, low-stock) — these register with Shopify so they switch with the buyer's language alongside Translate & Adapt.")}
-        </s-banner>
-
         <s-section>
           <s-stack direction="block" gap="base">
+            <s-paragraph color="subdued">
+              {t("The admin language follows your Shopify account automatically. Below you translate the storefront text we add (button, badge, cart, popup, low-stock) — these register with Shopify so they switch with the buyer's language alongside Translate & Adapt.")}
+            </s-paragraph>
             <div className="encore-row-between">
               <s-select label={t("Language to translate")} value={locale} onChange={(e) => setLocale(val(e))}>
                 {targets.map((l) => (

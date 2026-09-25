@@ -4,11 +4,11 @@ import type {
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
-import { useFetcher, useLoaderData, useSubmit } from "react-router";
+import { useFetcher, useLoaderData, useSearchParams, useSubmit } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import { EmailIcon, CartIcon, PackageIcon } from "@shopify/polaris-icons";
-import { AppPage, MetricStrip } from "../components/ui";
-import { flag, isChecked, val } from "../components/wc";
+import { EmailIcon, CartIcon, PackageIcon, ProductIcon } from "@shopify/polaris-icons";
+import { ActionBar, AppPage, CheckRow, Disclosure, FormCard, KvRow, MetricStrip, Segmented } from "../components/ui";
+import { ChoiceListField, SelectField, flag, isChecked, val } from "../components/wc";
 import { useAppBridge } from "@shopify/app-bridge-react";
 
 import { authenticate } from "../shopify.server";
@@ -92,7 +92,13 @@ export default function BackInStockPage() {
     excludeCollections?: string[];
   };
 
-  const [showSettings, setShowSettings] = useState(false);
+  // Two views on one page: the subscriber list, and the storefront setup form
+  // (form v3 layout). ?view=setup deep-links to the form.
+  const [params] = useSearchParams();
+  const [view, setView] = useState<"subscribers" | "setup">(
+    params.get("view") === "setup" ? "setup" : "subscribers",
+  );
+  const [moreOpen, setMoreOpen] = useState(false);
 
   // ----- Storefront settings -----
   const [enabled, setEnabled] = useState(v.enabled ?? true);
@@ -127,7 +133,6 @@ export default function BackInStockPage() {
       { method: "post" },
     );
     shopify.toast.show(t("Back-in-stock settings saved"));
-    setShowSettings(false);
   };
 
   const totalSubs = groups.reduce((a, g) => a + g.subscribers, 0);
@@ -242,8 +247,8 @@ export default function BackInStockPage() {
           )}
           {(g.notified > 0 || g.failed > 0) && (
             <s-stack direction="inline" gap="small-200">
-              {g.notified > 0 && <s-badge tone="success">{`${g.notified} notified`}</s-badge>}
-              {g.failed > 0 && <s-badge tone="critical">{`${g.failed} failed`}</s-badge>}
+              {g.notified > 0 && <s-badge tone="success">{`${g.notified} ${t("notified")}`}</s-badge>}
+              {g.failed > 0 && <s-badge tone="critical">{`${g.failed} ${t("failed")}`}</s-badge>}
             </s-stack>
           )}
         </s-stack>
@@ -253,15 +258,15 @@ export default function BackInStockPage() {
       </s-table-cell>
       <s-table-cell>
         <s-stack direction="inline" gap="small-200">
-          {g.email > 0 && <s-badge tone="info">{`Email · ${g.email}`}</s-badge>}
-          {g.sms > 0 && <s-badge tone="success">{`SMS · ${g.sms}`}</s-badge>}
-          {g.both > 0 && <s-badge tone="caution">{`Both · ${g.both}`}</s-badge>}
+          {g.email > 0 && <s-badge tone="info">{`${t("Email")} · ${g.email}`}</s-badge>}
+          {g.sms > 0 && <s-badge tone="success">{`${t("SMS")} · ${g.sms}`}</s-badge>}
+          {g.both > 0 && <s-badge tone="caution">{`${t("Both")} · ${g.both}`}</s-badge>}
         </s-stack>
       </s-table-cell>
       <s-table-cell>{g.convertedCount.toLocaleString()}</s-table-cell>
       <s-table-cell>
         <s-text color="subdued" fontSize="small">
-          {g.newestSignupAt ? new Date(g.newestSignupAt).toISOString().slice(0, 10) : "—"}
+          {g.newestSignupAt ? prettyDate(new Date(g.newestSignupAt).toISOString().slice(0, 10), locale) : "—"}
         </s-text>
       </s-table-cell>
       <s-table-cell>
@@ -272,24 +277,48 @@ export default function BackInStockPage() {
     </s-table-row>
   ));
 
-  const inputBox = (text: string) => (
-    <div style={{ border: "1px solid var(--s-color-border, #e3e3e3)", borderRadius: 8, padding: "8px 10px", color: "var(--s-color-text-secondary, #616161)", fontSize: 13 }}>
-      {text}
-    </div>
+  // ---------- Setup view helpers ----------
+  const positionLabel = NOTIFY_POSITIONS.find((p) => p.value === position)?.label ?? position;
+  const syncLabel =
+    syncTarget === "klaviyo" ? t("Klaviyo") : syncTarget === "shopify" ? t("Shopify customers") : t("Encore only");
+  const excludedCount =
+    excludeCollections.length +
+    excludeTags
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean).length;
+  const SYNC_CHOICES = [
+    {
+      value: "klaviyo",
+      label: `${t("Klaviyo")} · ${t("recommended")}`,
+      helpText: t("Subscribers land in Klaviyo and your Klaviyo flow sends the restock email."),
+    },
+    {
+      value: "shopify",
+      label: t("Shopify customers"),
+      helpText: t("Customers are tagged in Shopify and Encore sends the restock email for you."),
+    },
+    {
+      value: "none",
+      label: t("Keep in Encore only"),
+      helpText: t("Subscribers stay in this list; export them whenever you like."),
+    },
+  ];
+  const saveButton = (
+    <s-button variant="primary" onClick={save}>
+      {t("common.save")}
+    </s-button>
   );
 
   return (
     <AppPage
       heading={t("backinstock.title")}
-      size="large"
       intro={t("backinstock.subtitle")}
       primaryAction={
-        showSettings ? (
-          <s-button variant="primary" onClick={save}>
-            {t("common.save")}
-          </s-button>
+        view === "setup" ? (
+          saveButton
         ) : (
-          <s-button variant="primary" onClick={() => setShowSettings(true)}>
+          <s-button variant="primary" onClick={() => setView("setup")}>
             {t("Customize storefront")}
           </s-button>
         )
@@ -311,40 +340,120 @@ export default function BackInStockPage() {
       ]}
     >
       <input ref={fileInputRef} type="file" accept=".csv,text/csv" style={{ display: "none" }} onChange={onImportFile} />
-        {importResult && (
-          <s-banner
-            tone={importResult.ok ? "success" : "critical"}
-            heading={importResult.ok ? t("Import finished") : t("Import failed")}
-            dismissible
-            onDismiss={() => setImportResult(undefined)}
-          >
-            <s-paragraph>
-              {importResult.ok
-                ? `${importResult.imported ?? 0} ${t("subscribers imported")}` +
-                  ((importResult.duplicates ?? 0) > 0 ? ` · ${importResult.duplicates} ${t("already existed")}` : "") +
-                  ((importResult.skipped ?? 0) > 0 ? ` · ${importResult.skipped} ${t("rows skipped")}` : "")
-                : importErrorText(importResult.error)}
+      {importResult && (
+        <s-banner
+          tone={importResult.ok ? "success" : "critical"}
+          heading={importResult.ok ? t("Import finished") : t("Import failed")}
+          dismissible
+          onDismiss={() => setImportResult(undefined)}
+        >
+          <s-paragraph>
+            {importResult.ok
+              ? `${importResult.imported ?? 0} ${t("subscribers imported")}` +
+                ((importResult.duplicates ?? 0) > 0 ? ` · ${importResult.duplicates} ${t("already existed")}` : "") +
+                ((importResult.skipped ?? 0) > 0 ? ` · ${importResult.skipped} ${t("rows skipped")}` : "")
+              : importErrorText(importResult.error)}
+          </s-paragraph>
+          {importResult.ok === false && (
+            <s-paragraph color="subdued">
+              {t("Expected columns: email, product_id or product_handle, and optionally variant_id, locale.")}
             </s-paragraph>
-            {importResult.ok === false && (
-              <s-paragraph color="subdued">
-                {t("Expected columns: email, product_id or product_handle, and optionally variant_id, locale.")}
-              </s-paragraph>
-            )}
-          </s-banner>
-        )}
+          )}
+        </s-banner>
+      )}
 
-        {/* ---- Storefront customization (opens on demand) ---- */}
-        {showSettings && (
-          <div className="encore-stack">
+      <Segmented
+        label={t("backinstock.title")}
+        options={[
+          { value: "subscribers", label: totalSubs > 0 ? `${t("Subscribers")} ${totalSubs}` : t("Subscribers") },
+          { value: "setup", label: t("Storefront setup") },
+        ]}
+        value={view}
+        onChange={setView}
+      />
+
+      {view === "subscribers" ? (
+        <>
+          <MetricStrip
+            metrics={[
+              {
+                label: t("Total subscribers"),
+                value: totalSubs.toLocaleString(),
+                sub: `${t("across")} ${productCount} ${productCount === 1 ? t("product") : t("products")}`,
+                icon: EmailIcon,
+                tone: "sky",
+              },
+              {
+                label: t("Converted to purchase"),
+                value: totalConverted.toLocaleString(),
+                delta: `${conversionRate}%`,
+                deltaTone: totalConverted > 0 ? "success" : "subdued",
+                sub: t("conversion rate"),
+                icon: CartIcon,
+                tone: "emerald",
+              },
+              {
+                label: t("Products with waitlists"),
+                value: productCount.toLocaleString(),
+                sub: `${t("newest signup")} ${
+                  groups.length && groups.some((g) => g.newestSignupAt)
+                    ? prettyDate(
+                        new Date(
+                          Math.max(
+                            ...groups
+                              .filter((g) => g.newestSignupAt)
+                              .map((g) => new Date(g.newestSignupAt as string).getTime()),
+                          ),
+                        )
+                          .toISOString()
+                          .slice(0, 10),
+                        locale,
+                      )
+                    : "—"
+                }`,
+                icon: PackageIcon,
+                tone: "violet",
+              },
+            ]}
+          />
+
+          {groups.length === 0 ? (
             <s-section>
-              <s-stack direction="block" gap="base">
-                <div className="encore-row-between">
-                  <s-heading>{t("Notify-me button")}</s-heading>
-                  <s-button variant="tertiary" onClick={() => setShowSettings(false)}>
-                    {t("Close")}
-                  </s-button>
-                </div>
-                <s-divider />
+              <s-empty-state heading={t("No subscribers yet")}>
+                <s-paragraph slot="subheading">
+                  {t("Once the theme block is added, shoppers can subscribe on out-of-stock products.")}
+                </s-paragraph>
+                <s-button slot="primary-action" variant="primary" onClick={() => setView("setup")}>
+                  {t("Customize storefront")}
+                </s-button>
+              </s-empty-state>
+            </s-section>
+          ) : (
+            <s-section heading={t("Subscribers")} padding="none">
+              <s-table>
+                <s-table-header-row>
+                  <s-table-header listSlot="primary">{t("Product · variant")}</s-table-header>
+                  <s-table-header format="numeric">{t("Subscribers")}</s-table-header>
+                  <s-table-header listSlot="inline">{t("Channels")}</s-table-header>
+                  <s-table-header format="numeric">{t("Converted")}</s-table-header>
+                  <s-table-header>{t("Newest signup")}</s-table-header>
+                  <s-table-header>{t("Action")}</s-table-header>
+                </s-table-header-row>
+                <s-table-body>{rows}</s-table-body>
+              </s-table>
+            </s-section>
+          )}
+        </>
+      ) : (
+        <>
+          <div className="encore-layout encore-layout--form">
+            {/* ================= Main column ================= */}
+            <div className="encore-stack">
+              <FormCard
+                title={t("Notify-me button")}
+                sub={t("Shown on sold-out products so shoppers can ask to be told when it's back.")}
+                action={<s-badge tone={enabled ? "success" : "auto"}>{enabled ? t("On") : t("Off")}</s-badge>}
+              >
                 <s-checkbox
                   label={t("Show “Notify me” on out-of-stock products")}
                   details={t("Only when the product isn't in a live preorder — preorder wins.")}
@@ -356,175 +465,139 @@ export default function BackInStockPage() {
                   checked={flag(hideBuyNow)}
                   onChange={(e) => setHideBuyNow(isChecked(e))}
                 />
-                <s-divider />
-                <s-text-field label={t("Button text")} value={buttonText} onInput={(e) => setButtonText(val(e))} />
-                <s-select label={t("Button position")} value={position} onChange={(e) => setPosition(val(e))}>
-                  {NOTIFY_POSITIONS.map((p) => (
-                    <s-option key={p.value} value={p.value}>
-                      {p.label}
-                    </s-option>
-                  ))}
-                </s-select>
-                <s-color-field label={t("Button colour (hex)")} value={buttonColor} onInput={(e) => setButtonColor(val(e))} />
-              </s-stack>
-            </s-section>
-
-            <s-section heading={t("Sign-up popup")}>
-              <div className="encore-layout">
-                <s-stack direction="block" gap="base">
-                  <s-text-field label={t("Popup title")} value={popupTitle} onInput={(e) => setPopupTitle(val(e))} />
-                  <s-text-area label={t("Consent text")} value={consentText} rows={2} onInput={(e) => setConsentText(val(e))} />
-                  <s-checkbox label={t("Also collect phone number (SMS)")} checked={flag(collectPhone)} onChange={(e) => setCollectPhone(isChecked(e))} />
-                  <s-checkbox label={t("Show product image & title in popup")} checked={flag(showProductInfo)} onChange={(e) => setShowProductInfo(isChecked(e))} />
-                  <s-checkbox
-                    label={t("Require email confirmation (double opt-in)")}
-                    details={t("Off = one tap (recommended). On = stricter consent (EU).")}
-                    checked={flag(doubleOptIn)}
-                    onChange={(e) => setDoubleOptIn(isChecked(e))}
+                <div className="encore-form-grid">
+                  <s-text-field label={t("Button text")} value={buttonText} onInput={(e) => setButtonText(val(e))} />
+                  <SelectField
+                    label={t("Button position")}
+                    options={NOTIFY_POSITIONS.map((p) => ({ value: p.value, label: t(p.label) }))}
+                    value={position}
+                    onChange={setPosition}
                   />
-                </s-stack>
-                <s-box padding="base" border="base" borderRadius="base" background="base">
-                  <s-stack direction="block" gap="small">
-                    <s-text type="strong">{popupTitle}</s-text>
-                    {showProductInfo && (
-                      <s-stack direction="inline" gap="small" alignItems="center">
-                        <div style={{ width: 36, height: 36, borderRadius: 6, background: "var(--s-color-bg-fill-tertiary, #e3e3e3)" }} />
-                        <s-text color="subdued" fontSize="small">
-                          {t("Aurora Hoodie — Indigo")}
-                        </s-text>
-                      </s-stack>
-                    )}
-                    {inputBox("you@email.com")}
-                    {collectPhone && inputBox("+1 555 000 0000")}
-                    <button type="button" tabIndex={-1} aria-hidden="true" style={{ background: buttonColor, color: "#fff", border: "none", borderRadius: 8, padding: "10px 14px", fontWeight: 600, cursor: "default" }}>
-                      {buttonText}
-                    </button>
-                    <s-text color="subdued" fontSize="small">
-                      {consentText}
-                    </s-text>
-                  </s-stack>
-                </s-box>
-              </div>
-            </s-section>
+                </div>
+                <s-color-field label={t("Button colour (hex)")} value={buttonColor} onInput={(e) => setButtonColor(val(e))} />
+              </FormCard>
 
-            <s-section heading={t("Where subscribers are saved")}>
-              <s-stack direction="block" gap="base">
-                <s-select label={t("Sync subscribers to")} value={syncTarget} onChange={(e) => setSyncTarget(val(e))}>
-                  <s-option value="klaviyo">{t("Klaviyo (recommended — flows send the email)")}</s-option>
-                  <s-option value="shopify">{t("Shopify customers (tag + segment)")}</s-option>
-                  <s-option value="none">{t("Keep in Encore only")}</s-option>
-                </s-select>
+              <FormCard title={t("Sign-up popup")} sub={t("What shoppers see after tapping the button.")}>
+                <s-text-field label={t("Popup title")} value={popupTitle} onInput={(e) => setPopupTitle(val(e))} />
+                <s-text-area label={t("Consent text")} value={consentText} rows={2} onInput={(e) => setConsentText(val(e))} />
+                <s-checkbox label={t("Also collect phone number (SMS)")} checked={flag(collectPhone)} onChange={(e) => setCollectPhone(isChecked(e))} />
+                <s-checkbox label={t("Show product image & title in popup")} checked={flag(showProductInfo)} onChange={(e) => setShowProductInfo(isChecked(e))} />
+                <s-checkbox
+                  label={t("Require email confirmation (double opt-in)")}
+                  details={t("Off = one tap (recommended). On = stricter consent (EU).")}
+                  checked={flag(doubleOptIn)}
+                  onChange={(e) => setDoubleOptIn(isChecked(e))}
+                />
+              </FormCard>
+
+              <FormCard title={t("Where subscribers are saved")} sub={t("And who sends the restock email.")}>
+                <ChoiceListField
+                  label={t("Sync subscribers to")}
+                  labelHidden
+                  choices={SYNC_CHOICES}
+                  selected={[syncTarget]}
+                  onChange={(v) => setSyncTarget(v[0] ?? "klaviyo")}
+                />
                 {syncTarget === "shopify" && (
-                  <s-banner tone="warning">
-                    {t("Shopify Email has no automatic back-in-stock trigger, so we'll send the restock email for you and tag the customer.")}
-                  </s-banner>
+                  <div className="encore-subpanel">
+                    <s-text color="subdued">
+                      {t("Shopify Email has no automatic back-in-stock trigger, so we'll send the restock email for you and tag the customer.")}
+                    </s-text>
+                  </div>
                 )}
-              </s-stack>
-            </s-section>
+              </FormCard>
 
-            <s-section heading={t("Exclusions")}>
-              <s-stack direction="block" gap="base">
-                <s-text-field
-                  label={t("Exclude products with these tags")}
-                  value={excludeTags}
-                  onInput={(e) => setExcludeTags(val(e))}
-                  details={t("Comma-separated, e.g. archived, discontinued.")}
-                />
-                <CollectionPicker
-                  collections={collections}
-                  selected={excludeCollections}
-                  onChange={setExcludeCollections}
-                  label={t("Exclude collections")}
-                />
-                {collections.length === 0 && (
-                  <s-text color="subdued" fontSize="small">
-                    {t("No collections found in your store.")}
-                  </s-text>
-                )}
-              </s-stack>
-            </s-section>
+              <Disclosure
+                id="bis-more"
+                title={t("More options")}
+                sub={t("Exclude products by tag or collection.")}
+                open={moreOpen}
+                onToggle={() => setMoreOpen((o) => !o)}
+              >
+                <div className="encore-adv__group">
+                  <h3 className="encore-adv__title">{t("Exclusions")}</h3>
+                  <s-text-field
+                    label={t("Exclude products with these tags")}
+                    value={excludeTags}
+                    onInput={(e) => setExcludeTags(val(e))}
+                    details={t("Comma-separated, e.g. archived, discontinued.")}
+                  />
+                  <CollectionPicker
+                    collections={collections}
+                    selected={excludeCollections}
+                    onChange={setExcludeCollections}
+                    label={t("Exclude collections")}
+                  />
+                  {collections.length === 0 && (
+                    <s-text color="subdued" fontSize="small">
+                      {t("No collections found in your store.")}
+                    </s-text>
+                  )}
+                </div>
+              </Disclosure>
+            </div>
 
-            <s-stack direction="inline" justifyContent="end" gap="small">
-              <s-button onClick={() => setShowSettings(false)}>{t("common.cancel")}</s-button>
-              <s-button variant="primary" onClick={save}>
-                {t("common.save")}
-              </s-button>
-            </s-stack>
+            {/* ================= Sidebar ================= */}
+            <div className="encore-stack">
+              <FormCard
+                title={t("Summary")}
+                action={<s-badge tone={enabled ? "success" : "auto"}>{enabled ? t("Live") : t("Off")}</s-badge>}
+              >
+                <div className="encore-checklist">
+                  <CheckRow ok={enabled} label={t("Notify-me button")} value={enabled ? t("On") : t("Off")} />
+                  <CheckRow ok={syncTarget !== "none"} label={t("Restock email")} value={syncLabel} />
+                </div>
+                <div className="encore-kv">
+                  <KvRow label={t("Position")} value={t(positionLabel)} />
+                  <KvRow label={t("Phone number")} value={collectPhone ? t("Collected") : t("Not collected")} />
+                  <KvRow label={t("Double opt-in")} value={doubleOptIn ? t("On") : t("Off")} />
+                  <KvRow label={t("Exclusions")} value={excludedCount > 0 ? String(excludedCount) : t("None")} />
+                </div>
+              </FormCard>
 
-            <s-divider />
+              <FormCard title={t("Storefront preview")}>
+                <div className="encore-preview" aria-label={t("How the buy box will look on your product page.")}>
+                  <div className="encore-preview__media">
+                    <span className="encore-preview__ph" aria-hidden="true">
+                      <ProductIcon />
+                    </span>
+                    <span className="encore-preview__badge encore-preview__badge--muted">{t("Sold out")}</span>
+                  </div>
+                  <div className="encore-preview__body">
+                    <span className="encore-preview__title">{t("Aurora Hoodie — Indigo")}</span>
+                    <span className="encore-preview__btn" style={{ background: enabled ? buttonColor : "#b5b5b5" }}>
+                      {buttonText}
+                    </span>
+                    {!hideBuyNow && <span className="encore-preview__btn encore-preview__btn--ghost">{t("Buy it now")}</span>}
+                  </div>
+                </div>
+                <div className="encore-popup" aria-hidden="true">
+                  <span className="encore-popup__title">{popupTitle}</span>
+                  {showProductInfo && (
+                    <span className="encore-popup__product">
+                      <span className="encore-thumb encore-thumb--empty" style={{ width: 32, height: 32 }}>
+                        <ProductIcon />
+                      </span>
+                      {t("Aurora Hoodie — Indigo")}
+                    </span>
+                  )}
+                  <span className="encore-popup__input">you@email.com</span>
+                  {collectPhone && <span className="encore-popup__input">+1 555 000 0000</span>}
+                  <span className="encore-preview__btn" style={{ background: buttonColor }}>
+                    {buttonText}
+                  </span>
+                  <span className="encore-preview__note">{consentText}</span>
+                </div>
+              </FormCard>
+            </div>
           </div>
-        )}
 
-        {/* ---- Dashboard (always visible) ---- */}
-        <MetricStrip
-          metrics={[
-            {
-              label: t("Total subscribers"),
-              value: totalSubs.toLocaleString(),
-              sub: `${t("across")} ${productCount} ${productCount === 1 ? t("product") : t("products")}`,
-              icon: EmailIcon,
-              tone: "sky",
-            },
-            {
-              label: t("Converted to purchase"),
-              value: totalConverted.toLocaleString(),
-              delta: `${conversionRate}%`,
-              deltaTone: totalConverted > 0 ? "success" : "subdued",
-              sub: t("conversion rate"),
-              icon: CartIcon,
-              tone: "emerald",
-            },
-            {
-              label: t("Products with waitlists"),
-              value: productCount.toLocaleString(),
-              sub: `${t("newest signup")} ${
-                groups.length && groups.some((g) => g.newestSignupAt)
-                  ? prettyDate(
-                      new Date(
-                        Math.max(
-                          ...groups
-                            .filter((g) => g.newestSignupAt)
-                            .map((g) => new Date(g.newestSignupAt as string).getTime()),
-                        ),
-                      )
-                        .toISOString()
-                        .slice(0, 10),
-                      locale,
-                    )
-                  : "—"
-              }`,
-              icon: PackageIcon,
-              tone: "violet",
-            },
-          ]}
-        />
-
-        {groups.length === 0 ? (
-          <s-section>
-            <s-empty-state heading={t("No subscribers yet")}>
-              <s-paragraph slot="subheading">
-                {t("Once the theme block is added, shoppers can subscribe on out-of-stock products.")}
-              </s-paragraph>
-              <s-button slot="primary-action" variant="primary" onClick={() => setShowSettings(true)}>
-                {t("Customize storefront")}
-              </s-button>
-            </s-empty-state>
-          </s-section>
-        ) : (
-          <s-section heading={t("Subscribers")} padding="none">
-            <s-table>
-              <s-table-header-row>
-                <s-table-header listSlot="primary">{t("Product · variant")}</s-table-header>
-                <s-table-header format="numeric">{t("Subscribers")}</s-table-header>
-                <s-table-header listSlot="inline">{t("Channels")}</s-table-header>
-                <s-table-header format="numeric">{t("Converted")}</s-table-header>
-                <s-table-header>{t("Newest signup")}</s-table-header>
-                <s-table-header>{t("Action")}</s-table-header>
-              </s-table-header-row>
-              <s-table-body>{rows}</s-table-body>
-            </s-table>
-          </s-section>
-        )}
+          <ActionBar>
+            <s-button onClick={() => setView("subscribers")}>{t("common.cancel")}</s-button>
+            {saveButton}
+          </ActionBar>
+        </>
+      )}
     </AppPage>
   );
 }
