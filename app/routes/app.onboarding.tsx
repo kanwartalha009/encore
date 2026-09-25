@@ -9,8 +9,7 @@ import { useState } from "react";
 import type { HeadersFunction, LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import { redirect, useFetcher, useLoaderData } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import { WandIcon } from "@shopify/polaris-icons";
-import { PageHero } from "../components/ui";
+import { AppPage } from "../components/ui";
 import { flag, val, vals, useLinkProps } from "../components/wc";
 
 import { authenticate } from "../shopify.server";
@@ -122,9 +121,7 @@ export default function OnboardingWizard() {
   const canNext = step === 0 ? products.length > 0 : step === 1 ? mode !== "date" || !!startDate : true;
 
   return (
-    <s-page inlineSize="small">
-      <div className="encore-stack">
-        <PageHero icon={WandIcon} tone="violet" title={t("Set up your first preorder")} />
+    <AppPage heading={t("Set up your first preorder")} size="small">
         <s-progress value={((step + 1) / 3) * 100} max={100} accessibilityLabel={`${step + 1} / 3`} />
 
         {fetcher.data && fetcher.data.ok === false && (
@@ -220,7 +217,6 @@ export default function OnboardingWizard() {
             </div>
           </s-stack>
         </s-section>
-      </div>
-    </s-page>
+    </AppPage>
   );
 }

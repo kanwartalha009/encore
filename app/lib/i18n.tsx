@@ -615,6 +615,7 @@ const RETROFIT: Record<string, Tr> = {
   "today": { es: "hoy", fr: "aujourd'hui", de: "heute", it: "oggi", pt: "hoje", nl: "vandaag", pl: "dziś" },
   "variant": { es: "variante", fr: "variante", de: "Variante", it: "variante", pt: "variante", nl: "variant", pl: "wariant" },
   "variants": { es: "variantes", fr: "variantes", de: "Varianten", it: "varianti", pt: "variantes", nl: "varianten", pl: "warianty" },
+  "Retry failed": { es: "Reintentar fallidos", fr: "Réessayer les échecs", de: "Fehlgeschlagene wiederholen", it: "Riprova non riusciti", pt: "Tentar falhados de novo", nl: "Mislukte opnieuw proberen", pl: "Ponów nieudane" },
   "vs. previous 30 days": { es: "vs. 30 días anteriores", fr: "vs les 30 jours précédents", de: "ggü. den 30 Tagen davor", it: "vs 30 giorni precedenti", pt: "vs. 30 dias anteriores", nl: "t.o.v. vorige 30 dagen", pl: "wzgl. poprzednich 30 dni" },
   "last 30 days": { es: "últimos 30 días", fr: "30 derniers jours", de: "letzte 30 Tage", it: "ultimi 30 giorni", pt: "últimos 30 dias", nl: "laatste 30 dagen", pl: "ostatnie 30 dni" },
   "Products with waitlists": { es: "Productos con lista de espera", fr: "Produits avec liste d'attente", de: "Produkte mit Warteliste", it: "Prodotti con lista d'attesa", pt: "Produtos com lista de espera", nl: "Producten met wachtlijst", pl: "Produkty z listą oczekujących" },

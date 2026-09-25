@@ -4,7 +4,8 @@
  * @shopify/polaris-icons SVGs (the same icon set `<s-icon>` draws) so they can
  * take the tile's colour; everything else in the admin is an `<s-*>` element.
  */
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { cloneElement, isValidElement, useEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
+import { useLinkProps } from "./wc";
 import { ProductIcon } from "@shopify/polaris-icons";
 
 export type TileTone = "violet" | "teal" | "amber" | "rose" | "sky" | "emerald" | "slate";
@@ -421,5 +422,89 @@ export function ProductThumb({ src, alt, size = 40 }: { src?: string | null; alt
     <span className="encore-thumb encore-thumb--empty" style={{ width: size, height: size }} aria-hidden="true">
       <ProductIcon />
     </span>
+  );
+}
+
+/**
+ * App page shell (2026-09-25). Every page uses the admin's own title bar —
+ * `<s-page heading>` with primary / secondary actions and an optional
+ * breadcrumb in their slots — instead of a custom hero, so Encore reads as
+ * part of Shopify. An optional one-line intro sits above the content, and
+ * `size="base"` keeps line lengths readable on wide screens; data-table
+ * index pages pass `size="large"` (Shopify's own index pages are full width).
+ *
+ * Action elements are cloned with the right `slot`; pass plain `<s-button>`s.
+ */
+export function AppPage({
+  heading,
+  intro,
+  meta,
+  primaryAction,
+  secondaryActions,
+  breadcrumb,
+  size = "base",
+  children,
+}: {
+  heading: string;
+  intro?: ReactNode;
+  /** Status badges etc. shown on the intro line (s-page has no title badge). */
+  meta?: ReactNode;
+  primaryAction?: ReactNode;
+  secondaryActions?: ReactNode[];
+  breadcrumb?: { label: string; to: string };
+  size?: "small" | "base" | "large";
+  children: ReactNode;
+}) {
+  const link = useLinkProps();
+  const slotted = (el: ReactNode, slot: string, key?: number) =>
+    isValidElement(el) ? cloneElement(el as ReactElement<{ slot?: string; key?: number }>, { slot, key }) : null;
+  return (
+    <s-page heading={heading} inlineSize={size}>
+      {breadcrumb && (
+        <s-link slot="breadcrumb-actions" {...link(breadcrumb.to)}>
+          {breadcrumb.label}
+        </s-link>
+      )}
+      {slotted(primaryAction, "primary-action")}
+      {(secondaryActions ?? []).map((a, i) => slotted(a, "secondary-actions", i))}
+      <div className="encore-stack">
+        {(intro || meta) && (
+          <div className="encore-page-intro">
+            {meta}
+            {intro && <span>{intro}</span>}
+          </div>
+        )}
+        {children}
+      </div>
+    </s-page>
+  );
+}
+
+/** A card of click-through rows (Shopify settings-list style). */
+export function NavList({
+  items,
+}: {
+  items: { icon: IconSource; tone: TileTone; title: string; sub?: string; meta?: ReactNode; onClick: () => void }[];
+}) {
+  return (
+    <s-section padding="none">
+      <div className="encore-navlist">
+        {items.map((it) => (
+          <button key={it.title} type="button" className="encore-row" onClick={it.onClick}>
+            <IconTile icon={it.icon} tone={it.tone} size="sm" />
+            <span className="encore-row__main">
+              <span className="encore-row__title">{it.title}</span>
+              {it.sub && <span className="encore-row__sub">{it.sub}</span>}
+            </span>
+            <span className="encore-row__meta">
+              {it.meta}
+              <span className="encore-row__arrow">
+                <s-icon type="chevron-right" size="small" />
+              </span>
+            </span>
+          </button>
+        ))}
+      </div>
+    </s-section>
   );
 }

@@ -2,8 +2,8 @@ import { useState } from "react";
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { useLoaderData, useSearchParams } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import { DeliveryIcon, OrderIcon, CartIcon, ClockIcon } from "@shopify/polaris-icons";
-import { PageHero, StatCard } from "../components/ui";
+import { OrderIcon, CartIcon, ClockIcon } from "@shopify/polaris-icons";
+import { AppPage, MetricStrip } from "../components/ui";
 import { Tabs, badgeTone, flag } from "../components/wc";
 import { useAppBridge } from "@shopify/app-bridge-react";
 
@@ -130,26 +130,26 @@ export default function OrdersPage() {
   });
 
   return (
-    <s-page inlineSize="large">
-      <div className="encore-stack">
-        <PageHero
-          icon={DeliveryIcon}
-          tone="violet"
-          title={t("orders.title")}
-          sub={t("orders.subtitle")}
-          actions={
-            tab === 0 ? (
-              <s-button variant="primary" icon="export" onClick={exportOrders} disabled={flag(orders.length === 0)}>
-                {t("Export orders")}
-              </s-button>
-            ) : undefined
-          }
+    <AppPage
+      heading={t("Cohorts")}
+      size="large"
+      breadcrumb={{ label: t("Insights"), to: "/app/insights" }}
+      intro={t("orders.subtitle")}
+      primaryAction={
+        tab === 0 ? (
+          <s-button variant="primary" icon="export" onClick={exportOrders} disabled={flag(orders.length === 0)}>
+            {t("Export orders")}
+          </s-button>
+        ) : undefined
+      }
+    >
+        <MetricStrip
+          metrics={[
+            { icon: OrderIcon, tone: "violet", label: t("Preorder orders"), value: orders.length.toLocaleString() },
+            { icon: CartIcon, tone: "teal", label: t("Units pre-sold"), value: totalUnits.toLocaleString() },
+            { icon: ClockIcon, tone: "sky", label: t("Cohorts"), value: cohorts.length.toLocaleString() },
+          ]}
         />
-        <div className="encore-grid encore-grid--3">
-          <StatCard index={0} icon={OrderIcon} tone="violet" label={t("Preorder orders")} value={orders.length.toLocaleString()} />
-          <StatCard index={1} icon={CartIcon} tone="teal" label={t("Units pre-sold")} value={totalUnits.toLocaleString()} />
-          <StatCard index={2} icon={ClockIcon} tone="sky" label={t("Cohorts")} value={cohorts.length.toLocaleString()} />
-        </div>
 
         <s-section padding="none">
           <Tabs
@@ -201,7 +201,6 @@ export default function OrdersPage() {
             </s-table>
           )}
         </s-section>
-      </div>
-    </s-page>
+    </AppPage>
   );
 }

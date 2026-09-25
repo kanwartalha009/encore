@@ -7,8 +7,7 @@ import { useEffect, useState } from "react";
 import type { HeadersFunction, LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import { useLoaderData, useFetcher, useRevalidator } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import { CreditCardIcon } from "@shopify/polaris-icons";
-import { PageHero } from "../components/ui";
+import { AppPage } from "../components/ui";
 import { flag } from "../components/wc";
 
 import { authenticate } from "../shopify.server";
@@ -72,9 +71,7 @@ export default function PlansPage() {
     limit == null ? 0 : Math.min(100, Math.round((used / Math.max(1, limit)) * 100));
 
   return (
-    <s-page inlineSize="large">
-      <div className="encore-stack">
-        <PageHero icon={CreditCardIcon} tone="emerald" title={t("Plans & billing")} sub={t("Limits reset monthly. Save 20% on annual.")} />
+    <AppPage heading={t("Plans & billing")} intro={t("Limits reset monthly. Save 20% on annual.")}>
         {err && <s-banner tone="critical">{err}</s-banner>}
         {comped && <s-banner tone="success">{t("Your plan is comped — no charge.")}</s-banner>}
 
@@ -195,7 +192,6 @@ export default function PlansPage() {
         <s-paragraph color="subdued" fontSize="small">
           {t("Billed through Shopify. Cancel or change plans any time; usage resets monthly.")}
         </s-paragraph>
-      </div>
-    </s-page>
+    </AppPage>
   );
 }

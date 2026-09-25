@@ -6,8 +6,7 @@ import type {
 } from "react-router";
 import { useLoaderData, useSubmit } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import { InventoryIcon } from "@shopify/polaris-icons";
-import { PageHero } from "../components/ui";
+import { AppPage } from "../components/ui";
 import { val, useLinkProps } from "../components/wc";
 import { useAppBridge } from "@shopify/app-bridge-react";
 
@@ -227,21 +226,17 @@ export default function LowStockPage() {
   };
 
   return (
-    <s-page inlineSize="large">
-      <div className="encore-stack">
-        <PageHero
-          icon={InventoryIcon}
-          tone="amber"
-          title={t("lowstock.title")}
-          sub={t("lowstock.subtitle")}
-          actions={
-            enabled ? (
-              <s-button variant="primary" onClick={() => save()}>
-                {t("common.save")}
-              </s-button>
-            ) : undefined
-          }
-        />
+    <AppPage
+      heading={t("lowstock.title")}
+      intro={t("lowstock.subtitle")}
+      primaryAction={
+        enabled ? (
+          <s-button variant="primary" onClick={() => save()}>
+            {t("common.save")}
+          </s-button>
+        ) : undefined
+      }
+    >
         {!enabled ? (
           // ----- Enable-first guide -----
           <s-section heading={t("Show shoppers when stock is running low")}>
@@ -395,7 +390,6 @@ export default function LowStockPage() {
             </s-stack>
           </>
         )}
-      </div>
-    </s-page>
+    </AppPage>
   );
 }

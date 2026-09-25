@@ -2,8 +2,7 @@ import { useMemo, useState } from "react";
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { useLoaderData } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import { ChartVerticalIcon } from "@shopify/polaris-icons";
-import { PageHero } from "../components/ui";
+import { AppPage } from "../components/ui";
 import { val } from "../components/wc";
 import { useAppBridge } from "@shopify/app-bridge-react";
 
@@ -75,9 +74,7 @@ export default function DemandPage() {
 
   if (demand.length === 0) {
     return (
-      <s-page inlineSize="large">
-        <div className="encore-stack">
-          <PageHero icon={ChartVerticalIcon} tone="teal" title={t("Demand signal")} />
+      <AppPage heading={t("Demand signal")} breadcrumb={{ label: t("Insights"), to: "/app/insights" }}>
           <s-section>
             <s-empty-state heading={t("No demand captured yet")}>
               <s-paragraph slot="subheading">
@@ -85,25 +82,21 @@ export default function DemandPage() {
               </s-paragraph>
             </s-empty-state>
           </s-section>
-        </div>
-      </s-page>
+      </AppPage>
     );
   }
 
   return (
-    <s-page inlineSize="large">
-      <div className="encore-stack">
-        <PageHero
-          icon={ChartVerticalIcon}
-          tone="teal"
-          title={t("Demand signal")}
-          sub={t("How many shoppers want each product — preorder intent + waitlist. A signal to size reorders, not a forecast.")}
-          actions={
-            <s-button icon="export" onClick={exportCsv}>
-              {t("common.export")}
-            </s-button>
-          }
-        />
+    <AppPage
+      heading={t("Demand signal")}
+      breadcrumb={{ label: t("Insights"), to: "/app/insights" }}
+      intro={t("How many shoppers want each product — preorder intent + waitlist. A signal to size reorders, not a forecast.")}
+      secondaryActions={[
+        <s-button key="export" icon="export" onClick={exportCsv}>
+          {t("common.export")}
+        </s-button>,
+      ]}
+    >
         {markets.length > 1 && (
           <s-section>
             <s-select label={t("Market")} value={market} onChange={(e) => setMarket(val(e))}>
@@ -176,7 +169,6 @@ export default function DemandPage() {
             ))}
           </s-stack>
         </s-section>
-      </div>
-    </s-page>
+    </AppPage>
   );
 }

@@ -6,8 +6,8 @@ import type {
 } from "react-router";
 import { useFetcher, useLoaderData, useSubmit } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import { NotificationIcon, EmailIcon, CartIcon, PackageIcon } from "@shopify/polaris-icons";
-import { StatCard, PageHero } from "../components/ui";
+import { EmailIcon, CartIcon, PackageIcon } from "@shopify/polaris-icons";
+import { AppPage, MetricStrip } from "../components/ui";
 import { flag, isChecked, val } from "../components/wc";
 import { useAppBridge } from "@shopify/app-bridge-react";
 
@@ -18,6 +18,7 @@ import { NOTIFY_POSITIONS } from "../lib/demoStorefront";
 import { listCollections } from "../models/collections.server";
 import { CollectionPicker } from "../lib/storefrontKit";
 import { useLocale } from "../lib/i18n";
+import { prettyDate } from "../lib/format";
 import { getSettings, saveSettingsSection } from "../models/settings.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -73,7 +74,7 @@ export const headers: HeadersFunction = (headersArgs) =>
 export default function BackInStockPage() {
   const { groups, saved, collections } = useLoaderData<typeof loader>();
   const shopify = useAppBridge();
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const submit = useSubmit();
   const v = saved as {
     enabled?: boolean;
@@ -278,39 +279,38 @@ export default function BackInStockPage() {
   );
 
   return (
-    <s-page inlineSize="large">
+    <AppPage
+      heading={t("backinstock.title")}
+      size="large"
+      intro={t("backinstock.subtitle")}
+      primaryAction={
+        showSettings ? (
+          <s-button variant="primary" onClick={save}>
+            {t("common.save")}
+          </s-button>
+        ) : (
+          <s-button variant="primary" onClick={() => setShowSettings(true)}>
+            {t("Customize storefront")}
+          </s-button>
+        )
+      }
+      secondaryActions={[
+        ...(totalFailed > 0
+          ? [
+              <s-button key="retry" tone="critical" onClick={retryAllFailed} loading={flag(notifyBusy)}>
+                {`${t("Retry failed")} (${totalFailed})`}
+              </s-button>,
+            ]
+          : []),
+        <s-button key="import" icon="import" onClick={() => fileInputRef.current?.click()} loading={flag(importBusy)}>
+          {t("Import CSV")}
+        </s-button>,
+        <s-button key="export" icon="export" onClick={exportCsv} disabled={flag(groups.length === 0)}>
+          {t("common.export")}
+        </s-button>,
+      ]}
+    >
       <input ref={fileInputRef} type="file" accept=".csv,text/csv" style={{ display: "none" }} onChange={onImportFile} />
-      <div className="encore-stack">
-        <PageHero
-          icon={NotificationIcon}
-          tone="sky"
-          title={t("backinstock.title")}
-          sub={t("backinstock.subtitle")}
-          actions={
-            <>
-              {totalFailed > 0 && (
-                <s-button tone="critical" onClick={retryAllFailed} loading={flag(notifyBusy)}>
-                  {`Retry ${totalFailed} failed`}
-                </s-button>
-              )}
-              <s-button icon="import" onClick={() => fileInputRef.current?.click()} loading={flag(importBusy)}>
-                {t("Import CSV")}
-              </s-button>
-              <s-button icon="export" onClick={exportCsv} disabled={flag(groups.length === 0)}>
-                {t("common.export")}
-              </s-button>
-              {showSettings ? (
-                <s-button variant="primary" onClick={save}>
-                  {t("common.save")}
-                </s-button>
-              ) : (
-                <s-button variant="primary" onClick={() => setShowSettings(true)}>
-                  {t("Customize storefront")}
-                </s-button>
-              )}
-            </>
-          }
-        />
         {importResult && (
           <s-banner
             tone={importResult.ok ? "success" : "critical"}
@@ -456,46 +456,48 @@ export default function BackInStockPage() {
         )}
 
         {/* ---- Dashboard (always visible) ---- */}
-        <div className="encore-grid encore-grid--3">
-          <StatCard
-            index={0}
-            label={t("Total subscribers")}
-            value={totalSubs.toLocaleString()}
-            sub={`${t("across")} ${productCount} ${productCount === 1 ? t("product") : t("products")}`}
-            icon={EmailIcon}
-            tone="sky"
-          />
-          <StatCard
-            index={1}
-            label={t("Converted to purchase")}
-            value={totalConverted.toLocaleString()}
-            delta={`${conversionRate}%`}
-            deltaTone={totalConverted > 0 ? "success" : "subdued"}
-            sub={t("conversion rate")}
-            icon={CartIcon}
-            tone="emerald"
-          />
-          <StatCard
-            index={2}
-            label={t("Products with waitlists")}
-            value={productCount.toLocaleString()}
-            sub={`${t("newest signup")} ${
-              groups.length && groups.some((g) => g.newestSignupAt)
-                ? new Date(
-                    Math.max(
-                      ...groups
-                        .filter((g) => g.newestSignupAt)
-                        .map((g) => new Date(g.newestSignupAt as string).getTime()),
-                    ),
-                  )
-                    .toISOString()
-                    .slice(0, 10)
-                : "—"
-            }`}
-            icon={PackageIcon}
-            tone="violet"
-          />
-        </div>
+        <MetricStrip
+          metrics={[
+            {
+              label: t("Total subscribers"),
+              value: totalSubs.toLocaleString(),
+              sub: `${t("across")} ${productCount} ${productCount === 1 ? t("product") : t("products")}`,
+              icon: EmailIcon,
+              tone: "sky",
+            },
+            {
+              label: t("Converted to purchase"),
+              value: totalConverted.toLocaleString(),
+              delta: `${conversionRate}%`,
+              deltaTone: totalConverted > 0 ? "success" : "subdued",
+              sub: t("conversion rate"),
+              icon: CartIcon,
+              tone: "emerald",
+            },
+            {
+              label: t("Products with waitlists"),
+              value: productCount.toLocaleString(),
+              sub: `${t("newest signup")} ${
+                groups.length && groups.some((g) => g.newestSignupAt)
+                  ? prettyDate(
+                      new Date(
+                        Math.max(
+                          ...groups
+                            .filter((g) => g.newestSignupAt)
+                            .map((g) => new Date(g.newestSignupAt as string).getTime()),
+                        ),
+                      )
+                        .toISOString()
+                        .slice(0, 10),
+                      locale,
+                    )
+                  : "—"
+              }`,
+              icon: PackageIcon,
+              tone: "violet",
+            },
+          ]}
+        />
 
         {groups.length === 0 ? (
           <s-section>
@@ -523,7 +525,6 @@ export default function BackInStockPage() {
             </s-table>
           </s-section>
         )}
-      </div>
-    </s-page>
+    </AppPage>
   );
 }

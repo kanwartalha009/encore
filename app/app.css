@@ -588,3 +588,14 @@
 /* Bottom action bar */
 .encore-actionbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 16px; border-top: 1px solid var(--s-color-border, #e3e3e3); }
 .encore-actionbar__right { display: flex; gap: 8px; }
+
+/* App page intro line (under the admin title bar) */
+.encore-page-intro { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: -4px 0 0; font-size: 13px; line-height: 18px; color: var(--s-color-text-secondary, #616161); }
+.encore-navlist { border-radius: 12px; overflow: hidden; }
+.encore-navlist .encore-row { padding: 14px 16px; }
+.encore-cell-product { display: flex; align-items: center; gap: 12px; min-width: 0; }
+
+/* Campaign overview tab: sections inside one card, separated by hairlines */
+.encore-overview > .encore-stack { gap: 0; }
+.encore-overview > .encore-stack > s-section + s-section { display: block; border-top: 1px solid var(--s-color-border-secondary, #ebebeb); margin-top: 16px; padding-top: 16px; }
+@media (min-width: 901px) { .encore-overview > .encore-stack + .encore-stack { border-left: 1px solid var(--s-color-border-secondary, #ebebeb); padding-left: 16px; } }

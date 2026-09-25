@@ -18,12 +18,12 @@ import {
   SettingsIcon,
   WandIcon,
 } from "@shopify/polaris-icons";
-import { PageHero, StatCard, SectionHead, ProgressRing, IconTile } from "../components/ui";
-import { Tabs, badgeTone, flag, useLinkProps } from "../components/wc";
+import { AppPage, MetricStrip, CardHeader, ProgressRing, IconTile } from "../components/ui";
+import { Tabs, badgeTone, flag } from "../components/wc";
 
 import { authenticate } from "../shopify.server";
 import { useLocale } from "../lib/i18n";
-import { statusToTone, relativeTime, displayOrderRef } from "../lib/format";
+import { prettyDate, statusToTone, relativeTime, displayOrderRef } from "../lib/format";
 import ConfirmModal from "../components/ConfirmModal";
 import { getShopCurrency } from "../models/shop.server";
 import { getCampaignOrdersAndActivity } from "../models/orders-view.server";
@@ -277,7 +277,6 @@ function paymentStatusTone(
 export default function CampaignDetail() {
   const { t, locale } = useLocale();
   const navigate = useNavigate();
-  const link = useLinkProps();
   const shopify = useAppBridge();
   const fetcher = useFetcher();
   // Onboarding hand-off: /app/onboarding redirects here with ?welcome=1.
@@ -394,35 +393,29 @@ export default function CampaignDetail() {
   };
 
   return (
-    <s-page inlineSize="large">
-      <s-button slot="breadcrumb-actions" icon="arrow-left" accessibilityLabel={t("Preorders")} {...link("/app/campaigns")} />
-      <div className="encore-stack">
-        <PageHero
-          icon={CartIcon}
-          tone={c.status === "Live" ? "emerald" : c.status === "Paused" ? "amber" : c.status === "Ended" ? "slate" : "violet"}
-          title={c.name}
-          badge={<s-badge tone={badgeTone(statusToTone(c.status))}>{t(c.status)}</s-badge>}
-          sub={`${c.product} · ${t("Updated")} ${relativeTime(c.updatedAt, locale)}`}
-          actions={
-            <>
-              {secondaryActions.map((a) => (
-                <s-button
-                  key={a.content}
-                  icon={a.icon}
-                  tone={a.destructive ? "critical" : "auto"}
-                  loading={flag(a.loading)}
-                  disabled={flag(a.disabled)}
-                  onClick={a.onAction}
-                >
-                  {a.content}
-                </s-button>
-              ))}
-              <s-button variant="primary" icon="edit" disabled={flag(busy)} onClick={() => navigate(`/app/campaigns/${id}/edit`)}>
-                {t("Edit preorder")}
-              </s-button>
-            </>
-          }
-        />
+    <AppPage
+      heading={c.name}
+      breadcrumb={{ label: t("Preorders"), to: "/app/campaigns" }}
+      meta={<s-badge tone={badgeTone(statusToTone(c.status))}>{t(c.status)}</s-badge>}
+      intro={`${c.product} · ${t("Updated")} ${relativeTime(c.updatedAt, locale)}`}
+      primaryAction={
+        <s-button variant="primary" icon="edit" disabled={flag(busy)} onClick={() => navigate(`/app/campaigns/${id}/edit`)}>
+          {t("Edit preorder")}
+        </s-button>
+      }
+      secondaryActions={secondaryActions.map((a) => (
+        <s-button
+          key={a.content}
+          icon={a.icon}
+          tone={a.destructive ? "critical" : "auto"}
+          loading={flag(a.loading)}
+          disabled={flag(a.disabled)}
+          onClick={a.onAction}
+        >
+          {a.content}
+        </s-button>
+      ))}
+    >
         {showWelcome && (
           <s-banner tone="success" heading={t("Your first preorder is live!")} dismissible onDismiss={dismissWelcome}>
             {t(
@@ -436,53 +429,48 @@ export default function CampaignDetail() {
           </s-banner>
         )}
 
-        {/* KPI tiles */}
-        <div className="encore-grid encore-grid--3">
-          <StatCard
-            index={1}
-            icon={CashDollarIcon}
-            tone="emerald"
-            label={t("Total GMV")}
-            value={c.gmv}
-            sub={`${t("across")} ${c.unitsSold} ${t("units")}`}
-          />
-          <StatCard
-            index={2}
-            icon={CashDollarIcon}
-            tone="sky"
-            label={c.paymentMode === "DEPOSIT" ? t("Deposit collected") : t("Collected")}
-            value={c.depositCollected}
-            delta={c.paymentMode === "DEPOSIT" ? t("Collected") : undefined}
-            sub={
-              c.paymentMode === "DEPOSIT"
-                ? c.depositKind === "PERCENT"
-                  ? `${c.depositAmount}% ${t("of total")}`
-                  : t("Fixed deposit per unit")
-                : c.awaitingPayment > 0
-                  ? `${c.awaitingPayment} ${c.awaitingPayment === 1 ? t("order awaiting payment") : t("orders awaiting payment")}`
-                  : t("Customers pay in full at checkout")
-            }
-          />
-          <StatCard
-            index={3}
-            icon={ClockIcon}
-            tone="amber"
-            label={c.paymentMode === "PAY_NOW" ? t("Awaiting payment") : t("Balance pending")}
-            value={c.balancePending}
-            delta={c.paymentMode === "PAY_NOW" ? undefined : t("Pending")}
-            sub={
+        {/* KPI strip */}
+        <MetricStrip
+          metrics={[
+            {
+              icon: CashDollarIcon,
+              tone: "emerald",
+              label: t("Total GMV"),
+              value: c.gmv,
+              sub: `${t("across")} ${c.unitsSold} ${t("units")}`,
+            },
+            {
+              icon: CashDollarIcon,
+              tone: "sky",
+              label: c.paymentMode === "DEPOSIT" ? t("Deposit collected") : t("Collected"),
+              value: c.depositCollected,
+              sub:
+                c.paymentMode === "DEPOSIT"
+                  ? c.depositKind === "PERCENT"
+                    ? `${c.depositAmount}% ${t("of total")}`
+                    : t("Fixed deposit per unit")
+                  : c.awaitingPayment > 0
+                    ? `${c.awaitingPayment} ${c.awaitingPayment === 1 ? t("order awaiting payment") : t("orders awaiting payment")}`
+                    : t("Customers pay in full at checkout"),
+            },
+            {
+              icon: ClockIcon,
+              tone: "amber",
+              label: c.paymentMode === "PAY_NOW" ? t("Awaiting payment") : t("Balance pending"),
+              value: c.balancePending,
               // Pay-now preorders have no balance plan — only orders Shopify
               // has not marked paid yet (cash on delivery, pending gateways).
-              c.paymentMode === "PAY_NOW"
-                ? c.awaitingPayment > 0
-                  ? t("Unpaid or cash-on-delivery orders")
-                  : t("No balance — pay-now preorder")
-                : c.autoCharge && c.shipDate !== "TBD"
-                  ? `${t("auto-charge")} ${c.shipDate}`
-                  : `${t("balance due")} ${c.shipDate}`
-            }
-          />
-        </div>
+              sub:
+                c.paymentMode === "PAY_NOW"
+                  ? c.awaitingPayment > 0
+                    ? t("Unpaid or cash-on-delivery orders")
+                    : t("No balance — pay-now preorder")
+                  : c.autoCharge && c.shipDate !== "TBD"
+                    ? `${t("auto-charge")} ${c.shipDate}`
+                    : `${t("balance due")} ${c.shipDate}`,
+            },
+          ]}
+        />
 
         {/* Tabs container */}
         <s-section padding="none">
@@ -501,7 +489,6 @@ export default function CampaignDetail() {
             {tabIndex === 3 && <ActivityTab items={ACTIVITY} />}
           </s-box>
         </s-section>
-      </div>
       <ConfirmModal
         open={confirmEndOpen}
         title={t("End preorder")}
@@ -524,7 +511,7 @@ export default function CampaignDetail() {
         }}
         onCancel={() => setConfirmDeleteOpen(false)}
       />
-    </s-page>
+    </AppPage>
   );
 }
 
@@ -541,14 +528,14 @@ function OverviewTab({
   onMarkCohortReady: () => void;
   onViewStorefront: () => void;
 }) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   return (
-    <div className="encore-layout">
+    <div className="encore-layout encore-overview">
       <div className="encore-stack">
         {/* Cohort progress */}
         <s-section>
           <s-stack direction="block" gap="base">
-            <SectionHead
+            <CardHeader
               icon={PackageIcon}
               tone="violet"
               title={t("Cohort progress")}
@@ -582,7 +569,7 @@ function OverviewTab({
         {/* Sales pace — real numbers from this preorder's own orders */}
         <s-section>
           <s-stack direction="block" gap="base">
-            <SectionHead icon={ChartLineIcon} tone="teal" title={t("Sales pace")} sub={t("avg units/day since launch")} />
+            <CardHeader icon={ChartLineIcon} tone="teal" title={t("Sales pace")} sub={t("avg units/day since launch")} />
             <s-stack direction="inline" gap="large-200">
               <s-stack direction="block" gap="none">
                 <s-text color="subdued" fontSize="small">{t("Run rate")}</s-text>
@@ -609,20 +596,20 @@ function OverviewTab({
       <div className="encore-stack">
         <s-section>
           <s-stack direction="block" gap="base">
-            <SectionHead icon={SettingsIcon} tone="slate" title={t("Configuration")} />
+            <CardHeader icon={SettingsIcon} tone="slate" title={t("Configuration")} />
             <s-divider />
             <SummaryRow label={t("Trigger")} value={campaign.trigger} />
             <SummaryRow label={t("Payment")} value={campaign.payment} />
             <SummaryRow label={t("Cart")} value={campaign.cartMode} />
             <SummaryRow label={t("Discount")} value={campaign.discount} />
-            <SummaryRow label={t("Ship date")} value={campaign.shipDate} />
-            <SummaryRow label={t("Created")} value={campaign.createdAt} />
+            <SummaryRow label={t("Ship date")} value={prettyDate(campaign.shipDate, locale)} />
+            <SummaryRow label={t("Created")} value={prettyDate(campaign.createdAt, locale)} />
           </s-stack>
         </s-section>
 
         <s-section>
           <s-stack direction="block" gap="base">
-            <SectionHead icon={WandIcon} tone="amber" title={t("Quick actions")} />
+            <CardHeader icon={WandIcon} tone="amber" title={t("Quick actions")} />
             <s-divider />
             <s-stack direction="block" gap="small">
               <s-button icon="package" onClick={onMarkCohortReady} inlineSize="fill">

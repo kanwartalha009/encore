@@ -3,14 +3,14 @@ import { Tabs, badgeTone, flag, isChecked, val, vals, useLinkProps } from "../co
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { useFetcher, useLoaderData, useNavigate } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import { CartIcon } from "@shopify/polaris-icons";
-import { PageHero } from "../components/ui";
+import { AppPage, ProductThumb } from "../components/ui";
 
 import { authenticate } from "../shopify.server";
 import { listCampaigns, formatGmv } from "../models/campaign.server";
 import { useLocale } from "../lib/i18n";
-import { statusToTone, relativeTime } from "../lib/format";
+import { prettyDate, statusToTone, relativeTime } from "../lib/format";
 import { getShopCurrency } from "../models/shop.server";
+import { getProductThumbs } from "../models/product-thumbs.server";
 import ConfirmModal from "../components/ConfirmModal";
 
 // ---------- View-model types ----------
@@ -35,6 +35,7 @@ type Campaign = {
   shipDate: string;
   status: CampaignStatus;
   updatedAt: string;
+  thumb: string | null;
 };
 
 // ---------- Mappers (DB enums → display strings) ----------
@@ -65,6 +66,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
   const currency = await getShopCurrency(admin, session.shop);
   const rows = await listCampaigns(session.shop);
+  const thumbs = await getProductThumbs(
+    admin,
+    rows.map((r) => r.productIds[0]).filter((x): x is string => !!x),
+  );
 
   const campaigns: Campaign[] = rows.map((r) => {
     const isMoqGated = r.moqEnabled;
@@ -91,6 +96,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       shipDate: r.shipDate ? r.shipDate.toISOString().slice(0, 10) : "TBD",
       status: STATUS_LABEL[r.status] ?? "Draft",
       updatedAt: r.updatedAt.toISOString(),
+      thumb: r.productIds[0] ? (thumbs[r.productIds[0]] ?? null) : null,
     };
   });
 
@@ -126,12 +132,15 @@ export default function CampaignsIndex() {
 
   // Status views (Shopify "saved views" pattern) + filters
   const [selectedTab, setSelectedTab] = useState(0);
+  // Status counts live on the tabs (Shopify saved-views pattern).
+  const countOf = (s: CampaignStatus) => CAMPAIGNS.filter((c) => c.status === s).length;
+  const withCount = (label: string, n: number) => (n > 0 ? `${label} ${n}` : label);
   const tabs = [
-    { id: "all", content: t("All") },
-    { id: "live", content: t("Live") },
-    { id: "scheduled", content: t("Scheduled") },
-    { id: "paused", content: t("Paused") },
-    { id: "ended", content: t("Ended") },
+    { id: "all", content: withCount(t("All"), CAMPAIGNS.length) },
+    { id: "live", content: withCount(t("Live"), countOf("Live")) },
+    { id: "scheduled", content: withCount(t("Scheduled"), countOf("Scheduled")) },
+    { id: "paused", content: withCount(t("Paused"), countOf("Paused")) },
+    { id: "ended", content: withCount(t("Ended"), countOf("Ended")) },
   ];
 
   const [queryValue, setQueryValue] = useState("");
@@ -205,19 +214,21 @@ export default function CampaignsIndex() {
           />
         </s-table-cell>
         <s-table-cell>
-          <s-stack direction="block" gap="none">
-            <s-link id={linkId} {...link(`/app/campaigns/${c.id}`)}>
-              <s-text type="strong">{c.name}</s-text>
-            </s-link>
-            <s-text color="subdued" fontSize="small">
-              {c.product}
-            </s-text>
-          </s-stack>
+          <div className="encore-cell-product">
+            <ProductThumb src={c.thumb} alt={c.name} size={32} />
+            <s-stack direction="block" gap="none">
+              <s-link id={linkId} {...link(`/app/campaigns/${c.id}`)}>
+                <s-text type="strong">{c.name}</s-text>
+              </s-link>
+              <s-text color="subdued" fontSize="small">
+                {c.product && c.product !== c.name ? `${c.product} · ${t(c.trigger)}` : t(c.trigger)}
+              </s-text>
+            </s-stack>
+          </div>
         </s-table-cell>
         <s-table-cell>
           <s-badge tone={badgeTone(statusToTone(c.status))}>{t(c.status)}</s-badge>
         </s-table-cell>
-        <s-table-cell>{t(c.trigger)}</s-table-cell>
         <s-table-cell>
           <s-badge tone={badgeTone(paymentBadgeTone(c.payment))}>{t(c.payment)}</s-badge>
         </s-table-cell>
@@ -233,7 +244,7 @@ export default function CampaignsIndex() {
         </s-table-cell>
         <s-table-cell>{progressLabel}</s-table-cell>
         <s-table-cell>{c.gmv}</s-table-cell>
-        <s-table-cell>{c.shipDate}</s-table-cell>
+        <s-table-cell>{prettyDate(c.shipDate, locale)}</s-table-cell>
         <s-table-cell>
           <s-text color="subdued" fontSize="small">
             {relativeTime(c.updatedAt, locale)}
@@ -244,29 +255,19 @@ export default function CampaignsIndex() {
   });
 
   return (
-    <s-page inlineSize="large">
-      <div className="encore-stack">
-        <PageHero
-          icon={CartIcon}
-          tone="violet"
-          title={t("Preorders")}
-          sub={t("Variant-level preorder rules with units, ship date, and payment.")}
-          actions={
-            <>
-              <s-button onClick={() => navigate("/app/cohorts")}>{t("Cohorts")}</s-button>
-              <s-button onClick={() => navigate("/app/settings")}>{t("Settings")}</s-button>
-              <s-button variant="primary" icon="plus" onClick={() => navigate("/app/campaigns/new")}>
-                {t("New preorder")}
-              </s-button>
-            </>
-          }
-          stats={[
-            { value: String(CAMPAIGNS.filter((c) => c.status === "Live").length), label: t("live") },
-            { value: String(CAMPAIGNS.filter((c) => c.status === "Scheduled").length), label: t("scheduled") },
-            { value: String(CAMPAIGNS.filter((c) => c.status === "Paused").length), label: t("paused") },
-            { value: String(CAMPAIGNS.length), label: t("total") },
-          ]}
-        />
+    <AppPage
+      heading={t("Preorders")}
+      size="large"
+      primaryAction={
+        <s-button variant="primary" icon="plus" onClick={() => navigate("/app/campaigns/new")}>
+          {t("New preorder")}
+        </s-button>
+      }
+      secondaryActions={[
+        <s-button key="cohorts" onClick={() => navigate("/app/cohorts")}>{t("Cohorts")}</s-button>,
+        <s-button key="settings" onClick={() => navigate("/app/settings")}>{t("Settings")}</s-button>,
+      ]}
+    >
         {CAMPAIGNS.length === 0 ? (
           <s-section>
             <s-empty-state heading={t("Set up your first preorder in 30 seconds")}>
@@ -283,10 +284,6 @@ export default function CampaignsIndex() {
           </s-section>
         ) : (
           <>
-            <s-banner tone="info">
-              <s-text type="strong">{t("Tip:")}</s-text> {t("Click any row to drill into the cohort, customers, and balance status.")}
-            </s-banner>
-
             <s-section padding="none">
               <Tabs tabs={tabs} selected={selectedTab} onSelect={setSelectedTab} />
 
@@ -396,7 +393,6 @@ export default function CampaignsIndex() {
                     </s-table-header>
                     <s-table-header listSlot="primary">{t("Preorder")}</s-table-header>
                     <s-table-header listSlot="inline">{t("Status")}</s-table-header>
-                    <s-table-header>{t("Trigger")}</s-table-header>
                     <s-table-header listSlot="kicker">{t("Payment")}</s-table-header>
                     <s-table-header>{t("Cart")}</s-table-header>
                     <s-table-header format="numeric">{t("Units")}</s-table-header>
@@ -410,7 +406,6 @@ export default function CampaignsIndex() {
             </s-section>
           </>
         )}
-      </div>
       <ConfirmModal
         open={confirmEndOpen}
         title={t("End preorder")}
@@ -426,6 +421,6 @@ export default function CampaignsIndex() {
         }}
         onCancel={() => setConfirmEndOpen(false)}
       />
-    </s-page>
+    </AppPage>
   );
 }

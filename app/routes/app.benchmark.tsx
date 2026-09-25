@@ -7,8 +7,8 @@ import { useState } from "react";
 import type { HeadersFunction, LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import { useLoaderData, useFetcher } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import { ChartLineIcon } from "@shopify/polaris-icons";
-import { PageHero } from "../components/ui";
+import { CartIcon, CashDollarIcon, ChartVerticalIcon } from "@shopify/polaris-icons";
+import { AppPage, MetricStrip } from "../components/ui";
 import { flag, val, useLinkProps } from "../components/wc";
 
 import { authenticate } from "../shopify.server";
@@ -43,19 +43,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 export const headers: HeadersFunction = (h) => boundary.headers(h);
 
 const pctText = (r: number | null) => (r == null ? "—" : `${(r * 100).toFixed(1)}%`);
-
-function Metric({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  const { t } = useLocale();
-  return (
-    <s-section>
-      <s-stack direction="block" gap="small-200">
-        <s-text color="subdued" fontSize="small">{t(label)}</s-text>
-        <s-text fontSize="large-100" fontWeight="bold">{value}</s-text>
-        {sub ? <s-text color="subdued" fontSize="small">{sub}</s-text> : null}
-      </s-stack>
-    </s-section>
-  );
-}
 
 export default function BenchmarkPage() {
   const { t, locale } = useLocale();
@@ -102,19 +89,16 @@ export default function BenchmarkPage() {
   };
 
   return (
-    <s-page inlineSize="large">
-      <div className="encore-stack">
-        <PageHero
-          icon={ChartLineIcon}
-          tone="emerald"
-          title={t("Benchmark")}
-          sub={t("How much demand Encore recovers for your store — at a glance.")}
-          actions={
-            <s-button icon="export" onClick={exportCsv}>
-              {t("Export CSV")}
-            </s-button>
-          }
-        />
+    <AppPage
+      heading={t("Benchmark")}
+      breadcrumb={{ label: t("Insights"), to: "/app/insights" }}
+      intro={t("How much demand Encore recovers for your store — at a glance.")}
+      secondaryActions={[
+        <s-button key="export" icon="export" onClick={exportCsv}>
+          {t("Export CSV")}
+        </s-button>,
+      ]}
+    >
         {noData ? (
           <s-section heading={t("Nothing to score yet")}>
             <s-stack direction="block" gap="small">
@@ -129,15 +113,25 @@ export default function BenchmarkPage() {
             </s-stack>
           </s-section>
         ) : (
-          <div className="encore-grid encore-grid--3">
-            <Metric
-              label="Waitlist conversion"
-              value={pctText(data.waitlist.conversionRate)}
-              sub={`${data.waitlist.converted} / ${data.waitlist.sent} ${t("notified")}`}
-            />
-            <Metric label="Units captured" value={data.preorder.units.toLocaleString()} sub={t("preorders")} />
-            <Metric label="GMV captured" value={formatGmv(Math.round(data.preorder.gmv * 100), data.currency, locale)} sub={t("preorder value")} />
-          </div>
+          <MetricStrip
+            metrics={[
+              {
+                icon: ChartVerticalIcon,
+                tone: "sky",
+                label: t("Waitlist conversion"),
+                value: pctText(data.waitlist.conversionRate),
+                sub: `${data.waitlist.converted} / ${data.waitlist.sent} ${t("notified")}`,
+              },
+              { icon: CartIcon, tone: "teal", label: t("Units captured"), value: data.preorder.units.toLocaleString(), sub: t("preorders") },
+              {
+                icon: CashDollarIcon,
+                tone: "emerald",
+                label: t("GMV captured"),
+                value: formatGmv(Math.round(data.preorder.gmv * 100), data.currency, locale),
+                sub: t("preorder value"),
+              },
+            ]}
+          />
         )}
 
         <div className="encore-layout">
@@ -199,7 +193,6 @@ export default function BenchmarkPage() {
             </s-stack>
           </s-section>
         </div>
-      </div>
-    </s-page>
+    </AppPage>
   );
 }

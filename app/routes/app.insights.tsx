@@ -12,14 +12,13 @@ import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { useLoaderData, useNavigate } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import {
-  ChartLineIcon,
   OrderIcon,
   ClockIcon,
   ChartVerticalIcon,
   MagicIcon,
   CashDollarIcon,
 } from "@shopify/polaris-icons";
-import { PageHero, StatCard, QuickAction, Reveal } from "../components/ui";
+import { AppPage, MetricStrip, NavList, Reveal } from "../components/ui";
 
 import { authenticate } from "../shopify.server";
 import { useLocale } from "../lib/i18n";
@@ -73,53 +72,47 @@ export default function InsightsPage() {
   const lift = d.benchmark.lift == null ? "—" : `${d.benchmark.lift} pts`;
 
   return (
-    <s-page inlineSize="large">
-      <div className="encore-stack">
-        <PageHero
-          icon={ChartLineIcon}
-          tone="teal"
-          title={t("Insights")}
-          sub={t("Orders, cohorts, benchmark and demand — each one click away.")}
-        />
+    <AppPage heading={t("Insights")} intro={t("Orders, cohorts, benchmark and demand — each one click away.")}>
 
-        <div className="encore-grid encore-grid--4">
-          <StatCard
-            index={0}
-            icon={OrderIcon}
-            tone="violet"
-            label={t("Preorder orders")}
-            value={String(d.orders.count)}
-            sub={
-              d.orders.awaiting > 0
-                ? `${d.orders.awaiting} ${d.orders.awaiting === 1 ? t("order awaiting payment") : t("orders awaiting payment")}`
-                : `${d.orders.units} ${t("units")}`
-            }
-          />
-          <StatCard
-            index={1}
-            icon={CashDollarIcon}
-            tone="emerald"
-            label={t("GMV captured")}
-            value={formatMoney(Math.round(d.benchmark.gmv * 100), d.currency, locale)}
-            sub={`${d.benchmark.units.toLocaleString()} ${t("units")}`}
-          />
-          <StatCard
-            index={2}
-            icon={ChartVerticalIcon}
-            tone="sky"
-            label={t("Waitlist conversion")}
-            value={conv}
-            sub={`${t("Lift")} ${lift}`}
-          />
-          <StatCard
-            index={3}
-            icon={ClockIcon}
-            tone={d.cohorts.atRisk > 0 ? "amber" : "teal"}
-            label={t("Active cohorts")}
-            value={String(d.cohorts.count)}
-            sub={d.cohorts.atRisk > 0 ? `${d.cohorts.atRisk} ${t("at risk")}` : t("all on track")}
-          />
-        </div>
+        <MetricStrip
+          metrics={[
+            {
+              icon: OrderIcon,
+              tone: "violet",
+              label: t("Preorder orders"),
+              value: String(d.orders.count),
+              sub:
+                d.orders.awaiting > 0
+                  ? `${d.orders.awaiting} ${d.orders.awaiting === 1 ? t("order awaiting payment") : t("orders awaiting payment")}`
+                  : `${d.orders.units} ${t("units")}`,
+              onClick: () => navigate("/app/orders"),
+            },
+            {
+              icon: CashDollarIcon,
+              tone: "emerald",
+              label: t("GMV captured"),
+              value: formatMoney(Math.round(d.benchmark.gmv * 100), d.currency, locale),
+              sub: `${d.benchmark.units.toLocaleString()} ${t("units")}`,
+              onClick: () => navigate("/app/benchmark"),
+            },
+            {
+              icon: ChartVerticalIcon,
+              tone: "sky",
+              label: t("Waitlist conversion"),
+              value: conv,
+              sub: `${t("Lift")} ${lift}`,
+              onClick: () => navigate("/app/benchmark"),
+            },
+            {
+              icon: ClockIcon,
+              tone: d.cohorts.atRisk > 0 ? "amber" : "teal",
+              label: t("Active cohorts"),
+              value: String(d.cohorts.count),
+              sub: d.cohorts.atRisk > 0 ? `${d.cohorts.atRisk} ${t("at risk")}` : t("all on track"),
+              onClick: () => navigate("/app/cohorts"),
+            },
+          ]}
+        />
 
         {empty && (
           <Reveal index={4}>
@@ -139,41 +132,38 @@ export default function InsightsPage() {
           </Reveal>
         )}
 
-        <div className="encore-grid encore-grid--2">
-          <QuickAction
-            index={5}
-            icon={OrderIcon}
-            tone="violet"
-            title={t("Orders")}
-            sub={t("Every order with a preorder item, payment state, ship date")}
-            onClick={() => navigate("/app/orders")}
-          />
-          <QuickAction
-            index={6}
-            icon={ClockIcon}
-            tone="teal"
-            title={t("Cohorts")}
-            sub={t("Ship-date groups, progress to target, mark ready to ship")}
-            onClick={() => navigate("/app/cohorts")}
-          />
-          <QuickAction
-            index={7}
-            icon={ChartVerticalIcon}
-            tone="sky"
-            title={t("Benchmark")}
-            sub={t("Waitlist conversion, lift and captured revenue")}
-            onClick={() => navigate("/app/benchmark")}
-          />
-          <QuickAction
-            index={8}
-            icon={MagicIcon}
-            tone="amber"
-            title={t("Demand")}
-            sub={t("What shoppers want next, by product and market")}
-            onClick={() => navigate("/app/demand")}
-          />
-        </div>
-      </div>
-    </s-page>
+        <NavList
+          items={[
+            {
+              icon: OrderIcon,
+              tone: "violet",
+              title: t("Orders"),
+              sub: t("Every order with a preorder item, payment state, ship date"),
+              onClick: () => navigate("/app/orders"),
+            },
+            {
+              icon: ClockIcon,
+              tone: "teal",
+              title: t("Cohorts"),
+              sub: t("Ship-date groups, progress to target, mark ready to ship"),
+              onClick: () => navigate("/app/cohorts"),
+            },
+            {
+              icon: ChartVerticalIcon,
+              tone: "sky",
+              title: t("Benchmark"),
+              sub: t("Waitlist conversion, lift and captured revenue"),
+              onClick: () => navigate("/app/benchmark"),
+            },
+            {
+              icon: MagicIcon,
+              tone: "amber",
+              title: t("Demand"),
+              sub: t("What shoppers want next, by product and market"),
+              onClick: () => navigate("/app/demand"),
+            },
+          ]}
+        />
+    </AppPage>
   );
 }

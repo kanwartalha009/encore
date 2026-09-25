@@ -10,7 +10,7 @@ import { useLoaderData } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { val } from "../components/wc";
 import { OrderIcon, CashDollarIcon, ClockIcon, CartIcon } from "@shopify/polaris-icons";
-import { PageHero, StatCard } from "../components/ui";
+import { AppPage, MetricStrip } from "../components/ui";
 
 import { authenticate } from "../shopify.server";
 import { useLocale } from "../lib/i18n";
@@ -82,26 +82,25 @@ export default function OrdersPage() {
   );
 
   return (
-    <s-page inlineSize="large">
-      <div className="encore-stack">
-        <PageHero
-          icon={OrderIcon}
-          tone="violet"
-          title={t("Orders")}
-          sub={t("Every Shopify order that includes a preorder item, with its payment state and ship date.")}
+    <AppPage
+      heading={t("Orders")}
+      size="large"
+      breadcrumb={{ label: t("Insights"), to: "/app/insights" }}
+      intro={t("Every Shopify order that includes a preorder item, with its payment state and ship date.")}
+    >
+        <MetricStrip
+          metrics={[
+            { icon: OrderIcon, tone: "violet", label: t("Orders"), value: String(stats.orders) },
+            { icon: CartIcon, tone: "teal", label: t("Units"), value: String(stats.units) },
+            { icon: CashDollarIcon, tone: "emerald", label: t("Order value"), value: stats.gmv },
+            {
+              icon: ClockIcon,
+              tone: stats.awaiting > 0 ? "amber" : "slate",
+              label: t("Awaiting payment"),
+              value: String(stats.awaiting),
+            },
+          ]}
         />
-        <div className="encore-grid encore-grid--4">
-          <StatCard index={0} icon={OrderIcon} tone="violet" label={t("Orders")} value={String(stats.orders)} />
-          <StatCard index={1} icon={CartIcon} tone="teal" label={t("Units")} value={String(stats.units)} />
-          <StatCard index={2} icon={CashDollarIcon} tone="emerald" label={t("Order value")} value={stats.gmv} />
-          <StatCard
-            index={3}
-            icon={ClockIcon}
-            tone={stats.awaiting > 0 ? "amber" : "slate"}
-            label={t("Awaiting payment")}
-            value={String(stats.awaiting)}
-          />
-        </div>
         <s-section padding="none">
           <s-box padding="base">
             <s-stack direction="inline" gap="base" alignItems="end">
@@ -127,7 +126,6 @@ export default function OrdersPage() {
           <s-divider />
           <OrdersTable orders={rows} showCampaign />
         </s-section>
-      </div>
-    </s-page>
+    </AppPage>
   );
 }

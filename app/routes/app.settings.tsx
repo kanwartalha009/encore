@@ -18,7 +18,7 @@ import {
   SettingsIcon,
   MenuHorizontalIcon,
 } from "@shopify/polaris-icons";
-import { IconTile, PageHero, type TileTone } from "../components/ui";
+import { AppPage, IconTile, type TileTone } from "../components/ui";
 import { SelectField, ChoiceListField, badgeTone, flag, isChecked, val, useLinkProps } from "../components/wc";
 
 type IconSource = React.FunctionComponent<React.SVGProps<SVGSVGElement>>;
@@ -262,19 +262,15 @@ export default function SettingsPage() {
   };
 
   return (
-    <s-page inlineSize="large">
-      <div className="encore-stack">
-      <PageHero
-        icon={SettingsIcon}
-        tone="slate"
-        title={t("settings.title")}
-        sub={t("Store-wide settings — set once. They apply to every preorder; a few can be overridden per preorder.")}
-        actions={
-          <s-button variant="primary" onClick={handleSave}>
-            {t("common.save")}
-          </s-button>
-        }
-      />
+    <AppPage
+      heading={t("settings.title")}
+      intro={t("Store-wide settings — set once. They apply to every preorder; a few can be overridden per preorder.")}
+      primaryAction={
+        <s-button variant="primary" onClick={handleSave}>
+          {t("common.save")}
+        </s-button>
+      }
+    >
       <div
         style={{
           display: "grid",
@@ -991,8 +987,7 @@ export default function SettingsPage() {
         </s-box>
       </s-stack>
       </div>
-      </div>
-    </s-page>
+    </AppPage>
   );
 }
 

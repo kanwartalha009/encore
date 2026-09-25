@@ -6,8 +6,7 @@ import type {
 } from "react-router";
 import { useLoaderData, useSubmit } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import { GlobeIcon } from "@shopify/polaris-icons";
-import { PageHero } from "../components/ui";
+import { AppPage } from "../components/ui";
 import { badgeTone, flag, isChecked, val, vals } from "../components/wc";
 import { useAppBridge } from "@shopify/app-bridge-react";
 
@@ -104,9 +103,7 @@ export default function MarketsPage() {
 
   if (markets.length <= 1) {
     return (
-      <s-page inlineSize="large">
-        <div className="encore-stack">
-          <PageHero icon={GlobeIcon} tone="sky" title={t("Per-market rules")} />
+      <AppPage heading={t("Per-market rules")} breadcrumb={{ label: t("nav.settings"), to: "/app/settings" }}>
           <s-section>
             <s-empty-state heading={t("You sell in one market")}>
               <s-paragraph slot="subheading">
@@ -114,8 +111,7 @@ export default function MarketsPage() {
               </s-paragraph>
             </s-empty-state>
           </s-section>
-        </div>
-      </s-page>
+      </AppPage>
     );
   }
 
@@ -167,19 +163,16 @@ export default function MarketsPage() {
   });
 
   return (
-    <s-page inlineSize="large">
-      <div className="encore-stack">
-        <PageHero
-          icon={GlobeIcon}
-          tone="sky"
-          title={t("Per-market rules")}
-          sub={t("Run a product as in-stock in one market and preorder in another — reconciled to real inventory.")}
-          actions={
-            <s-button variant="primary" onClick={save}>
-              {t("Save market rules")}
-            </s-button>
-          }
-        />
+    <AppPage
+      heading={t("Per-market rules")}
+      breadcrumb={{ label: t("nav.settings"), to: "/app/settings" }}
+      intro={t("Run a product as in-stock in one market and preorder in another — reconciled to real inventory.")}
+      primaryAction={
+        <s-button variant="primary" onClick={save}>
+          {t("Save market rules")}
+        </s-button>
+      }
+    >
         {usingDemo && (
           <s-banner tone="info">
             {t("Showing sample markets — connect a dev store with multiple Shopify Markets to see live data.")}
@@ -230,7 +223,6 @@ export default function MarketsPage() {
             : t("Encore never shows preorder in a market that has sellable stock; it auto-reconciles when inventory changes.")}
           {rule.lastReconciledAt ? ` ${t("Last reconciled")}: ${new Date(rule.lastReconciledAt).toLocaleString()}.` : ""}
         </s-banner>
-      </div>
-    </s-page>
+    </AppPage>
   );
 }

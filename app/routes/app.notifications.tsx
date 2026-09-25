@@ -8,8 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { HeadersFunction, LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import { useLoaderData, useFetcher, useSearchParams } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import { EmailIcon } from "@shopify/polaris-icons";
-import { PageHero } from "../components/ui";
+import { AppPage } from "../components/ui";
 import { flag, val, vals } from "../components/wc";
 
 import { authenticate } from "../shopify.server";
@@ -117,12 +116,10 @@ export default function NotificationsPage() {
   };
 
   return (
-    <s-page inlineSize="large">
-      <div className="encore-stack">
-        <PageHero icon={EmailIcon} tone="sky" title={t("Notifications")} sub={t("Choose how customer emails are sent, and edit the copy per language.")} />
-        <s-paragraph color="subdued">
+    <AppPage heading={t("Notifications")} breadcrumb={{ label: t("nav.settings"), to: "/app/settings" }}>
+        <p className="encore-page-intro">
           {t("Encore delivers customer emails through Klaviyo or Shopify Flow — pick whichever your store already uses, then tailor the copy for each message and language below.")}
-        </s-paragraph>
+        </p>
         {fetcher.data?.ok && <s-banner tone="success">{t("Saved.")}</s-banner>}
         {klaviyoStatus === "connected" && <s-banner tone="success">{t("Klaviyo connected.")}</s-banner>}
         {klaviyoStatus === "error" && <s-banner tone="critical">{t("Klaviyo connection failed. Please try again.")}</s-banner>}
@@ -225,7 +222,6 @@ export default function NotificationsPage() {
             </s-stack>
           </s-section>
         </div>
-      </div>
-    </s-page>
+    </AppPage>
   );
 }

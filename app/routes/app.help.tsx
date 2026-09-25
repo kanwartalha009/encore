@@ -7,8 +7,7 @@ import { useState } from "react";
 import type { HeadersFunction, LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import { useFetcher } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import { QuestionCircleIcon } from "@shopify/polaris-icons";
-import { PageHero } from "../components/ui";
+import { AppPage } from "../components/ui";
 import { flag, val } from "../components/wc";
 
 import { authenticate } from "../shopify.server";
@@ -49,9 +48,7 @@ export default function HelpPage() {
   const failed = fetcher.data?.ok === false;
 
   return (
-    <s-page inlineSize="large">
-      <div className="encore-stack">
-        <PageHero icon={QuestionCircleIcon} tone="sky" title={t("Get help")} sub={t("Send us a message — we usually reply within a day.")} />
+    <AppPage heading={t("Get help")} size="small" breadcrumb={{ label: t("nav.settings"), to: "/app/settings" }} intro={t("Send us a message — we usually reply within a day.")}>
         <s-section>
           <div className="encore-stack">
             {sent && <s-banner tone="success">{t("Thanks — your message is on its way.")}</s-banner>}
@@ -70,7 +67,6 @@ export default function HelpPage() {
             </fetcher.Form>
           </div>
         </s-section>
-      </div>
-    </s-page>
+    </AppPage>
   );
 }

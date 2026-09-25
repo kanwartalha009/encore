@@ -6,8 +6,7 @@ import type {
 } from "react-router";
 import { useLoaderData, useSubmit } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import { LanguageIcon } from "@shopify/polaris-icons";
-import { PageHero } from "../components/ui";
+import { AppPage } from "../components/ui";
 import { val } from "../components/wc";
 import { useAppBridge } from "@shopify/app-bridge-react";
 
@@ -87,19 +86,16 @@ export default function TranslationsPage() {
   };
 
   return (
-    <s-page inlineSize="large">
-      <div className="encore-stack">
-        <PageHero
-          icon={LanguageIcon}
-          tone="violet"
-          title={t("translations.title")}
-          sub={t("Translate the text Encore adds to your storefront. Switches with the shopper's language — set once, not per market.")}
-          actions={
-            <s-button variant="primary" onClick={save}>
-              {t("common.save")}
-            </s-button>
-          }
-        />
+    <AppPage
+      heading={t("translations.title")}
+      breadcrumb={{ label: t("nav.settings"), to: "/app/settings" }}
+      intro={t("Translate the text Encore adds to your storefront. Switches with the shopper's language — set once, not per market.")}
+      primaryAction={
+        <s-button variant="primary" onClick={save}>
+          {t("common.save")}
+        </s-button>
+      }
+    >
         <s-banner tone="info">
           {t("The admin language follows your Shopify account automatically. Below you translate the storefront text we add (button, badge, cart, popup, low-stock) — these register with Shopify so they switch with the buyer's language alongside Translate & Adapt.")}
         </s-banner>
@@ -170,7 +166,6 @@ export default function TranslationsPage() {
             {t("common.save")}
           </s-button>
         </s-stack>
-      </div>
-    </s-page>
+    </AppPage>
   );
 }
