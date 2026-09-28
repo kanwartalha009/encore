@@ -5,6 +5,8 @@
  *   - scheduler: has the in-process scheduler started, and when did the outbox
  *                timer last fire (should be < ~4 min ago once booted)
  *   - outbox:    PENDING / DEAD row counts (delivery backlog to the Nova backend)
+ *   - config:    booleans for settings the privacy policy relies on (2026-09-28):
+ *                secrets encrypted at rest, shopper email sending, legal contact
  *
  * No auth by design (uptime monitors need it); exposes only booleans, counts
  * and timestamps — no shop data, no secrets.
@@ -47,6 +49,11 @@ export const loader = async () => {
       db: db ? "ok" : "error",
       scheduler: heartbeat,
       outbox: { pending, dead },
+      config: {
+        secretsEncrypted: /^[0-9a-f]{64}$/i.test(process.env.APP_ENCRYPTION_KEY ?? ""),
+        emailSending: Boolean(process.env.ENCORE_EMAIL_API_KEY && process.env.ENCORE_EMAIL_FROM),
+        legalContact: Boolean(process.env.ENCORE_SUPPORT_EMAIL),
+      },
       time: new Date().toISOString(),
     },
     { status: ok ? 200 : 503 },

@@ -19,6 +19,10 @@ import {
   type MessageType,
 } from "../services/notifications.server";
 import { sendEmail } from "../services/email.server";
+import { getShopContact } from "../services/shop-contact.server";
+import { getSettings } from "../models/settings.server";
+import { unsubscribeUrl } from "../lib/unsubscribe.server";
+import { unsubscribeFooter, pickReplyTo } from "../lib/email-footer";
 
 type FlowActionBody = {
   shopify_domain?: string;
@@ -96,7 +100,25 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const subject = subjectOverride ? applyVars(subjectOverride, vars) : tpl.subject;
   const text = bodyOverride ? applyVars(bodyOverride, vars) : tpl.body;
 
-  const result = await sendEmail({ to, subject, text });
+  // Sender + unsubscribe (2026-09-28): the email shows the store's name and
+  // replies reach the merchant; back-in-stock emails (marketing-style, sent
+  // because the shopper opted in) carry a translated unsubscribe link plus
+  // List-Unsubscribe / one-click headers. Order emails are transactional.
+  const [contact, { general }] = await Promise.all([getShopContact(shop), getSettings(shop)]);
+  const store = contact?.name || shop.replace(/\.myshopify\.com$/i, "");
+  const replyTo = pickReplyTo(general.senderEmail, contact?.contactEmail);
+  let finalText = text;
+  let headers: Record<string, string> | undefined;
+  if (type === "back_in_stock") {
+    const url = unsubscribeUrl({ shop, email: to, locale, store });
+    finalText = text + unsubscribeFooter(locale, store, url);
+    headers = {
+      "List-Unsubscribe": `<${url}>`,
+      "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    };
+  }
+
+  const result = await sendEmail({ to, subject, text: finalText, replyTo, fromName: store, headers });
   if (!result.ok) {
     console.error(`[flow] send-email (${type}) failed: ${result.reason}`);
     // Transient (provider error / network) → 5xx so Flow retries. Config/recipient

@@ -6,6 +6,7 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { getDashboard } from "../models/dashboard.server";
 import { getShopCurrency } from "../models/shop.server";
 import { getProductThumbs } from "../models/product-thumbs.server";
+import { getEmbedStatus, embedActivationUrl } from "../models/theme-embed.server";
 import {
   CartIcon,
   CashDollarIcon,
@@ -88,7 +89,12 @@ const FALLBACK_ACTIVITY = [
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
   // A6: money renders in the SHOP's currency, not a hardcoded USD.
-  const currency = await getShopCurrency(admin, session.shop);
+  // Embed status (2026-09-28): the storefront shows nothing until Encore's
+  // theme app embed is on, so the dashboard checks the live theme every load.
+  const [currency, embed] = await Promise.all([
+    getShopCurrency(admin, session.shop),
+    getEmbedStatus(admin),
+  ]);
   const data = await getDashboard(session.shop, currency);
   // Product thumbnails for the preorder rows (best-effort; icon tile fallback).
   const thumbs = await getProductThumbs(
@@ -98,6 +104,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return {
     ...data,
     campaigns: data.campaigns.map((c) => ({ ...c, thumb: c.productId ? thumbs[c.productId] ?? null : null })),
+    embed: embed.checked ? { checked: true as const, enabled: embed.enabled, themeName: embed.themeName } : { checked: false as const },
+    embedUrl: embedActivationUrl(session.shop),
   };
 };
 
@@ -136,9 +144,15 @@ function HealthRow({
  * counts: failed back-in-stock sends (usually no email provider chosen) are
  * not "all clear" (the old card said "All clear" next to a red 0%).
  */
+type EmbedView = { checked: true; enabled: boolean; themeName: string } | { checked: false };
+
 function HealthCard({
   r,
+  embed,
+  embedUrl,
 }: {
+  embed: EmbedView;
+  embedUrl: string;
   r: {
     oversellIncidents: number;
     untaggedOrders: number;
@@ -151,7 +165,9 @@ function HealthCard({
   const navigate = useNavigate();
   const delivery: Health =
     r.waitlistDeliveryRate == null ? "idle" : r.waitlistFailed > 0 ? "warn" : "ok";
-  const overall: Health = !r.clean ? "bad" : delivery === "warn" ? "warn" : "ok";
+  const embedOff = embed.checked && !embed.enabled;
+  const embedHealth: Health = !embed.checked ? "idle" : embed.enabled ? "ok" : "bad";
+  const overall: Health = !r.clean || embedOff ? "bad" : delivery === "warn" ? "warn" : "ok";
   return (
     <s-section>
       <CardHeader
@@ -165,6 +181,18 @@ function HealthCard({
         }
       />
       <div className="encore-card-body encore-list">
+        <HealthRow
+          status={embedHealth}
+          label={t("Theme app embed")}
+          value={!embed.checked ? "—" : embed.enabled ? t("On") : t("Off")}
+          action={
+            embedOff ? (
+              <s-button variant="tertiary" href={embedUrl} target="_blank">
+                {t("Turn on")}
+              </s-button>
+            ) : undefined
+          }
+        />
         <HealthRow status={r.oversellIncidents > 0 ? "bad" : "ok"} label={t("Oversell incidents")} value={String(r.oversellIncidents)} />
         <HealthRow status={r.untaggedOrders > 0 ? "bad" : "ok"} label={t("Untagged orders")} value={String(r.untaggedOrders)} />
         <HealthRow
@@ -421,6 +449,16 @@ export default function DashboardIndex() {
           </s-banner>
         )}
 
+        {/* Nothing shows on the storefront until the app embed is on. */}
+        {data.embed.checked && !data.embed.enabled && (
+          <s-banner tone="warning" heading={t("Turn on Encore in your theme")}>
+            {t("Encore's app embed is off in your live theme ({theme}), so shoppers don't see the Preorder button, Notify me or low-stock messages yet. Turn it on, then click Save in the theme editor.").replace("{theme}", data.embed.themeName)}
+            <s-button slot="secondary-actions" variant="primary" href={data.embedUrl} target="_blank">
+              {t("Turn on in theme editor")}
+            </s-button>
+          </s-banner>
+        )}
+
         <MetricStrip metrics={METRICS} />
 
         <Reveal index={1}>
@@ -430,7 +468,7 @@ export default function DashboardIndex() {
               <CohortsCard cohorts={COHORTS} />
             </div>
             <div className="encore-stack">
-              <HealthCard r={data.reliability} />
+              <HealthCard r={data.reliability} embed={data.embed} embedUrl={data.embedUrl} />
               <ActivityCard items={ACTIVITY} />
             </div>
           </div>

@@ -15,9 +15,9 @@
  * internal timers off if an external scheduler is ever preferred.
  */
 import prisma from "../db.server";
-import { flushOutbox } from "../lib/nova.server";
+import { flushOutbox, scrubDeliveredOutbox } from "../lib/nova.server";
 import { remindBalancesDue } from "./notify-events.server";
-import { purgeShopData } from "./gdpr.server";
+import { purgeDueShops } from "./gdpr.server";
 import { reconcileLiveCampaignPolicies, syncCrossedVariantWindows } from "./inventory-policy.server";
 import { applyCampaignSchedules } from "./campaign-schedule.server";
 import { retryFailedAllShops } from "./waitlist-notify.server";
@@ -27,18 +27,6 @@ const OUTBOX_EVERY_MS = 2 * 60 * 1000; // matches the "every 2 minutes" ops spec
 const HOURLY_EVERY_MS = 60 * 60 * 1000; // daily jobs run hourly — idempotent, so
 // this only makes them land closer to their due moment, never twice.
 const BOOT_DELAY_MS = 30 * 1000; // let the server finish booting first
-
-const PURGE_AFTER_MS = 48 * 60 * 60 * 1000;
-
-type UninstalledRow = { shop: string; uninstalledAt: Date };
-const uninstalledShop = (
-  prisma as unknown as {
-    uninstalledShop: {
-      findMany(a: { where: Record<string, unknown> }): Promise<UninstalledRow[]>;
-      update(a: { where: { shop: string }; data: Record<string, unknown> }): Promise<unknown>;
-    };
-  }
-).uninstalledShop;
 
 /** Heartbeats for /health — proves the timers are actually firing. */
 export function schedulerHeartbeat(): {
@@ -95,15 +83,12 @@ async function balanceRemindersTick(): Promise<void> {
 
 async function purgeTick(): Promise<void> {
   try {
-    const cutoff = new Date(Date.now() - PURGE_AFTER_MS);
-    const due = await uninstalledShop.findMany({
-      where: { purgedAt: null, uninstalledAt: { lt: cutoff } },
-    });
-    for (const row of due) {
-      await purgeShopData(row.shop);
-      await uninstalledShop.update({ where: { shop: row.shop }, data: { purgedAt: new Date() } });
-    }
-    if (due.length > 0) console.log(`[scheduler/purge-uninstalled] purged ${due.length} shop(s)`);
+    // Shared with /cron/purge-uninstalled; skips (and cancels) shops that
+    // reinstalled within the 48h window.
+    const purged = await purgeDueShops();
+    if (purged.length > 0) console.log(`[scheduler/purge-uninstalled] purged ${purged.length} shop(s)`);
+    const scrubbed = await scrubDeliveredOutbox();
+    if (scrubbed > 0) console.log(`[scheduler/outbox] cleared ${scrubbed} delivered payload(s)`);
   } catch (e) {
     console.error("[scheduler/purge-uninstalled]", e);
   }

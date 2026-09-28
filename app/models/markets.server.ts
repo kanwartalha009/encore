@@ -130,7 +130,7 @@ export async function touchReconciled(shop: string): Promise<void> {
   });
 }
 
-// ---------- Markets (Admin GraphQL, with demo fallback) ----------
+// ---------- Markets (Admin GraphQL) ----------
 
 export type MarketRow = {
   id: string;
@@ -175,14 +175,6 @@ export async function fetchMarkets(
   }
 }
 
-// Used when Markets/inventory can't be read (e.g. local dev without a store).
-export const DEMO_MARKETS: MarketRow[] = [
-  { id: "gid://shopify/Market/1", name: "United States", handle: "us", enabled: true, primary: true, stock: 42 },
-  { id: "gid://shopify/Market/2", name: "Europe", handle: "eu", enabled: true, primary: false, stock: 0 },
-  { id: "gid://shopify/Market/3", name: "United Kingdom", handle: "uk", enabled: true, primary: false, stock: 6 },
-  { id: "gid://shopify/Market/4", name: "Canada", handle: "ca", enabled: true, primary: false, stock: 0 },
-];
-
 /**
  * Resulting shopper experience for a market under a rule. The invariant: never
  * "Preorder" where sellable stock exists for that market (the negative test).
@@ -219,11 +211,6 @@ export async function fetchLocations(
   }
 }
 
-export const DEMO_LOCATIONS: LocationRow[] = [
-  { id: "gid://shopify/Location/1", name: "US Warehouse", active: true, fulfills: true },
-  { id: "gid://shopify/Location/2", name: "EU Warehouse", active: true, fulfills: true },
-];
-
 /**
  * Reconcile markets ↔ locations: snapshot each market's serving locations
  * (merchant override, else all online-fulfilling) + whether it can be fulfilled.
@@ -233,14 +220,20 @@ export const DEMO_LOCATIONS: LocationRow[] = [
 export async function reconcileMarkets(
   admin: AdminGraphqlClient,
   shop: string,
-): Promise<{ markets: MarketRow[]; locations: LocationRow[]; usingDemo: boolean }> {
+): Promise<{ markets: MarketRow[]; locations: LocationRow[]; unreadable: boolean }> {
   const [liveMarkets, liveLocations, rule] = await Promise.all([
     fetchMarkets(admin),
     fetchLocations(admin),
     getMarketRule(shop),
   ]);
-  const markets = liveMarkets ?? DEMO_MARKETS;
-  const locations = liveLocations ?? DEMO_LOCATIONS;
+  // Never show or save made-up markets (2026-09-28 — sample US/EU/UK/CA markets
+  // and warehouses used to appear, and be written into the snapshot, when the
+  // store couldn't be read). Keep the last good snapshot and say so instead.
+  if (!liveMarkets || !liveLocations) {
+    return { markets: liveMarkets ?? [], locations: liveLocations ?? [], unreadable: true };
+  }
+  const markets = liveMarkets;
+  const locations = liveLocations;
 
   const fulfilling = locations.filter((l) => l.active && l.fulfills).map((l) => l.id);
   const snapshot: MarketSnapshot = {};
@@ -256,7 +249,7 @@ export async function reconcileMarkets(
     update: { marketSnapshot: JSON.stringify(snapshot), lastReconciledAt: new Date() },
   });
 
-  return { markets, locations, usingDemo: !liveMarkets || !liveLocations };
+  return { markets, locations, unreadable: false };
 }
 
 // `marketExperience` is a pure decision fn the Per-market route renders, so it

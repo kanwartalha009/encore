@@ -12,7 +12,6 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 
 import { authenticate } from "../shopify.server";
 import {
-  DEMO_LOCALES,
   STOREFRONT_STRINGS,
   SAMPLE_TRANSLATIONS,
 } from "../lib/demoStorefront";
@@ -26,8 +25,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
   const saved = await getTranslations(session.shop);
   // The store's real languages (was a fixed English/Spanish/French/German demo
-  // list until 2026-09-28). Falls back to that list if the query fails.
+  // list until 2026-09-28). If Shopify can't be read, say so — never show
+  // languages the store doesn't have.
   let locales: { code: string; name: string; primary: boolean; published: boolean }[] = [];
+  let localesError = false;
   try {
     const res = await admin.graphql(SHOP_LOCALES);
     const body = (await res.json()) as {
@@ -41,9 +42,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }));
   } catch (e) {
     console.error("[translations] shopLocales failed", e);
+    localesError = true;
   }
-  if (!locales.length) locales = DEMO_LOCALES.map((l) => ({ ...l, primary: !!l.primary, published: !!l.published }));
-  return { saved, locales };
+  if (!locales.length) localesError = true;
+  return { saved, locales, localesError };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -68,7 +70,7 @@ const GROUPS = ["Preorder", "Back in stock", "Low stock", "Cart & messages"] as 
 export default function TranslationsPage() {
   const shopify = useAppBridge();
   const { t } = useLocale();
-  const { saved, locales } = useLoaderData<typeof loader>();
+  const { saved, locales, localesError } = useLoaderData<typeof loader>();
   const submit = useSubmit();
 
   const targets = locales.filter((l) => !l.primary);
@@ -105,6 +107,16 @@ export default function TranslationsPage() {
     );
     shopify.toast.show(`${t("Translations saved for")} ${localeMeta?.name}`);
   };
+
+  if (localesError) {
+    return (
+      <AppPage heading={t("translations.title")} breadcrumb={{ label: t("nav.settings"), to: "/app/settings" }}>
+        <s-banner tone="warning" heading={t("Couldn't load your store's languages")}>
+          {t("Shopify didn't return your languages just now. Your saved translations still apply on the storefront. Refresh the page to try again.")}
+        </s-banner>
+      </AppPage>
+    );
+  }
 
   if (!targets.length) {
     return (

@@ -22,12 +22,15 @@ import {
   type NotificationSettings,
 } from "../services/notifications.server";
 import { MESSAGE_TYPES } from "../lib/notifications-shared";
-import { isConnected, klaviyoConfigured } from "../services/klaviyo-oauth.server";
+import { isConnected, klaviyoConfigured, finishOAuthForSession } from "../services/klaviyo-oauth.server";
 
 const LOCALES = ["en", "es", "fr", "de", "it", "pt", "nl", "pl"];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
+  // Back from Klaviyo: finish the connection for THIS shop only.
+  const sealedCode = new URL(request.url).searchParams.get("klaviyo_code");
+  const klaviyoResult = sealedCode ? await finishOAuthForSession(session.shop, sealedCode) : null;
   const [settings, klaviyoOAuth] = await Promise.all([
     getNotificationSettings(session.shop),
     isConnected(session.shop),
@@ -35,7 +38,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const defaults = Object.fromEntries(
     MESSAGE_TYPES.map((m) => [m.type, defaultTemplate(m.type)]),
   );
-  return { settings, defaults, klaviyoOAuth, klaviyoConfigurable: klaviyoConfigured() };
+  return { settings, defaults, klaviyoOAuth, klaviyoConfigurable: klaviyoConfigured(), klaviyoResult };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -72,11 +75,22 @@ export default function NotificationsPage() {
     const u = klaviyoConnect.data?.url;
     if (u) window.open(u, "_top");
   }, [klaviyoConnect.data]);
-  const { settings, defaults, klaviyoOAuth, klaviyoConfigurable } =
+  const { settings, defaults, klaviyoOAuth, klaviyoConfigurable, klaviyoResult } =
     useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
-  const [searchParams] = useSearchParams();
-  const klaviyoStatus = searchParams.get("klaviyo") || (klaviyoConnect.data?.error === "unconfigured" ? "unconfigured" : null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  // Keep the one-time result, then drop the code from the URL so a reload
+  // doesn't try to use it again.
+  const [oauthResult] = useState(klaviyoResult);
+  useEffect(() => {
+    if (searchParams.has("klaviyo_code")) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("klaviyo_code");
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+  const klaviyoStatus =
+    oauthResult || searchParams.get("klaviyo") || (klaviyoConnect.data?.error === "unconfigured" ? "unconfigured" : null);
 
   const [provider, setProvider] = useState<NotificationProvider>(settings.provider);
   const [bisMode, setBisMode] = useState<"events" | "native">(settings.klaviyoBisMode);

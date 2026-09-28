@@ -498,7 +498,12 @@ export default function BackInStockPage() {
               <FormCard title={t("Sign-up popup")} sub={t("What shoppers see after tapping the button.")}>
                 <s-text-field label={t("Popup title")} value={popupTitle} onInput={(e) => setPopupTitle(val(e))} />
                 <s-text-area label={t("Consent text")} value={consentText} rows={2} onInput={(e) => setConsentText(val(e))} />
-                <s-checkbox label={t("Also collect phone number (SMS)")} checked={flag(collectPhone)} onChange={(e) => setCollectPhone(isChecked(e))} />
+                <s-checkbox
+                  label={t("Also ask for a phone number")}
+                  details={t("Encore doesn't send text messages yet, so phone numbers aren't used — alerts go by email. We recommend leaving this off.")}
+                  checked={flag(collectPhone)}
+                  onChange={(e) => setCollectPhone(isChecked(e))}
+                />
                 <s-checkbox label={t("Show product image & title in popup")} checked={flag(showProductInfo)} onChange={(e) => setShowProductInfo(isChecked(e))} />
                 <s-checkbox
                   label={t("Require shoppers to tick the consent box")}

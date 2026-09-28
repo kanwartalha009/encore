@@ -8,6 +8,7 @@ import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prism
 import prisma from "./db.server";
 import { confirmInstall } from "./lib/nova.server";
 import { consumeReferral } from "./lib/referral.server";
+import { cancelPendingPurge } from "./services/purge-stamp.server";
 
 const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY,
@@ -28,6 +29,9 @@ const shopify = shopifyApp({
     // Nova platform wiring: flip the Installation to ACTIVE + lock referral attribution on install.
     // Resilient — no-ops if NOVA_API is unset, never throws (won't block install).
     afterAuth: async ({ session }) => {
+      // Reinstalled within 48h of an uninstall → cancel the pending GDPR purge,
+      // which would otherwise wipe this shop's data (sessions included).
+      await cancelPendingPurge(session.shop);
       // Consume the agency referral captured at /install (keyed by shop) → attribution.
       const ref = await consumeReferral(session.shop);
       await confirmInstall({

@@ -26,9 +26,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
   // Reconcile markets ↔ locations (writes the snapshot + reconcile time), then
   // read the fresh rule.
-  const { markets, usingDemo } = await reconcileMarkets(admin, session.shop);
+  const { markets, unreadable } = await reconcileMarkets(admin, session.shop);
   const rule = await getMarketRule(session.shop);
-  return { markets, rule, usingDemo };
+  return { markets, rule, unreadable };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -61,7 +61,7 @@ function expTone(e: "Buy" | "Preorder" | "Off"): "success" | "attention" | undef
 }
 
 export default function MarketsPage() {
-  const { markets, rule, usingDemo } = useLoaderData<typeof loader>();
+  const { markets, rule, unreadable } = useLoaderData<typeof loader>();
   const shopify = useAppBridge();
   const { t } = useLocale();
   const submit = useSubmit();
@@ -100,6 +100,16 @@ export default function MarketsPage() {
   const conflicts = markets.filter(
     (m) => marketExperience(m, effectiveRule) === "Buy" && (scope === "ALL" || selected.includes(m.id)),
   ).length;
+
+  if (unreadable) {
+    return (
+      <AppPage heading={t("Per-market rules")} breadcrumb={{ label: t("nav.settings"), to: "/app/settings" }}>
+          <s-banner tone="warning" heading={t("Couldn't read your markets")}>
+            {t("Shopify didn't return your markets or locations just now. Your saved market rules still apply. Refresh the page to try again.")}
+          </s-banner>
+      </AppPage>
+    );
+  }
 
   if (markets.length <= 1) {
     return (
@@ -173,11 +183,6 @@ export default function MarketsPage() {
         </s-button>
       }
     >
-        {usingDemo && (
-          <s-banner tone="info">
-            {t("Showing sample markets — connect a dev store with multiple Shopify Markets to see live data.")}
-          </s-banner>
-        )}
 
         <s-section heading={t("Scope")}>
           <s-stack direction="block" gap="base">

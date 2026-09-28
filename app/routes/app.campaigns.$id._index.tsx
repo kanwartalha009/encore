@@ -26,6 +26,7 @@ import { useLocale } from "../lib/i18n";
 import { prettyDate, statusToTone, relativeTime, displayOrderRef } from "../lib/format";
 import ConfirmModal from "../components/ConfirmModal";
 import { getShopCurrency } from "../models/shop.server";
+import { getEmbedStatus, embedActivationUrl } from "../models/theme-embed.server";
 import { getCampaignOrdersAndActivity } from "../models/orders-view.server";
 import { OrdersTable, orderAdminUrl, type OrderRowView } from "../components/OrdersTable";
 
@@ -60,6 +61,12 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   if (!id) throw new Response("Not found", { status: 404 });
 
   const currency = await getShopCurrency(admin, session.shop);
+  // First preorder just published (onboarding → ?welcome=1): check the theme
+  // app embed so the welcome can say whether the storefront will show it.
+  const welcomeEmbed =
+    new URL(request.url).searchParams.get("welcome") === "1"
+      ? await getEmbedStatus(admin).then((e) => (e.checked ? { checked: true as const, enabled: e.enabled } : { checked: false as const }))
+      : null;
   const campaign = await getCampaign(session.shop, id);
   if (!campaign) throw new Response("Not found", { status: 404 });
 
@@ -117,6 +124,8 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
   return {
     shopDomain: session.shop,
+    welcomeEmbed,
+    embedUrl: embedActivationUrl(session.shop),
     campaign: {
       id: campaign.id,
       name: campaign.name,
@@ -287,8 +296,10 @@ export default function CampaignDetail() {
     searchParams.delete("welcome");
     setSearchParams(searchParams, { replace: true });
   };
-  const { campaign: c, customers: CUSTOMERS, shopDomain, orders: ORDERS, activity: ACTIVITY } =
+  const { campaign: c, customers: CUSTOMERS, shopDomain, orders: ORDERS, activity: ACTIVITY, welcomeEmbed, embedUrl } =
     useLoaderData<typeof loader>();
+  // Captured once: the welcome param is removed from the URL on dismiss.
+  const [embedAtWelcome] = useState(welcomeEmbed);
   const id = c.id;
 
   const [tabIndex, setTabIndex] = useState(0);
@@ -417,11 +428,25 @@ export default function CampaignDetail() {
       ))}
     >
         {showWelcome && (
-          <s-banner tone="success" heading={t("Your first preorder is live!")} dismissible onDismiss={dismissWelcome}>
-            {t(
-              "Shoppers on the selected products can now preorder. Add the Encore blocks in your theme editor if you haven't yet, then place a test order to see it end to end.",
-            )}
-          </s-banner>
+          embedAtWelcome?.checked && !embedAtWelcome.enabled ? (
+            <s-banner tone="warning" heading={t("Your first preorder is live — one step left")} dismissible onDismiss={dismissWelcome}>
+              {t("Turn on Encore's app embed in your theme so shoppers see the Preorder button. Click the button below, then Save in the theme editor. After that, place a test order to see it end to end.")}
+              <s-button slot="secondary-actions" variant="primary" href={embedUrl} target="_blank">
+                {t("Turn on in theme editor")}
+              </s-button>
+            </s-banner>
+          ) : (
+            <s-banner tone="success" heading={t("Your first preorder is live!")} dismissible onDismiss={dismissWelcome}>
+              {embedAtWelcome?.checked
+                ? t("Encore is on in your theme, so shoppers on the selected products can preorder now. Place a test order to see it end to end.")
+                : t("Shoppers on the selected products can now preorder. Make sure Encore is turned on in your theme (App embeds), then place a test order to see it end to end.")}
+              {!embedAtWelcome?.checked && (
+                <s-button slot="secondary-actions" href={embedUrl} target="_blank">
+                  {t("Open theme editor")}
+                </s-button>
+              )}
+            </s-banner>
+          )
         )}
         {c.status === "Paused" && (
           <s-banner tone="warning" heading={t("Preorder is paused")}>

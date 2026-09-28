@@ -15,6 +15,7 @@ import { useLocale } from "../lib/i18n";
 import { getPlans } from "../services/plans.server";
 import { getUsage } from "../services/usage.server";
 import { getBillingState, createSubscription } from "../services/billing.server";
+import { adminAppUrl } from "../lib/admin-url.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -33,8 +34,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const interval = String(fd.get("interval") ?? "EVERY_30_DAYS") === "ANNUAL"
     ? "ANNUAL"
     : "EVERY_30_DAYS";
-  const appUrl = process.env.SHOPIFY_APP_URL || "https://encore.nova-platform.localhost:3003";
-  const returnUrl = `${appUrl.replace(/\/$/, "")}/app/plans?billing=active`;
+  // Shopify sends the merchant here after approving the charge: land them back
+  // INSIDE the admin (a bare app URL has no shop/host and shows the login form).
+  const returnUrl = adminAppUrl(session.shop, "/app/plans?billing=active");
 
   const r = await createSubscription(admin, session.shop, planCode, interval, returnUrl);
   return r;

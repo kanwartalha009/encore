@@ -35,13 +35,15 @@ import {
   type DiscountCompatRow,
 } from "../services/discount-compat.server";
 import { getEmbedStatus, embedActivationUrl } from "../models/theme-embed.server";
+import { publicGeneral, mergeKlaviyoKey } from "../services/klaviyo-key.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, admin } = await authenticate.admin(request);
   const { general } = await getSettings(session.shop);
   // Real check against the live theme (not the saved flag).
   const embed = await getEmbedStatus(admin);
-  return { shop: session.shop, saved: general, embed, embedUrl: embedActivationUrl(session.shop) };
+  // publicGeneral: the Klaviyo key never leaves the server, only whether one is saved.
+  return { shop: session.shop, saved: publicGeneral(general), embed, embedUrl: embedActivationUrl(session.shop) };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -60,7 +62,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   } catch {
     data = {};
   }
-  await saveSettingsSection(session.shop, "general", data);
+  // Keep (or replace / remove) the encrypted Klaviyo key — the browser never has it.
+  const { general: current } = await getSettings(session.shop);
+  await saveSettingsSection(session.shop, "general", mergeKlaviyoKey(current, data));
   return Response.json({ ok: true, intent: "save" });
 };
 
@@ -98,7 +102,7 @@ export default function SettingsPage() {
     showLineItemProps: boolean;
     preorderPropLabel: string;
     shipDatePropLabel: string;
-    klaviyoKey: string;
+    klaviyoKeySet: boolean;
     omnisendKey: string;
     slackWebhook: string;
     senderEmail: string;
@@ -152,10 +156,22 @@ export default function SettingsPage() {
 
   // Advanced
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [klaviyoKey, setKlaviyoKey] = useState(g.klaviyoKey ?? "");
-  const [omnisendKey, setOmnisendKey] = useState(g.omnisendKey ?? "");
-  const [slackWebhook, setSlackWebhook] = useState(g.slackWebhook ?? "");
-  const [senderEmail, setSenderEmail] = useState(g.senderEmail ?? `hello@${shop}`);
+  // Klaviyo key: the saved key never reaches the browser (klaviyo-key.server).
+  // The field holds only a NEW key the merchant types; empty = keep the saved one.
+  const [klaviyoKey, setKlaviyoKey] = useState("");
+  const [klaviyoKeySet, setKlaviyoKeySet] = useState(g.klaviyoKeySet ?? false);
+  const [klaviyoKeyClear, setKlaviyoKeyClear] = useState(false);
+  // Omnisend / Slack aren't built yet: their "Coming soon" rows are hidden
+  // (App Store: no placeholder features). Values are still carried on save so
+  // nothing a merchant entered is lost.
+  const [omnisendKey] = useState(g.omnisendKey ?? "");
+  const [slackWebhook] = useState(g.slackWebhook ?? "");
+  // Reply-to for shopper emails Encore sends (was a "Sender email" field that
+  // nothing used). The old placeholder default hello@<shop>.myshopify.com is
+  // not a real mailbox, so it counts as empty (→ the store's contact email).
+  const [senderEmail, setSenderEmail] = useState(
+    g.senderEmail && !/@[^@]*\.myshopify\.com$/i.test(g.senderEmail) ? g.senderEmail : "",
+  );
   const [embedEnabled] = useState(g.embedEnabled ?? true);
   const [smsEnabled] = useState(g.smsEnabled ?? false);
 
@@ -218,7 +234,7 @@ export default function SettingsPage() {
         payload: JSON.stringify({
           defaultPaymentMode, defaultDepositPct, defaultDeliveryNote, defaultDeliveryFallback,
           showLineItemProps, preorderPropLabel, shipDatePropLabel,
-          klaviyoKey, omnisendKey, slackWebhook, senderEmail, embedEnabled, smsEnabled,
+          klaviyoKey, klaviyoKeyClear, omnisendKey, slackWebhook, senderEmail, embedEnabled, smsEnabled,
           availabilityRule, autoStopAtZero, autoManageContinueSelling, reserveMode,
           defaultButtonLabel, ctaPlacement, comingSoonBeforeStart, notAvailableAfterEnd,
           hideBuyNow, showPreorderLabel, showPromoNote,
@@ -230,6 +246,11 @@ export default function SettingsPage() {
       { method: "post" },
     );
     shopify.toast.show(t("Settings saved"));
+    // Reflect the key state locally (the server keeps the key itself).
+    if (klaviyoKeyClear) setKlaviyoKeySet(false);
+    else if (klaviyoKey.trim()) setKlaviyoKeySet(true);
+    setKlaviyoKey("");
+    setKlaviyoKeyClear(false);
   };
 
   // Live-preview message: substitute {{shipping_date}}, or use the fallback
@@ -847,7 +868,7 @@ export default function SettingsPage() {
                   <s-heading>{t("Advanced")}</s-heading>
                   <s-icon type="info" color="subdued" />
                 </s-stack>
-                <s-paragraph fontSize="small" color="subdued">{t("Email integrations, SMS alerts, danger zone.")}</s-paragraph>
+                <s-paragraph fontSize="small" color="subdued">{t("Klaviyo key, reply-to email, danger zone.")}</s-paragraph>
               </s-stack>
               <s-button
                 variant="tertiary"
@@ -870,57 +891,44 @@ export default function SettingsPage() {
                     helpText={t("Sync waitlist signups + preorder campaigns to a Klaviyo list.")}
                     action={
                       <s-button onClick={() => klaviyoConnect.load("/klaviyo/connect")} loading={flag(klaviyoConnect.state !== "idle")}>
-                        {klaviyoKey ? t("Reconnect") : t("Connect")}
+                        {klaviyoKeySet ? t("Reconnect") : t("Connect")}
                       </s-button>
                     }
-                    connected={!!klaviyoKey}
+                    connected={klaviyoKeySet && !klaviyoKeyClear}
                   >
                     <s-password-field
                       label={t("API key")}
                       labelAccessibilityVisibility="exclusive"
                       value={klaviyoKey}
-                      onInput={(e) => setKlaviyoKey(val(e))}
-                      placeholder={t("pk_xxxxx")}/>
-                  </IntegrationRow>
-                  <s-divider />
-                  <IntegrationRow
-                    name="Omnisend"
-                    helpText={t("Push preorder events into Omnisend automation flows.")}
-                    action={<s-button disabled>{t("Coming soon")}</s-button>}
-                    connected={!!omnisendKey}
-                  >
-                    <s-password-field
-                      label={t("API key")}
-                      labelAccessibilityVisibility="exclusive"
-                      value={omnisendKey}
-                      onInput={(e) => setOmnisendKey(val(e))}
-                      placeholder={t("omn-xxxxx")}/>
-                  </IntegrationRow>
-                  <s-divider />
-                  <IntegrationRow
-                    name="Slack alerts"
-                    helpText={t("Per-preorder merchant alerts (balance failures, cohort ready).")}
-                    action={<s-button disabled>{t("Coming soon")}</s-button>}
-                    connected={!!slackWebhook}
-                  >
-                    <s-text-field
-                      label={t("Webhook URL")}
-                      labelAccessibilityVisibility="exclusive"
-                      value={slackWebhook}
-                      onInput={(e) => setSlackWebhook(val(e))}
-                      placeholder={t("https://hooks.slack.com/services/...")}/>
+                      onInput={(e) => {
+                        setKlaviyoKey(val(e));
+                        setKlaviyoKeyClear(false);
+                      }}
+                      placeholder={klaviyoKeySet ? t("Key saved — type a new key to replace it") : t("pk_xxxxx")}
+                      details={t("Stored encrypted and never shown again after you save.")}/>
+                    {klaviyoKeySet && !klaviyoKeyClear && (
+                      <div>
+                        <s-button variant="tertiary" tone="critical" onClick={() => { setKlaviyoKey(""); setKlaviyoKeyClear(true); }}>
+                          {t("Remove saved key")}
+                        </s-button>
+                      </div>
+                    )}
+                    {klaviyoKeyClear && (
+                      <s-text color="subdued" fontSize="small">{t("The saved key will be removed when you save.")}</s-text>
+                    )}
                   </IntegrationRow>
                 </s-stack>
 
                 <s-divider />
 
                 <s-stack direction="block" gap="small">
-                  <s-heading fontSize="small">{t("Email & SMS")}</s-heading>
+                  <s-heading fontSize="small">{t("Customer emails")}</s-heading>
                   <s-email-field
-                    label={t("Sender email")}
+                    label={t("Reply-to email")}
                     value={senderEmail}
+                    placeholder={t("Your store's contact email")}
                     onInput={(e) => setSenderEmail(val(e))}
-                    details={t("Verify SPF/DKIM in your email host before going live.")}/>
+                    details={t("Emails Encore sends to shoppers show your store's name, and replies go to this address. Leave empty to use your store's contact email.")}/>
                   {/* SMS delivery ships in R3 — hidden until real (audit O4). <s-checkbox
                     label={t("Enable SMS for back-in-stock alerts")}
                     details={t("Requires Twilio (or compatible) credentials in v1.1.")}
@@ -979,6 +987,7 @@ function IntegrationRow({
   connected: boolean;
   children: React.ReactNode;
 }) {
+  const { t } = useLocale();
   return (
     <s-stack direction="block" gap="small-100">
       <s-stack direction="inline" justifyContent="space-between" alignItems="center">
@@ -988,7 +997,7 @@ function IntegrationRow({
               {name}
             </s-paragraph>
             <s-badge tone={badgeTone(connected ? "success" : undefined)}>
-              {connected ? "Connected" : "Not connected"}
+              {connected ? t("Connected") : t("Not connected")}
             </s-badge>
           </s-stack>
           <s-paragraph fontSize="small" color="subdued">

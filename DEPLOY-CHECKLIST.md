@@ -24,7 +24,14 @@ localhost fallback) — `app/routes/app.plans.tsx`, `app/services/klaviyo-oauth.
 
 ## Secrets / env (never commit)
 
-- `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, `SHOPIFY_APP_URL`, `SCOPES`
+- `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, `SHOPIFY_APP_URL`, `SCOPES` — `SCOPES` must equal the
+  `scopes` line in `shopify.app.toml` exactly (metaobject scopes removed 2026-09-28).
+- `APP_ENCRYPTION_KEY` (64 hex chars, `openssl rand -hex 32`) — encrypts Klaviyo tokens/keys; the
+  privacy policy says these are encrypted. `/health` → `config.secretsEncrypted` must be `true`.
+- `ENCORE_EMAIL_API_KEY`, `ENCORE_EMAIL_FROM` — shopper emails + GDPR data-request emails to store owners
+  (`/health` → `config.emailSending`).
+- `ENCORE_LEGAL_NAME`, `ENCORE_SUPPORT_EMAIL` — company + contact shown on `/privacy` and `/terms`
+  (`/health` → `config.legalContact`).
 - `DATABASE_URL` (Postgres)
 - `NOVA_API`, `NOVA_INSTALL_CONFIRM_SECRET`, `NOVA_INGRESS_HMAC_SECRET` — HMAC secrets must **match the Nova platform deployment**.
 - Klaviyo OAuth client id/secret (if Klaviyo notifications used).

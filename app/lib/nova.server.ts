@@ -20,6 +20,13 @@ import prisma from "../db.server";
 const NOVA_API = process.env.NOVA_API ?? "";
 const APP_SLUG = "encore";
 const MAX_ATTEMPTS = 12;
+// Time limits (2026-09-28). The first delivery attempt runs inside Shopify
+// webhook handlers (uninstall, GDPR, billing) and in afterAuth, where Shopify
+// allows 5 seconds in total; an unreachable Nova used to hang them until the
+// network gave up. The row is already in the outbox, so a timed-out attempt is
+// simply retried by the scheduler with the longer limit.
+export const IMMEDIATE_TIMEOUT_MS = 2500;
+export const RETRY_TIMEOUT_MS = 10000;
 
 function sign(secret: string, body: string): string {
   return "sha256=" + crypto.createHmac("sha256", secret).update(body, "utf8").digest("hex");
@@ -45,16 +52,19 @@ const outbox = (
 ).novaOutbox;
 
 /** Deliver one outbox row. Marks SENT on success; backs off (or DEAD past MAX_ATTEMPTS) on failure. */
-async function deliver(row: OutboxRow): Promise<boolean> {
+async function deliver(row: OutboxRow, timeoutMs = RETRY_TIMEOUT_MS): Promise<boolean> {
   try {
     const extra = JSON.parse(row.headers || "{}") as Record<string, string>;
     const res = await fetch(row.url, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...extra },
       body: row.body,
+      signal: AbortSignal.timeout(timeoutMs),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    await outbox.update({ where: { id: row.id }, data: { status: "SENT", sentAt: new Date(), lastError: null } });
+    // Delivered → drop the payload (it can carry customer emails from GDPR
+    // forwards); the row stays as the delivery record.
+    await outbox.update({ where: { id: row.id }, data: { status: "SENT", sentAt: new Date(), lastError: null, body: "" } });
     return true;
   } catch (err) {
     const attempts = row.attempts + 1;
@@ -87,14 +97,47 @@ async function enqueue(
     // Outbox write itself failed → best-effort direct send so the event isn't lost entirely.
     console.error("[encore/nova] outbox enqueue failed; direct send", err);
     try {
-      await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", "X-Nova-Signature": signature, ...extraHeaders }, body });
+      await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Nova-Signature": signature, ...extraHeaders },
+        body,
+        signal: AbortSignal.timeout(IMMEDIATE_TIMEOUT_MS),
+      });
     } catch (e) {
       console.error("[encore/nova] direct send also failed", e);
     }
     return;
   }
   // Best-effort immediate delivery; the cron retries if this attempt fails.
-  await deliver({ id, url, body, headers, attempts: 0 });
+  await deliver({ id, url, body, headers, attempts: 0 }, IMMEDIATE_TIMEOUT_MS);
+}
+
+/**
+ * Data minimisation (2026-09-28), hourly: clear the payload of rows delivered
+ * before payloads were dropped on send, and delete delivery records older than
+ * 30 days (keeps the table — and GDPR lookups over it — small). PENDING and
+ * DEAD rows are never touched. Returns rows cleared + deleted.
+ */
+export const SENT_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+export async function scrubDeliveredOutbox(now = new Date()): Promise<number> {
+  try {
+    const ob = (
+      prisma as unknown as {
+        novaOutbox: {
+          updateMany(a: Record<string, unknown>): Promise<{ count: number }>;
+          deleteMany(a: Record<string, unknown>): Promise<{ count: number }>;
+        };
+      }
+    ).novaOutbox;
+    const r = await ob.updateMany({ where: { status: "SENT", NOT: { body: "" } }, data: { body: "" } });
+    const d = await ob.deleteMany({
+      where: { status: "SENT", sentAt: { lt: new Date(now.getTime() - SENT_RETENTION_MS) } },
+    });
+    return r.count + d.count;
+  } catch (e) {
+    console.error("[encore/nova] outbox scrub failed", e);
+    return 0;
+  }
 }
 
 /** Drain due outbox rows. Wire to a scheduler via POST /cron/nova-outbox. */

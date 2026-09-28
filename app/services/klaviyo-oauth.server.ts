@@ -1,8 +1,8 @@
 /**
  * Klaviyo OAuth (N4) — the productized connection (preferred over a pasted key).
  *
- * The merchant clicks "Connect Klaviyo" → /klaviyo/connect (we set a signed,
- * httpOnly cookie carrying the PKCE verifier + state and redirect to Klaviyo) →
+ * The merchant clicks "Connect Klaviyo" → /klaviyo/connect (we seal the shop +
+ * PKCE verifier into the OAuth `state` and return Klaviyo's authorize URL) →
  * Klaviyo redirects to /klaviyo/callback → we exchange the code (with the
  * verifier) for a token, encrypt it at rest, and use it as a Bearer credential.
  *
@@ -13,13 +13,13 @@
 import crypto from "node:crypto";
 import prisma from "../db.server";
 import { encryptSecret, decryptSecret } from "../lib/crypto.server";
+import { seal, unseal } from "../lib/seal.server";
 
 const AUTHORIZE_URL = "https://www.klaviyo.com/oauth/authorize";
 const TOKEN_URL = "https://a.klaviyo.com/oauth/token";
 // Adjust to match the scopes selected in the Klaviyo app registration.
 const SCOPES =
   "accounts:read events:write profiles:write metrics:read flows:read subscriptions:write";
-const COOKIE = "encore_kl_oauth";
 
 type TokenResponse = {
   access_token?: string;
@@ -64,22 +64,21 @@ function redirectUri(): string {
 function b64url(b: Buffer): string {
   return b.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
-function sign(data: string): string {
-  return crypto
-    .createHmac("sha256", process.env.SHOPIFY_API_SECRET ?? "")
-    .update(data)
-    .digest("base64url");
-}
 
-// ---- OAuth start (PKCE + signed cookie) ----
-// SameSite=None: the cookie is set from a fetch issued inside the Shopify admin
-// iframe (cross-site) and must be sent on Klaviyo's top-level redirect back.
-export type OAuthStart = { url: string; cookie: string };
+// ---- OAuth start (PKCE + sealed state) ----
+// The shop + PKCE verifier travel inside Klaviyo's `state` parameter, sealed
+// (AES-256-GCM, 10-minute expiry — lib/seal.server). This replaced a
+// SameSite=None cookie set from inside the Shopify admin iframe: browsers that
+// block third-party cookies dropped it, so the callback failed (2026-09-28).
+// The verifier is encrypted, so PKCE still protects the code exchange.
+export type OAuthStart = { url: string };
+const STATE_PURPOSE = "klaviyo-oauth";
+const STATE_TTL_MS = 10 * 60 * 1000;
 
 export function startOAuth(shop: string): OAuthStart {
   const verifier = b64url(crypto.randomBytes(32));
   const challenge = b64url(crypto.createHash("sha256").update(verifier).digest());
-  const state = b64url(crypto.randomBytes(16));
+  const state = seal(STATE_PURPOSE, { shop, verifier }, STATE_TTL_MS);
 
   const params = new URLSearchParams({
     response_type: "code",
@@ -90,28 +89,39 @@ export function startOAuth(shop: string): OAuthStart {
     code_challenge: challenge,
     code_challenge_method: "S256",
   });
-  const data = Buffer.from(JSON.stringify({ shop, state, verifier })).toString("base64url");
-  const cookie = `${COOKIE}=${data}.${sign(data)}; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=600`;
-  return { url: `${AUTHORIZE_URL}?${params.toString()}`, cookie };
+  return { url: `${AUTHORIZE_URL}?${params.toString()}` };
 }
 
-export function clearCookie(): string {
-  return `${COOKIE}=; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=0`;
+/**
+ * The callback doesn't exchange the code itself: it seals code + verifier for
+ * the shop and sends the merchant back into the admin, where the exchange runs
+ * inside an authenticated request for the SAME shop (finishOAuthForSession).
+ * So a Klaviyo approval can only ever connect the shop of the admin user who
+ * is logged in — someone tricked into approving another store's link connects
+ * nothing (the job the old browser cookie did).
+ */
+const CODE_PURPOSE = "klaviyo-code";
+export function sealCallback(shop: string, code: string, verifier: string): string {
+  return seal(CODE_PURPOSE, { shop, code, verifier }, 5 * 60 * 1000);
 }
 
-export function readCookie(
-  header: string | null,
-): { shop: string; state: string; verifier: string } | null {
-  if (!header) return null;
-  const m = header.match(new RegExp(COOKIE + "=([^;]+)"));
-  if (!m) return null;
-  const [data, mac] = m[1].split(".");
-  if (!data || !mac || sign(data) !== mac) return null;
-  try {
-    return JSON.parse(Buffer.from(data, "base64url").toString("utf8"));
-  } catch {
-    return null;
+export async function finishOAuthForSession(
+  sessionShop: string,
+  sealed: string,
+): Promise<"connected" | "error"> {
+  const d = unseal<{ shop?: unknown; code?: unknown; verifier?: unknown }>(CODE_PURPOSE, sealed);
+  if (!d || d.shop !== sessionShop || typeof d.code !== "string" || typeof d.verifier !== "string") {
+    return "error";
   }
+  return (await finishOAuth(sessionShop, d.code, d.verifier)) ? "connected" : "error";
+}
+
+/** Shop + verifier from the callback's `state`, or null if invalid / expired. */
+export function readState(state: string): { shop: string; verifier: string } | null {
+  const d = unseal<{ shop?: unknown; verifier?: unknown }>(STATE_PURPOSE, state);
+  if (!d || typeof d.shop !== "string" || typeof d.verifier !== "string") return null;
+  if (!/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/i.test(d.shop)) return null;
+  return { shop: d.shop, verifier: d.verifier };
 }
 
 // ---- Token exchange / refresh ----

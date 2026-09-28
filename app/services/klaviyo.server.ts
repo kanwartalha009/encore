@@ -11,6 +11,7 @@
  */
 import { getSettings } from "../models/settings.server";
 import { getAccessToken } from "./klaviyo-oauth.server";
+import { readKlaviyoKey } from "./klaviyo-key.server";
 
 const REVISION = "2024-10-15";
 
@@ -19,7 +20,7 @@ async function authHeader(shop: string): Promise<string | null> {
   const token = await getAccessToken(shop);
   if (token) return `Bearer ${token}`;
   const s = await getSettings(shop);
-  const key = typeof s.general.klaviyoKey === "string" ? s.general.klaviyoKey : "";
+  const key = readKlaviyoKey(s.general); // encrypted at rest (klaviyo-key.server)
   return key ? `Klaviyo-API-Key ${key}` : null;
 }
 

@@ -21,7 +21,23 @@ export type SendEmailInput = {
   subject: string;
   text: string;
   replyTo?: string;
+  /** Display name for the From line (the store's name); the address stays ENCORE_EMAIL_FROM. */
+  fromName?: string;
+  /** Extra headers, e.g. List-Unsubscribe (Resend `headers` field). */
+  headers?: Record<string, string>;
 };
+
+/**
+ * "Store Name <verified@address>" from ENCORE_EMAIL_FROM ("Name <addr>" or
+ * "addr"). Quotes / angle brackets / line breaks are stripped from the name.
+ * Exported for tests.
+ */
+export function fromWithName(from: string, name?: string): string {
+  const clean = (name ?? "").replace(/["<>\r\n]/g, "").trim().slice(0, 80);
+  if (!clean) return from;
+  const addr = from.match(/<([^>]+)>/)?.[1] ?? from.trim();
+  return `"${clean}" <${addr}>`;
+}
 
 export type SendResult = { ok: true } | { ok: false; reason: string };
 
@@ -51,12 +67,14 @@ export async function sendEmail(input: SendEmailInput): Promise<SendResult> {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from,
+        from: fromWithName(from, input.fromName),
         to: [input.to],
         subject: input.subject,
         text: input.text,
         ...(input.replyTo ? { reply_to: input.replyTo } : {}),
+        ...(input.headers && Object.keys(input.headers).length ? { headers: input.headers } : {}),
       }),
+      signal: AbortSignal.timeout(10000),
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
