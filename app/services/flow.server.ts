@@ -57,6 +57,33 @@ export function toFlowKeys(payload: Record<string, unknown>): Record<string, unk
   return out;
 }
 
+/**
+ * Like emitFlow, but reports the outcome instead of swallowing it — for sends
+ * whose delivery depends on a merchant workflow (back-in-stock emails).
+ */
+export async function emitFlowStrict(
+  shop: string,
+  handle: string,
+  rawPayload: Record<string, unknown>,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const payload = toFlowKeys(rawPayload);
+  try {
+    const { admin } = await unauthenticated.admin(shop);
+    const res = await admin.graphql(TRIGGER, { variables: { handle, payload } });
+    const body = (await res.json()) as {
+      data?: { flowTriggerReceive?: { userErrors?: { message: string }[] } };
+      errors?: { message: string }[];
+    };
+    const errs = [
+      ...(body.data?.flowTriggerReceive?.userErrors ?? []).map((e) => e.message),
+      ...(body.errors ?? []).map((e) => e.message),
+    ];
+    return errs.length ? { ok: false, error: errs.join("; ").slice(0, 300) } : { ok: true };
+  } catch (e) {
+    return { ok: false, error: String((e as Error)?.message ?? e).slice(0, 300) };
+  }
+}
+
 export async function emitFlow(
   shop: string,
   handle: string,

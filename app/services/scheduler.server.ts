@@ -7,6 +7,8 @@
  *   - outbox:            retry-safe by design (Nova dedupes, backoff in DB)
  *   - balance reminders: once per preorder via PreOrder.balanceRemindedAt
  *   - GDPR purge:        once per shop via UninstalledShop.purgedAt
+ *   - campaign schedule: start/end dates → LIVE / ENDED (a moved campaign no
+ *                        longer matches the query)
  *
  * The /cron/* HTTP endpoints remain (token-guarded) as manual triggers and as
  * an external-scheduler option. Set ENCORE_DISABLE_INTERNAL_CRON=1 to turn the
@@ -16,7 +18,9 @@ import prisma from "../db.server";
 import { flushOutbox } from "../lib/nova.server";
 import { remindBalancesDue } from "./notify-events.server";
 import { purgeShopData } from "./gdpr.server";
-import { reconcileLiveCampaignPolicies } from "./inventory-policy.server";
+import { reconcileLiveCampaignPolicies, syncCrossedVariantWindows } from "./inventory-policy.server";
+import { applyCampaignSchedules } from "./campaign-schedule.server";
+import { retryFailedAllShops } from "./waitlist-notify.server";
 import { unauthenticated } from "../shopify.server";
 
 const OUTBOX_EVERY_MS = 2 * 60 * 1000; // matches the "every 2 minutes" ops spec
@@ -105,6 +109,37 @@ async function purgeTick(): Promise<void> {
   }
 }
 
+/** Start/end dates → status changes (every 2 min; cheap indexed query). */
+async function campaignScheduleTick(): Promise<void> {
+  const g = globalThis as unknown as { __encoreLastScheduleTick?: number };
+  const now = new Date();
+  // First tick after boot looks back 10 minutes so a restart never skips a boundary.
+  const since = new Date(g.__encoreLastScheduleTick ?? now.getTime() - 10 * 60 * 1000);
+  g.__encoreLastScheduleTick = now.getTime();
+  const getAdmin = async (shop: string) => (await unauthenticated.admin(shop)).admin;
+  try {
+    await applyCampaignSchedules(getAdmin, now);
+  } catch (e) {
+    console.error("[scheduler/campaign-schedule]", e);
+  }
+  try {
+    // Per-variant availability windows → continue-selling on time.
+    await syncCrossedVariantWindows(getAdmin, since, now);
+  } catch (e) {
+    console.error("[scheduler/variant-windows]", e);
+  }
+}
+
+/** Back-in-stock: retry transient send failures (setup problems wait for the merchant). */
+async function waitlistRetryTick(): Promise<void> {
+  try {
+    const r = await retryFailedAllShops();
+    if (r.attempted > 0) console.log(`[scheduler/back-in-stock-retry] sent=${r.sent} failed=${r.failed}`);
+  } catch (e) {
+    console.error("[scheduler/back-in-stock-retry]", e);
+  }
+}
+
 async function policyReconcileTick(): Promise<void> {
   try {
     const r = await reconcileLiveCampaignPolicies(async (shop) => (await unauthenticated.admin(shop)).admin);
@@ -127,15 +162,21 @@ export function startScheduler(): void {
 
   setTimeout(() => {
     void outboxTick();
+    void campaignScheduleTick();
     void balanceRemindersTick();
     void purgeTick();
     void policyReconcileTick();
-    setInterval(() => void outboxTick(), OUTBOX_EVERY_MS);
+    void waitlistRetryTick();
+    setInterval(() => {
+      void outboxTick();
+      void campaignScheduleTick();
+    }, OUTBOX_EVERY_MS);
     setInterval(() => {
       void balanceRemindersTick();
       void purgeTick();
       void policyReconcileTick();
+      void waitlistRetryTick();
     }, HOURLY_EVERY_MS);
-    console.log("[scheduler] started — outbox every 2min, reminders/purge/policy-reconcile hourly");
+    console.log("[scheduler] started — outbox + campaign start/end every 2min, reminders/purge/policy-reconcile hourly");
   }, BOOT_DELAY_MS);
 }

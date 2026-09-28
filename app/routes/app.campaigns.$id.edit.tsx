@@ -22,7 +22,8 @@ import {
   syncCampaignSellingPlan,
 } from "../models/selling-plan.server";
 import prisma from "../db.server";
-import { syncContinueSellingSafe } from "../services/inventory-policy.server";
+import { releaseVariants, syncContinueSellingSafe } from "../services/inventory-policy.server";
+import { recomputeVariantCaps, variantGidsOf } from "../models/preorder-cap.server";
 import { notifyShipDateChanged } from "../services/notify-events.server";
 import { listCollections } from "../models/collections.server";
 import { fetchMarkets } from "../models/markets.server";
@@ -77,6 +78,13 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   const form = await request.formData();
   const intent = String(form.get("intent") ?? "save");
 
+  // Variants on the rule before this request — to release any that leave it.
+  const prior = await prisma.campaign.findFirst({
+    where: { shop: session.shop, id },
+    select: { variantConfigs: true },
+  });
+  const priorVariants = prior ? variantGidsOf(prior.variantConfigs) : [];
+
   if (intent === "delete") {
     // Remove the Shopify selling plan before the campaign row disappears.
     try {
@@ -85,6 +93,12 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       console.error("selling-plan delete failed", e);
     }
     await deleteCampaign(session.shop, id);
+    // No-oversell: the deleted rule's variants must not keep selling past zero
+    // or keep a stale checkout cap.
+    await recomputeVariantCaps(admin, session.shop, priorVariants).catch((e) =>
+      console.error("cap cleanup after delete failed", e),
+    );
+    await releaseVariants(admin, session.shop, priorVariants);
     return redirect("/app/campaigns");
   }
 
@@ -126,12 +140,16 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
   // Re-sync the selling plan to match the new config / status (creates, updates,
   // or tears down as eligibility changes). Best-effort.
+  const nextVariants = new Set(variantGidsOf(JSON.stringify(parsed.input.variantConfigs ?? [])));
+  const removedVariants = priorVariants.filter((v) => !nextVariants.has(v));
   try {
-    await syncCampaignSellingPlan(admin, session.shop, id);
+    await syncCampaignSellingPlan(admin, session.shop, id, { removedVariantGids: removedVariants });
   } catch (e) {
     console.error("selling-plan sync failed (update)", e);
   }
   await syncContinueSellingSafe(admin, session.shop, [id]);
+  // Variants taken off the rule go back to DENY (unless another live rule has them).
+  await releaseVariants(admin, session.shop, removedVariants);
 
   return redirect(`/app/campaigns/${id}`);
 };

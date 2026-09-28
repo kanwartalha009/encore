@@ -106,4 +106,37 @@ describe("buildPlan", () => {
     const past = new Date(Date.now() - 24 * 3600 * 1000);
     expect(delivery(buildPlan({ ...base, shipDate: past }, {}).plan)).toEqual({ fulfillmentTrigger: "UNKNOWN" });
   });
+
+  it("applies a fixed-amount discount (previously skipped)", () => {
+    const { plan } = buildPlan({ ...base, discountEnabled: true, discountKind: "FIXED", discountAmount: 5 } as RawCampaign, {});
+    expect(plan.pricingPolicies).toEqual([
+      { fixed: { adjustmentType: "FIXED_AMOUNT", adjustmentValue: { fixedValue: "5" } } },
+    ]);
+  });
+
+  it("applies a percentage discount", () => {
+    const { plan } = buildPlan({ ...base, discountEnabled: true, discountKind: "PERCENT", discountAmount: 10 } as RawCampaign, {});
+    expect(plan.pricingPolicies).toEqual([
+      { fixed: { adjustmentType: "PERCENTAGE", adjustmentValue: { percentage: 10 } } },
+    ]);
+  });
+
+  it("clears the discount on update when it was switched off", () => {
+    const { plan } = buildPlan({ ...base, discountEnabled: false } as RawCampaign, { planId: "gid://shopify/SellingPlan/1" });
+    expect(plan.pricingPolicies).toEqual([]);
+    const created = buildPlan({ ...base, discountEnabled: false } as RawCampaign, {});
+    expect(created.plan.pricingPolicies).toBeUndefined();
+  });
+
+  it("never schedules the balance in the past (was a silent pay-in-full fallback)", () => {
+    const soon = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000); // ship in 2 days, 7-day capture
+    const { plan } = buildPlan(
+      { ...base, paymentMode: "DEPOSIT", depositKind: "PERCENT", depositAmount: 20, balanceCaptureDays: 7, shipDate: soon } as RawCampaign,
+      {},
+    );
+    const billing = (plan.billingPolicy as { fixed: Record<string, unknown> }).fixed;
+    expect(billing.remainingBalanceChargeTrigger).toBe("TIME_AFTER_CHECKOUT");
+    expect(billing.remainingBalanceChargeTimeAfterCheckout).toBe("P1D");
+    expect(billing.remainingBalanceChargeExactTime).toBeUndefined();
+  });
 });

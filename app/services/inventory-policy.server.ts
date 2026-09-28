@@ -19,6 +19,7 @@
 import prisma from "../db.server";
 import { getSettings } from "../models/settings.server";
 import { getCampaignCapacity } from "../models/capacity.server";
+import { variantWindowBoundaries, variantWindowOpen, type VariantWindowConfig } from "../lib/cap-shared";
 import type { AdminGraphqlClient } from "../models/selling-plan.server";
 
 const toGid = (id: string, kind: "Product" | "ProductVariant") =>
@@ -79,7 +80,11 @@ export async function syncContinueSelling(
 
   const livePolicy: "CONTINUE" | "DENY" = row.status === "LIVE" ? "CONTINUE" : "DENY";
   const productIds = parseJson<string[]>(row.productIds, []).map((p) => toGid(String(p), "Product"));
-  const explicitVariants = parseJson<{ variantId?: string }[]>(row.variantConfigs, [])
+  const variantCfgs = parseJson<(VariantWindowConfig & { variantId?: string })[]>(row.variantConfigs, []);
+  const windowOf = new Map(
+    variantCfgs.filter((v) => v.variantId).map((v) => [toGid(v.variantId!, "ProductVariant"), v]),
+  );
+  const explicitVariants = variantCfgs
     .map((v) => v.variantId)
     .filter((v): v is string => !!v)
     .map((v) => toGid(v, "ProductVariant"));
@@ -116,6 +121,8 @@ export async function syncContinueSelling(
     const targets: { id: string; inventoryPolicy: "CONTINUE" | "DENY" }[] = [];
     for (const v of scoped) {
       let want: "CONTINUE" | "DENY" = livePolicy;
+      // Outside its availability window the variant is not on preorder → DENY.
+      if (want === "CONTINUE" && !variantWindowOpen(windowOf.get(v.id))) want = "DENY";
       if (want === "CONTINUE") {
         const cap = await getCampaignCapacity(shop, row, v.id);
         if (cap.soldOut) {
@@ -212,4 +219,106 @@ export async function reconcileLiveCampaignPolicies(
     }
   }
   return { shops: byShop.size, campaigns: live.length, variants };
+}
+
+/**
+ * Put variants that just LEFT a campaign back on DENY (2026-09-28).
+ *
+ * `syncContinueSelling` only touches the variants a campaign currently covers,
+ * so a variant removed from a live preorder — or every variant of a deleted
+ * preorder — stayed on CONTINUE and could keep selling past zero. This sets
+ * DENY on each given variant that is still CONTINUE and is no longer covered by
+ * any LIVE campaign (explicit variant, or whole product when the campaign has
+ * no per-variant rows). Best-effort: never throws.
+ */
+export async function releaseVariants(
+  admin: AdminGraphqlClient,
+  shop: string,
+  variantGids: string[],
+): Promise<{ denied: number }> {
+  const ids = Array.from(new Set(variantGids.map((v) => toGid(v, "ProductVariant"))));
+  if (!ids.length) return { denied: 0 };
+  try {
+    const { general } = await getSettings(shop);
+    if ((general as { autoManageContinueSelling?: boolean }).autoManageContinueSelling === false) {
+      return { denied: 0 };
+    }
+    const live = await prisma.campaign.findMany({
+      where: { shop, status: "LIVE", productMode: "SPECIFIC" },
+      select: { productIds: true, variantConfigs: true },
+    });
+    const coveredVariants = new Set<string>();
+    const coveredProducts = new Set<string>();
+    for (const c of live) {
+      const vs = parseJson<{ variantId?: string }[]>(c.variantConfigs, [])
+        .map((v) => v.variantId)
+        .filter((v): v is string => !!v);
+      if (vs.length) vs.forEach((v) => coveredVariants.add(toGid(v, "ProductVariant")));
+      else parseJson<string[]>(c.productIds, []).forEach((p) => coveredProducts.add(toGid(String(p), "Product")));
+    }
+
+    const res = await admin.graphql(
+      `#graphql
+      query EncoreVariantsToRelease($ids: [ID!]!) {
+        nodes(ids: $ids) { ... on ProductVariant { id inventoryPolicy product { id } } }
+      }`,
+      { variables: { ids } },
+    );
+    const body = (await res.json()) as {
+      data?: { nodes?: ({ id: string; inventoryPolicy: string; product?: { id: string } } | null)[] };
+    };
+    const byProduct = new Map<string, { id: string; inventoryPolicy: "DENY" }[]>();
+    for (const v of body.data?.nodes ?? []) {
+      if (!v?.id || !v.product?.id || v.inventoryPolicy !== "CONTINUE") continue;
+      if (coveredVariants.has(v.id) || coveredProducts.has(v.product.id)) continue;
+      byProduct.set(v.product.id, [...(byProduct.get(v.product.id) ?? []), { id: v.id, inventoryPolicy: "DENY" }]);
+    }
+    let denied = 0;
+    for (const [productId, variants] of byProduct) {
+      await admin.graphql(
+        `#graphql
+        mutation EncoreReleaseVariants($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+          productVariantsBulkUpdate(productId: $productId, variants: $variants) { userErrors { field message } }
+        }`,
+        { variables: { productId, variants } },
+      );
+      denied += variants.length;
+    }
+    if (denied) console.log(`[inventory-policy] ${shop}: ${denied} released variant(s) → DENY`);
+    return { denied };
+  } catch (e) {
+    console.error("[inventory-policy] releaseVariants failed", e);
+    return { denied: 0 };
+  }
+}
+
+/**
+ * Availability windows open and close at date boundaries; the hourly reconcile
+ * would apply them up to an hour late. On the scheduler's short tick, re-sync
+ * only the LIVE campaigns with a variant window boundary in (since, now].
+ */
+export async function syncCrossedVariantWindows(
+  getAdmin: (shop: string) => Promise<AdminGraphqlClient>,
+  since: Date,
+  now: Date = new Date(),
+): Promise<number> {
+  const live = await prisma.campaign.findMany({
+    where: { status: "LIVE", productMode: "SPECIFIC" },
+    select: { id: true, shop: true, variantConfigs: true },
+  });
+  let synced = 0;
+  for (const c of live) {
+    const cfgs = parseJson<VariantWindowConfig[]>(c.variantConfigs, []);
+    const crossed = cfgs.some((vc) =>
+      variantWindowBoundaries(vc).some((b) => b > since.getTime() && b <= now.getTime()),
+    );
+    if (!crossed) continue;
+    try {
+      await syncContinueSelling(await getAdmin(c.shop), c.shop, c.id);
+      synced += 1;
+    } catch (e) {
+      console.error("[inventory-policy/windows]", c.shop, c.id, e);
+    }
+  }
+  return synced;
 }

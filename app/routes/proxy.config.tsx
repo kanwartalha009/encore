@@ -19,7 +19,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   const productId = url.searchParams.get("product_id") || "";
   const variantId = url.searchParams.get("variant_id") || "";
-  const locale = (url.searchParams.get("locale") || "en").toLowerCase().slice(0, 2);
+  // Keep the region ("pt-br") — the config matches region first, then base language.
+  const locale = (url.searchParams.get("locale") || "en").toLowerCase().slice(0, 10);
   const marketId = url.searchParams.get("market_id") || "";
 
   const config = await getStorefrontConfig(

@@ -50,6 +50,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       session.shop,
       String(fd.get("productId") ?? ""),
       (fd.get("variantTitle") as string) || null,
+      (fd.get("variantId") as string) || null,
     );
     return Response.json({ ok: true, intent, ...r });
   }
@@ -224,9 +225,21 @@ export default function BackInStockPage() {
             ? t("That file is too large — split it and import in parts.")
             : t("Import failed. Check the file and try again.");
 
-  const notify = (productId: string, variantTitle: string | null) => {
+  // Plain-language reason for the latest failed send (merchant can act on it).
+  const failureHint = (err: string) =>
+    /^no_channel/.test(err)
+      ? t("Why: no sending channel — pick Klaviyo or Shopify Flow in Settings → Notifications.")
+      : /^no_email/.test(err)
+        ? t("Why: phone-only sign-up — SMS sending isn't available.")
+        : /^flow:/.test(err)
+          ? t("Why: Shopify Flow didn't accept it — add a workflow that starts with “Encore — Back-in-stock ready”.")
+          : /^klaviyo/.test(err)
+            ? t("Why: Klaviyo rejected the event — check the Klaviyo connection.")
+            : `${t("Why:")} ${err.slice(0, 120)}`;
+
+  const notify = (productId: string, variantTitle: string | null, variantId: string | null) => {
     notifyFetcher.submit(
-      { intent: "notify_group", productId, variantTitle: variantTitle ?? "" },
+      { intent: "notify_group", productId, variantTitle: variantTitle ?? "", variantId: variantId ?? "" },
       { method: "post" },
     );
   };
@@ -251,6 +264,11 @@ export default function BackInStockPage() {
               {g.failed > 0 && <s-badge tone="critical">{`${g.failed} ${t("failed")}`}</s-badge>}
             </s-stack>
           )}
+          {g.failed > 0 && g.lastError && (
+            <s-text color="subdued" fontSize="small">
+              {failureHint(g.lastError)}
+            </s-text>
+          )}
         </s-stack>
       </s-table-cell>
       <s-table-cell>
@@ -270,7 +288,7 @@ export default function BackInStockPage() {
         </s-text>
       </s-table-cell>
       <s-table-cell>
-        <s-button icon="notification" onClick={() => notify(g.productId, g.variantTitle)} loading={flag(notifyBusy)}>
+        <s-button icon="notification" onClick={() => notify(g.productId, g.variantTitle, g.variantId)} loading={flag(notifyBusy)}>
           {t("Notify")}
         </s-button>
       </s-table-cell>
@@ -483,8 +501,8 @@ export default function BackInStockPage() {
                 <s-checkbox label={t("Also collect phone number (SMS)")} checked={flag(collectPhone)} onChange={(e) => setCollectPhone(isChecked(e))} />
                 <s-checkbox label={t("Show product image & title in popup")} checked={flag(showProductInfo)} onChange={(e) => setShowProductInfo(isChecked(e))} />
                 <s-checkbox
-                  label={t("Require email confirmation (double opt-in)")}
-                  details={t("Off = one tap (recommended). On = stricter consent (EU).")}
+                  label={t("Require shoppers to tick the consent box")}
+                  details={t("Off = one-tap sign-up (recommended). On = stricter consent, e.g. for EU shoppers.")}
                   checked={flag(doubleOptIn)}
                   onChange={(e) => setDoubleOptIn(isChecked(e))}
                 />
@@ -550,7 +568,7 @@ export default function BackInStockPage() {
                 <div className="encore-kv">
                   <KvRow label={t("Position")} value={t(positionLabel)} />
                   <KvRow label={t("Phone number")} value={collectPhone ? t("Collected") : t("Not collected")} />
-                  <KvRow label={t("Double opt-in")} value={doubleOptIn ? t("On") : t("Off")} />
+                  <KvRow label={t("Consent box required")} value={doubleOptIn ? t("On") : t("Off")} />
                   <KvRow label={t("Exclusions")} value={excludedCount > 0 ? String(excludedCount) : t("None")} />
                 </div>
               </FormCard>

@@ -9,9 +9,10 @@ const campaignFindMany = vi.fn();
 vi.mock("../app/db.server", () => ({
   default: { campaign: { findMany: (...a: unknown[]) => campaignFindMany(...a) } },
 }));
+const translations = vi.fn<() => Promise<Record<string, Record<string, string>>>>(async () => ({}));
 vi.mock("../app/models/settings.server", () => ({
   getSettings: vi.fn(async () => ({ general: {}, lowStock: {}, backInStock: {} })),
-  getTranslations: vi.fn(async () => ({})),
+  getTranslations: () => translations(),
 }));
 const capacity = vi.fn<(shop: string, c: unknown, vid?: string | null) => Promise<{ soldOut: boolean; remaining: number | null }>>(
   async () => ({ soldOut: false, remaining: null }),
@@ -134,5 +135,37 @@ describe("getStorefrontConfig", () => {
     const cfg = await getStorefrontConfig("s.myshopify.com", "1", "", "en");
     expect(cfg.preorder?.endDate).toBeNull();
     expect(cfg.preorder?.startDate).toBeNull();
+  });
+
+  it("translates every storefront string, region first then base language", async () => {
+    campaignFindMany.mockResolvedValue([]);
+    translations.mockResolvedValue({
+      pt: { sold_out: "Esgotado", notify_submit: "Avisar-me" },
+      "pt-BR": { sold_out: "Esgotado (BR)" },
+    });
+    const br = await getStorefrontConfig("s.myshopify.com", "1", "", "pt-br");
+    expect(br.strings.sold_out).toBe("Esgotado (BR)");
+    expect(br.strings.notify_submit).toBe("Avisar-me");
+    expect(br.strings.network_error).toBe("Network error — please try again.");
+    expect(br.translated).toContain("sold_out");
+    const pt = await getStorefrontConfig("s.myshopify.com", "1", "", "pt");
+    expect(pt.strings.sold_out).toBe("Esgotado");
+    translations.mockResolvedValue({});
+  });
+
+  it("leaves variants outside their availability window off preorder", async () => {
+    campaignFindMany.mockResolvedValue([
+      campaign({
+        productMode: "SPECIFIC",
+        productIds: JSON.stringify(["gid://shopify/Product/1"]),
+        variantConfigs: JSON.stringify([
+          { productId: "gid://shopify/Product/1", variantId: "gid://shopify/ProductVariant/11", unitsOffered: 5, availability: "now" },
+          { productId: "gid://shopify/Product/1", variantId: "gid://shopify/ProductVariant/12", unitsOffered: 5, availability: "not_available" },
+        ]),
+      }),
+    ]);
+    const cfg = await getStorefrontConfig("s.myshopify.com", "1", "", "en");
+    expect(Object.keys(cfg.preorder!.variants)).toEqual(["11"]);
+    expect(cfg.preorder!.active).toBe(true);
   });
 });

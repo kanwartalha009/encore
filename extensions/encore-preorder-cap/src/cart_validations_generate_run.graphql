@@ -6,6 +6,18 @@ query CartValidationsGenerateRunInput {
     lines {
       id
       quantity
+      # Preorder markers: the storefront always sets `_preorder` on preorder
+      # lines, and preorder lines carry Encore's selling plan. Only marked lines
+      # are capped, so ordinary in-stock purchases of the same variant are never
+      # blocked (e.g. after a restock while the campaign is still live).
+      preorder: attribute(key: "_preorder") {
+        value
+      }
+      sellingPlanAllocation {
+        sellingPlan {
+          id
+        }
+      }
       merchandise {
         __typename
         ... on ProductVariant {

@@ -169,6 +169,32 @@
     });
   }
 
+  // Shopper-facing text: the config's (translated) strings, English fallback.
+  function str(cfg, key, fallback) {
+    var m = cfg && cfg.strings;
+    return m && m[key] ? m[key] : fallback;
+  }
+
+  // Tag / collection exclusions saved in the Encore admin (Back in stock and
+  // Low stock). The embed renders the product's tags and collection ids on the
+  // shell; the config carries the lists to exclude.
+  function isExcluded(root, part) {
+    if (!part) return false;
+    var et = part.excludeTags || [];
+    var ec = part.excludeCollections || [];
+    if (!et.length && !ec.length) return false;
+    var tags = (root.getAttribute("data-product-tags") || "").toLowerCase().split("||");
+    var cols = (root.getAttribute("data-product-collections") || "").split(",");
+    for (var i = 0; i < tags.length; i++) {
+      var tag = tags[i].replace(/^\s+|\s+$/g, "");
+      if (tag && et.indexOf(tag) !== -1) return true;
+    }
+    for (var k = 0; k < ec.length; k++) {
+      if (cols.indexOf(String(ec[k])) !== -1) return true;
+    }
+    return false;
+  }
+
   function clearEncoreFields(form) {
     if (!form) return;
     var nodes = form.querySelectorAll('input[data-encore="1"]');
@@ -382,6 +408,7 @@
       // placement configured in the Encore admin instead.
       if (root.hasAttribute("data-encore-auto") && p.placement) placement = p.placement;
       var replaceTheme = placement === "replace" || !!p.hideBuyNow;
+      if (placement === "beside") root.classList.add("encore-preorder--beside");
       var idleLabel = p.label || btn.textContent;
       var badge = null;
       var mixedEl = null;
@@ -399,8 +426,13 @@
       // Everything the cart line needs: properties + selling plan + market.
       function armForm() {
         if (!form) return;
+        // Hidden (underscore) markers are ALWAYS attached: the order webhook
+        // uses them to tell a preorder line from an in-stock purchase of the
+        // same product, and the mixed-cart notice uses `_preorder` to spot
+        // preorder lines. The visible label/ship-date props stay optional.
+        setProp(form, "_preorder", "true");
+        if (p.campaignId) setProp(form, "_preorder_campaign_id", p.campaignId);
         if (p.lineItem && p.lineItem.enabled) {
-          setProp(form, "_preorder", "true");
           if (p.shipDate) setProp(form, "_preorder_ship_date", p.shipDate);
           var label = p.lineItem.preorderLabel || "Preorder";
           var value = p.shipText
@@ -440,7 +472,7 @@
       function showSoldOut() {
         clearEncoreFields(form);
         hideThemeBuyButtons(form, root);
-        btn.textContent = p.soldOutLabel || "Sold out";
+        btn.textContent = p.soldOutLabel || str(cfg, "sold_out", "Sold out");
         btn.disabled = true;
         btn.setAttribute("aria-disabled", "true");
         btn.classList.add("encore-btn--soldout");
@@ -485,7 +517,7 @@
       // the selling plan and the chosen variant intact.
       btn.addEventListener("click", function () {
         if (!form || btn.__busy || current !== "preorder") return;
-        addPreorderToCart(form, btn, note, p);
+        addPreorderToCart(form, btn, note, p, cfg);
       });
 
       onVariantChange(form, apply);
@@ -493,7 +525,7 @@
     });
   }
 
-  function addPreorderToCart(form, btn, note, p) {
+  function addPreorderToCart(form, btn, note, p, cfg) {
     var idEl = form.querySelector('[name="id"]');
     if (!idEl || !idEl.value) return;
     var body = new FormData(form);
@@ -513,7 +545,7 @@
     btn.__busy = true;
     btn.setAttribute("aria-busy", "true");
     btn.classList.add("encore-btn--busy");
-    btn.textContent = p.addingLabel || "Adding…";
+    btn.textContent = p.addingLabel || str(cfg, "adding", "Adding…");
 
     fetch("/cart/add.js", {
       method: "POST",
@@ -528,13 +560,13 @@
       })
       .then(function (res) {
         if (!res.ok) {
-          var msg = (res.json && (res.json.description || res.json.message)) || "Could not add to cart.";
+          var msg = (res.json && (res.json.description || res.json.message)) || str(cfg, "add_error", "Could not add to cart.");
           errEl.textContent = msg;
           errEl.hidden = false;
           reset();
           return;
         }
-        btn.textContent = p.addedLabel || "Added ✓";
+        btn.textContent = p.addedLabel || str(cfg, "added", "Added ✓");
         try {
           document.dispatchEvent(new CustomEvent("encore:added", { detail: res.json }));
           // Let themes with a cart drawer refresh their count.
@@ -545,7 +577,7 @@
         }, 250);
       })
       .catch(function () {
-        errEl.textContent = "Network error — please try again.";
+        errEl.textContent = str(cfg, "network_error", "Network error — please try again.");
         errEl.hidden = false;
         reset();
       });
@@ -583,7 +615,15 @@
       var end = Date.parse(p.endDate);
       if (!end || end <= Date.now()) return;
 
-      labelEl.textContent = root.getAttribute("data-label") || "Preorder ends in";
+      // A merchant translation wins; otherwise the block's own label (set in
+      // the theme editor), then the English default.
+      var translatedLabel =
+        cfg.translated && cfg.translated.indexOf("countdown_label") !== -1 ? str(cfg, "countdown_label", "") : "";
+      labelEl.textContent = translatedLabel || root.getAttribute("data-label") || str(cfg, "countdown_label", "Preorder ends in");
+      var units = str(cfg, "countdown_units", "d,h,m,s").split(",");
+      var U = function (i, d) {
+        return units[i] && units[i].replace(/^\s+|\s+$/g, "") ? units[i].replace(/^\s+|\s+$/g, "") : d;
+      };
 
       function pad(n) {
         return n < 10 ? "0" + n : "" + n;
@@ -602,7 +642,7 @@
         var m = Math.floor((s % 3600) / 60);
         var sec = s % 60;
         timeEl.textContent =
-          (d > 0 ? d + "d " : "") + pad(h) + "h " + pad(m) + "m " + pad(sec) + "s";
+          (d > 0 ? d + U(0, "d") + " " : "") + pad(h) + U(1, "h") + " " + pad(m) + U(2, "m") + " " + pad(sec) + U(3, "s");
       }
       tick();
       timer = window.setInterval(tick, 1000);
@@ -785,7 +825,7 @@
     fetchConfig(productId, locale, pageMarket()).then(function (cfg) {
       var ls = cfg && cfg.lowStock;
       var enabled = ls ? ls.enabled !== false : true;
-      if (!enabled) return;
+      if (!enabled || isExcluded(root, ls)) return;
       var threshold = ls && ls.threshold ? ls.threshold : thresholdAttr;
       var preset = ls && ls.preset ? ls.preset : presetAttr;
       var textTmpl = ls && ls.text ? ls.text : "Only {n} left";
@@ -844,13 +884,16 @@
     modal.querySelector(".encore-modal__sub").textContent =
       opts.productTitle || "We'll email you when it's back in stock.";
     var fields = modal.querySelectorAll(".encore-field label");
-    fields[0].textContent = "Email address";
-    fields[1].textContent = "Phone (optional)";
+    fields[0].textContent = str(cfg, "notify_email_label", "Email address");
+    fields[1].textContent = str(cfg, "notify_phone_label", "Phone (optional)");
     modal.querySelector(".encore-consent span").textContent = t(
       "consentText",
       "I agree to be notified by email about this product."
     );
-    modal.querySelector('button[type="submit"]').textContent = t("submit", "Notify me");
+    modal.querySelector('button[type="submit"]').textContent = t("submit", str(cfg, "notify_submit", "Notify me"));
+    // "Require the consent box" setting → the shopper must tick it.
+    var consentBox = modal.querySelector('input[name="consent"]');
+    if (bis.requireConsent && consentBox) consentBox.required = true;
     if (opts.collectPhone) modal.querySelector("[data-phone]").hidden = false;
 
     var card = modal.querySelector(".encore-modal__card");
@@ -877,6 +920,8 @@
         product_id: opts.productId,
         variant_id: opts.variantId,
         product_title: opts.productTitle,
+        variant_title: opts.variantTitle || "",
+        consent: !!(form.consent && form.consent.checked),
         market: pageMarket(),
         locale: ((document.documentElement && document.documentElement.lang) || "en").slice(0, 2),
         email: form.email ? form.email.value : "",
@@ -903,14 +948,24 @@
             msg.textContent = t("success", "You're on the list — we'll let you know when it's back.");
             form.appendChild(msg);
           } else {
-            throw new Error("failed");
+            var e = new Error("failed");
+            e.code = res && res.error;
+            throw e;
           }
         })
-        .catch(function () {
+        .catch(function (err) {
+          var code = err && err.code;
           submitBtn.disabled = false;
           msg.hidden = false;
           msg.className = "encore-modal__msg encore-modal__msg--err";
-          msg.textContent = "Something went wrong. Please try again.";
+          msg.textContent =
+            code === "invalid_email"
+              ? str(cfg, "notify_invalid_email", "Please enter a valid email address.")
+              : code === "consent_required"
+                ? str(cfg, "notify_consent_required", "Please tick the box to continue.")
+                : code === "limit_reached" || code === "rate_limited"
+                  ? str(cfg, "notify_closed", "Sign-ups are paused right now. Please try again later.")
+                  : str(cfg, "notify_error", "Something went wrong. Please try again.");
         });
     });
 
@@ -931,8 +986,21 @@
 
     fetchConfig(productId, locale, pageMarket()).then(function (cfg) {
       var bis = cfg && cfg.backInStock;
-      if (!bis || !bis.enabled) return;
+      if (!bis || !bis.enabled || isExcluded(root, bis)) return;
       var form = closestForm(root);
+      var hidTheme = false;
+
+      // Admin styling: button colour (solid) and position.
+      if (bis.buttonColor) {
+        root.style.setProperty("--encore-accent", bis.buttonColor);
+        root.style.setProperty("--encore-on-accent", "#FFFFFF");
+        btn.classList.remove("encore-btn--outline");
+      }
+      if (root.hasAttribute("data-encore-auto") && bis.position === "inline") {
+        var above = findBuyAnchor(form);
+        if (above && above.parentNode) above.parentNode.insertBefore(root, above);
+      }
+      var replaceTheme = !!bis.hideBuyNow || bis.position === "replace";
 
       function variantById(vid) {
         for (var i = 0; i < variants.length; i++) {
@@ -953,12 +1021,22 @@
         var preorderActive = offer === "offer";
         if ((available && !preorderSoldOut) || preorderActive) {
           btn.hidden = true;
+          // Back on an in-stock variant: give the theme its buttons back (a
+          // live preorder manages them itself).
+          if (hidTheme && !preorderActive) {
+            showThemeBuyButtons(form, root);
+            hidTheme = false;
+          }
         } else {
           btn.hidden = false;
           if (bis.buttonText) btn.textContent = bis.buttonText;
-          if (bis.hideBuyNow) hideThemeBuyButtons(form, root);
+          if (replaceTheme) {
+            hideThemeBuyButtons(form, root);
+            hidTheme = true;
+          }
         }
         btn.__vid = vid;
+        btn.__variantTitle = v && v.title && v.title !== "Default Title" ? v.title : "";
         btn.__title = v && v.title ? root.getAttribute("data-product-title") + " – " + v.title : root.getAttribute("data-product-title");
       }
 
@@ -968,6 +1046,7 @@
           productId: productId,
           variantId: btn.__vid || currentVariantId(form, root.getAttribute("data-variant-id")),
           productTitle: btn.__title || root.getAttribute("data-product-title"),
+          variantTitle: btn.__variantTitle || "",
           collectPhone: blockCollectPhone || bis.collectPhone,
           accent: getComputedStyle(root).getPropertyValue("--encore-accent"),
           onAccent: getComputedStyle(root).getPropertyValue("--encore-on-accent"),

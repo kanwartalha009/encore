@@ -231,6 +231,7 @@ export async function importWaitlist(
 export type WaitlistGroup = {
   productId: string;
   productTitle: string;
+  variantId: string | null;
   variantTitle: string | null;
   subscribers: number;
   email: number;
@@ -240,6 +241,8 @@ export type WaitlistGroup = {
   convertedCount: number;
   notified: number;
   failed: number;
+  /** Most recent failure reason (so the admin can say WHY sends fail). */
+  lastError: string | null;
 };
 
 export async function listWaitlistGroups(
@@ -258,6 +261,7 @@ export async function listWaitlistGroups(
       g = {
         productId: s.productId,
         productTitle: s.productTitle ?? s.productId,
+        variantId: s.variantId ?? null,
         variantTitle: s.variantTitle ?? null,
         subscribers: 0,
         email: 0,
@@ -267,6 +271,7 @@ export async function listWaitlistGroups(
         convertedCount: 0,
         notified: 0,
         failed: 0,
+        lastError: null,
       };
       map.set(key, g);
     }
@@ -280,7 +285,11 @@ export async function listWaitlistGroups(
     if (s.convertedAt) g.convertedCount += 1;
     const ns = (s as unknown as { notifyStatus?: string | null }).notifyStatus;
     if (ns === "SENT") g.notified += 1;
-    else if (ns === "FAILED") g.failed += 1;
+    else if (ns === "FAILED") {
+      g.failed += 1;
+      const err = (s as unknown as { notifyError?: string | null }).notifyError;
+      if (err && !g.lastError) g.lastError = err;
+    }
   }
 
   return Array.from(map.values()).sort(

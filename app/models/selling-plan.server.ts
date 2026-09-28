@@ -124,6 +124,18 @@ export function buildPlan(
     remainingBalanceChargeTrigger = "NO_REMAINING_BALANCE";
   }
 
+  // A balance date already in the past (ship date close, or passed) is
+  // rejected by Shopify, which used to make the whole plan silently fall back
+  // to pay-in-full. Charge the balance one day after checkout instead.
+  if (
+    remainingBalanceChargeExactTime &&
+    Date.parse(remainingBalanceChargeExactTime) <= Date.now() + 60 * 60 * 1000
+  ) {
+    remainingBalanceChargeTrigger = "TIME_AFTER_CHECKOUT";
+    remainingBalanceChargeExactTime = null;
+    remainingBalanceChargeTimeAfterCheckout = "P1D";
+  }
+
   const fixedBilling: Record<string, unknown> = {
     checkoutCharge,
     remainingBalanceChargeTrigger,
@@ -157,17 +169,28 @@ export function buildPlan(
   };
   if (opts.planId) plan.id = opts.planId;
 
-  // Optional percentage discount on the preorder (fixed-amount discounts are
-  // left to native Shopify discounts to avoid currency assumptions here).
-  if (c.discountEnabled && c.discountKind !== "FIXED" && c.discountAmount > 0) {
+  // Optional preorder discount. Percentage, or a fixed amount off each unit in
+  // the shop's currency (the form offered "Fixed amount" but it was silently
+  // skipped until 2026-09-28). On update with the discount switched off we send
+  // an empty list so the old discount is removed (see syncSellingPlanOnly).
+  if (c.discountEnabled && c.discountAmount > 0) {
     plan.pricingPolicies = [
-      {
-        fixed: {
-          adjustmentType: "PERCENTAGE",
-          adjustmentValue: { percentage: c.discountAmount },
-        },
-      },
+      c.discountKind === "FIXED"
+        ? {
+            fixed: {
+              adjustmentType: "FIXED_AMOUNT",
+              adjustmentValue: { fixedValue: String(c.discountAmount) },
+            },
+          }
+        : {
+            fixed: {
+              adjustmentType: "PERCENTAGE",
+              adjustmentValue: { percentage: c.discountAmount },
+            },
+          },
     ];
+  } else if (opts.planId) {
+    plan.pricingPolicies = [];
   }
 
   return { plan, mode: effective === "PAY_NOW" ? "PAY_NOW" : "DEFERRED" };
@@ -274,11 +297,36 @@ export async function detectPaymentCapability(
 }
 
 /**
- * Create/update the campaign's pre-order selling plan and reconcile its products.
- * Idempotent: safe to call on every create/publish/update. Removes the plan when
- * the campaign is no longer eligible.
+ * Create/update the campaign's pre-order selling plan and reconcile its products,
+ * then bring the checkout cap metafields in line with the campaign's current
+ * status and variants. Idempotent: safe to call on every create/publish/update/
+ * status change. Removes the plan when the campaign is no longer eligible.
+ *
+ * The cap sync used to run only on the "existing plan → update" path, so a
+ * brand-new preorder had no checkout cap until it was edited once (audit
+ * 2026-09-28). It now runs after every outcome, including teardown (caps are
+ * cleared for variants no active campaign covers).
  */
 export async function syncCampaignSellingPlan(
+  admin: AdminGraphqlClient,
+  shop: string,
+  campaignId: string,
+  opts: { removedVariantGids?: string[] } = {},
+): Promise<SellingPlanSyncResult> {
+  const result = await syncSellingPlanOnly(admin, shop, campaignId);
+  const row = await prisma.campaign.findFirst({
+    where: { shop, id: campaignId },
+    select: { id: true, variantConfigs: true },
+  });
+  if (row) {
+    await syncVariantCaps(admin, shop, row, opts.removedVariantGids ?? []).catch((e) =>
+      console.error("variant cap sync failed", e),
+    );
+  }
+  return result;
+}
+
+async function syncSellingPlanOnly(
   admin: AdminGraphqlClient,
   shop: string,
   campaignId: string,
@@ -325,22 +373,29 @@ export async function syncCampaignSellingPlan(
   // ---- existing group → update policies + reconcile products ----
   if (c.sellingPlanGroupId && c.sellingPlanId) {
     const { plan, mode } = buildPlan(c, { planId: c.sellingPlanId });
-    const data = await gql(admin, UPDATE, {
-      id: c.sellingPlanGroupId,
-      input: { name: c.name, sellingPlansToUpdate: [plan] },
-    });
-    const payload = (data.sellingPlanGroupUpdate ?? {}) as {
-      userErrors?: { message: string }[];
+    const update = async (p: Record<string, unknown>) => {
+      const data = await gql(admin, UPDATE, {
+        id: c.sellingPlanGroupId,
+        input: { name: c.name, sellingPlansToUpdate: [p] },
+      });
+      const payload = (data.sellingPlanGroupUpdate ?? {}) as {
+        userErrors?: { message: string }[];
+      };
+      return (payload.userErrors ?? []).map((e) => e.message);
     };
-    const errs = (payload.userErrors ?? []).map((e) => e.message);
+    let errs = await update(plan);
+    // If the API refuses an empty pricing-policy list (removing a discount),
+    // don't let that block the rest of the update — retry without it.
+    if (errs.length && Array.isArray(plan.pricingPolicies) && (plan.pricingPolicies as unknown[]).length === 0) {
+      const rest = { ...plan };
+      delete rest.pricingPolicies;
+      console.warn("[selling-plan] could not clear pricing policies:", errs);
+      errs = await update(rest);
+    }
     if (errs.length) return { status: "error", errors: errs };
 
     await reconcileProducts(admin, c.sellingPlanGroupId, productIds);
     await persist(c.id, { sellingPlanStatus: mode });
-    await syncVariantCaps(admin, shop, {
-      id: c.id,
-      variantConfigs: c.variantConfigs,
-    }).catch((e) => console.error("variant cap sync failed", e));
     return {
       status: "synced",
       mode,

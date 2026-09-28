@@ -76,8 +76,9 @@ export async function notifyShipDateChanged(
   const ns = await getNotificationSettings(shop);
   if (ns.provider === "off") return 0;
 
+  // Cancelled / refunded orders don't get ship-date emails (audit 2026-09-28).
   const rows = await po.preOrder.findMany({
-    where: { shop, campaignId },
+    where: { shop, campaignId, paymentStatus: { not: "REFUNDED" } },
     select: { id: true, customerEmail: true, customerName: true, orderRef: true, locale: true },
   });
 

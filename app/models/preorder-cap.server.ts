@@ -3,9 +3,21 @@
  *
  * A Shopify Function runs in a sandbox with no DB/network access, so the cap has
  * to live where the Function can see it: a per-variant metafield. This module
- * keeps `encore.preorder_remaining` (and `encore.preorder_cap`) in sync:
- *   - on selling-plan sync: remaining = unitsOffered − units already sold
- *   - on orders/create:     decrement remaining for the bought variants
+ * keeps `encore.preorder_remaining` (and `encore.preorder_cap`) in sync.
+ *
+ * Since 2026-09-28 every write goes through `recomputeVariantCaps`, which works
+ * per VARIANT rather than per campaign:
+ *   - cap       = tightest effective cap (Limit / End quantity) across every
+ *                 LIVE or SCHEDULED campaign covering the variant
+ *   - remaining = tightest (cap − units still held) across those campaigns;
+ *                 cancelled / refunded orders no longer hold units
+ *   - no active campaign caps the variant any more (ended, paused, deleted,
+ *     variant removed) → both metafields are DELETED.
+ * The Function itself only caps PREORDER lines (marked `_preorder` or bought
+ * with a selling plan), so ordinary in-stock purchases of a capped variant are
+ * never blocked, even while its campaign is live.
+ * It runs on every selling-plan sync (create, edit, status change), after each
+ * order, after a cancellation and when a campaign ends on its end date.
  *
  * The Function (`extensions/encore-preorder-cap`) blocks checkout when a
  * preorder line's quantity exceeds `preorder_remaining` — the hard, race-tighter
@@ -15,6 +27,12 @@
  */
 
 import prisma from "../db.server";
+import {
+  combineVariantCaps,
+  effectiveVariantCap,
+  RELEASED_PAYMENT_STATUSES,
+  type VariantCapConfig,
+} from "../lib/cap-shared";
 
 export type AdminGraphqlClient = {
   graphql: (
@@ -23,7 +41,7 @@ export type AdminGraphqlClient = {
   ) => Promise<Response>;
 };
 
-type VariantConfig = { variantId?: string; unitsOffered?: number | null };
+type VariantConfig = VariantCapConfig;
 
 const numId = (g?: string | null): string =>
   g ? String(g).split("/").pop() || "" : "";
@@ -72,6 +90,7 @@ async function soldForVariant(
       shop,
       campaignId,
       variantId: { in: [variantGid, `gid://shopify/ProductVariant/${n}`, n] },
+      paymentStatus: { notIn: [...RELEASED_PAYMENT_STATUSES] },
     },
     _sum: { units: true },
   });
@@ -90,6 +109,22 @@ const MF_SET = `#graphql
 mutation EncoreCapSet($metafields: [MetafieldsSetInput!]!) {
   metafieldsSet(metafields: $metafields) { userErrors { field message } }
 }`;
+
+const MF_DELETE = `#graphql
+mutation EncoreCapDelete($metafields: [MetafieldIdentifierInput!]!) {
+  metafieldsDelete(metafields: $metafields) { userErrors { field message } }
+}`;
+
+/** metafieldsSet / metafieldsDelete accept at most 25 entries per call. */
+async function inChunks(
+  admin: AdminGraphqlClient,
+  mutation: string,
+  items: Record<string, unknown>[],
+): Promise<void> {
+  for (let i = 0; i < items.length; i += 25) {
+    await gql(admin, mutation, { metafields: items.slice(i, i + 25) });
+  }
+}
 
 /**
  * Idempotently create the two variant metafield definitions so the Function can
@@ -187,71 +222,94 @@ export async function ensureCapValidation(
   }
 }
 
-/** Write remaining + cap for every capped variant in the campaign. */
+function variantGidsOf(variantConfigs: string): string[] {
+  try {
+    const cfgs = JSON.parse(variantConfigs) as VariantConfig[];
+    return cfgs.map((c) => c.variantId).filter((v): v is string => !!v).map(toVariantGid);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Recompute both metafields for the given variants from every active campaign
+ * in the shop (see header). Deletes them for variants no active campaign caps.
+ */
+export async function recomputeVariantCaps(
+  admin: AdminGraphqlClient,
+  shop: string,
+  variantGids: string[],
+): Promise<{ set: number; cleared: number }> {
+  const targets = Array.from(new Set(variantGids.map(toVariantGid)));
+  if (!targets.length) return { set: 0, cleared: 0 };
+
+  const active = await prisma.campaign.findMany({
+    where: { shop, status: { in: ["LIVE", "SCHEDULED"] }, productMode: "SPECIFIC" },
+    select: { id: true, variantConfigs: true },
+  });
+  const parsed = active.map((c) => {
+    let cfgs: VariantConfig[] = [];
+    try {
+      cfgs = JSON.parse(c.variantConfigs) as VariantConfig[];
+    } catch {
+      cfgs = [];
+    }
+    return { id: c.id, cfgs };
+  });
+
+  const sets: Record<string, unknown>[] = [];
+  const deletes: Record<string, unknown>[] = [];
+  for (const gid of targets) {
+    const n = numId(gid);
+    const entries: { cap: number; sold: number }[] = [];
+    for (const c of parsed) {
+      const cap = effectiveVariantCap(c.cfgs.find((vc) => numId(vc.variantId) === n));
+      if (cap == null) continue;
+      entries.push({ cap, sold: await soldForVariant(shop, c.id, gid) });
+    }
+    const combined = combineVariantCaps(entries);
+    if (combined) {
+      sets.push(
+        { ownerId: gid, namespace: "encore", key: "preorder_cap", type: "number_integer", value: String(combined.cap) },
+        { ownerId: gid, namespace: "encore", key: "preorder_remaining", type: "number_integer", value: String(combined.remaining) },
+      );
+    } else {
+      deletes.push(
+        { ownerId: gid, namespace: "encore", key: "preorder_cap" },
+        { ownerId: gid, namespace: "encore", key: "preorder_remaining" },
+      );
+    }
+  }
+  if (sets.length) {
+    await ensureCapDefinitions(admin);
+    await ensureCapValidation(admin);
+    await inChunks(admin, MF_SET, sets);
+  }
+  if (deletes.length) await inChunks(admin, MF_DELETE, deletes);
+  return { set: sets.length / 2, cleared: deletes.length / 2 };
+}
+
+/**
+ * Sync the caps for every variant a campaign covers (plus any variants that
+ * were just removed from it, so their stale caps are cleared).
+ */
 export async function syncVariantCaps(
   admin: AdminGraphqlClient,
   shop: string,
   campaign: { id: string; variantConfigs: string },
+  alsoVariantGids: string[] = [],
 ): Promise<void> {
-  let cfgs: VariantConfig[] = [];
-  try {
-    cfgs = JSON.parse(campaign.variantConfigs) as VariantConfig[];
-  } catch {
-    return;
-  }
-
-  const metafields: Record<string, unknown>[] = [];
-  for (const vc of cfgs) {
-    if (!vc.variantId || typeof vc.unitsOffered !== "number" || vc.unitsOffered <= 0) {
-      continue;
-    }
-    const gid = toVariantGid(vc.variantId);
-    const sold = await soldForVariant(shop, campaign.id, gid);
-    const remaining = Math.max(0, vc.unitsOffered - sold);
-    metafields.push(
-      { ownerId: gid, namespace: "encore", key: "preorder_cap", type: "number_integer", value: String(vc.unitsOffered) },
-      { ownerId: gid, namespace: "encore", key: "preorder_remaining", type: "number_integer", value: String(remaining) },
-    );
-  }
-  if (metafields.length) {
-    await ensureCapDefinitions(admin);
-    await ensureCapValidation(admin);
-    await gql(admin, MF_SET, { metafields });
-  }
+  await recomputeVariantCaps(admin, shop, [...variantGidsOf(campaign.variantConfigs), ...alsoVariantGids]);
 }
 
-/** Recompute `preorder_remaining` for specific variants (after an order). */
+/** Recompute `preorder_remaining` for specific variants (after an order or a cancel). */
 export async function refreshVariantRemaining(
   admin: AdminGraphqlClient,
   shop: string,
-  campaign: { id: string; variantConfigs: string },
+  _campaign: { id: string; variantConfigs: string },
   variantGids: string[],
 ): Promise<void> {
-  let cfgs: VariantConfig[] = [];
-  try {
-    cfgs = JSON.parse(campaign.variantConfigs) as VariantConfig[];
-  } catch {
-    return;
-  }
-  const capByVariant = new Map<string, number>();
-  for (const c of cfgs) {
-    if (c.variantId && typeof c.unitsOffered === "number") {
-      capByVariant.set(numId(c.variantId), c.unitsOffered);
-    }
-  }
-
-  const metafields: Record<string, unknown>[] = [];
-  for (const gid of variantGids) {
-    const cap = capByVariant.get(numId(gid));
-    if (cap == null) continue;
-    const sold = await soldForVariant(shop, campaign.id, gid);
-    metafields.push({
-      ownerId: gid,
-      namespace: "encore",
-      key: "preorder_remaining",
-      type: "number_integer",
-      value: String(Math.max(0, cap - sold)),
-    });
-  }
-  if (metafields.length) await gql(admin, MF_SET, { metafields });
+  await recomputeVariantCaps(admin, shop, variantGids);
 }
+
+export { variantGidsOf };

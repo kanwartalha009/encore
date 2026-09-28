@@ -11,6 +11,8 @@
     class="encore encore-lowstock"
     data-encore-lowstock
     data-product-id="{{ product.id }}"
+    data-product-tags="{{ product.tags | join: '||' | escape }}"
+    data-product-collections="{{ product.collections | map: 'id' | join: ',' }}"
     data-variant-id="{{ ev.id }}"
     data-threshold="{{ block.settings.threshold }}"
     data-preset="{{ block.settings.preset }}"

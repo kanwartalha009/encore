@@ -3,12 +3,14 @@
  *
  * Detection (in order of preference):
  *   1. Line item property `_preorder_campaign_id` set by our storefront
- *      extension at add-to-cart time. Most reliable — explicit and
- *      survives partial fulfillment.
- *   2. Fall back to matching the line item's product GID against any
- *      LIVE / SCHEDULED campaign for this shop. Slower (one DB read per
- *      order) but covers the case where the storefront extension didn't
- *      attach the property (e.g. headless / direct-to-checkout flows).
+ *      extension at add-to-cart time (always attached since 2026-09-28).
+ *   2. The line's selling plan is one of Encore's preorder plans.
+ *   3. Product match against LIVE / SCHEDULED campaigns — but only when the
+ *      line carries a preorder signal (`_preorder` property), or the matched
+ *      campaign is a presale ("always" trigger), where every sale of the
+ *      product is a preorder. Before 2026-09-28 any purchase of a campaign
+ *      product counted, so in-stock sales were tagged as preorders and ate
+ *      into the preorder cap.
  *
  * Idempotency: every PreOrder is keyed by `shopifyOrderId` + `orderRef`
  * (we use the Shopify order GID + the line item id concatenated). If a
@@ -42,6 +44,8 @@ export type ShopifyLineItem = {
   quantity: number;
   price: ShopifyMoney;
   properties?: ShopifyLineItemProperty[] | null;
+  /** Present when the line was bought with a selling plan (Encore's preorder plan). */
+  selling_plan_allocation?: { selling_plan?: { id?: number | string | null } | null } | null;
 };
 
 export type ShopifyOrderPayload = {
@@ -150,22 +154,49 @@ function splitDepositBalance(
 }
 
 // ---------- Resolution ----------
+type Resolved = { c: NonNullable<Campaign>; units?: number };
+
+/**
+ * Units of this line that were sold past zero stock (the variant's inventory
+ * after the order is negative). Used for lines of "only when sold out"
+ * campaigns that carry no preorder marker (quick-add on collection pages,
+ * Buy Button, draft orders, carts built by an older storefront script): those
+ * units ARE preorders and must count toward the cap, or the cap never closes.
+ * Untracked variants never sell "past zero" → 0. Best-effort: 0 on API error.
+ */
+async function unitsSoldPastZero(shop: string, li: ShopifyLineItem): Promise<number> {
+  if (!li.variant_id) return 0;
+  try {
+    const { admin } = await unauthenticated.admin(shop);
+    const res = await admin.graphql(
+      `#graphql
+      query EncoreVariantStock($id: ID!) { productVariant(id: $id) { inventoryQuantity inventoryItem { tracked } } }`,
+      { variables: { id: `gid://shopify/ProductVariant/${li.variant_id}` } },
+    );
+    const body = (await res.json()) as {
+      data?: { productVariant?: { inventoryQuantity?: number | null; inventoryItem?: { tracked?: boolean } | null } | null };
+    };
+    const v = body.data?.productVariant;
+    if (!v || v.inventoryItem?.tracked === false || v.inventoryQuantity == null) return 0;
+    return Math.max(0, Math.min(li.quantity, -v.inventoryQuantity));
+  } catch (e) {
+    console.error("[orders] stock lookup for unmarked line failed", e);
+    return 0;
+  }
+}
+
 async function resolveCampaignForLineItem(
   shop: string,
   li: ShopifyLineItem,
-): Promise<NonNullable<Campaign> | null> {
+): Promise<Resolved | null> {
   // 1. Explicit property — preferred.
   const explicitId = findCampaignIdProperty(li);
   if (explicitId) {
     const c = await prisma.campaign.findFirst({
       where: { shop, id: explicitId },
     });
-    if (c) return c;
+    if (c) return { c };
   }
-
-  // 2. Fall back to product-id matching against active campaigns.
-  const productGid = productGidFromLineItem(li);
-  if (!productGid) return null;
 
   const candidates = await prisma.campaign.findMany({
     where: {
@@ -176,19 +207,37 @@ async function resolveCampaignForLineItem(
     take: 50,
   });
 
+  // 2. Bought with one of Encore's preorder selling plans.
+  const planId = li.selling_plan_allocation?.selling_plan?.id;
+  if (planId != null && String(planId) !== "") {
+    const pid = String(planId).split("/").pop();
+    const byPlan = candidates.find(
+      (c) => String((c as unknown as { sellingPlanId?: string | null }).sellingPlanId ?? "").split("/").pop() === pid,
+    );
+    if (byPlan) return { c: byPlan };
+  }
+
+  // 3. Product match — only with a preorder signal, or for presale campaigns.
+  const productGid = productGidFromLineItem(li);
+  if (!productGid) return null;
+  const flagged = findProperty(li, "_preorder") === "true";
+
   for (const c of candidates) {
-    // productMode === ALL → applies to every product
-    if (c.productMode === "ALL") return c;
-    // productMode === SPECIFIC → check the JSON array
-    if (c.productMode === "SPECIFIC") {
+    let matches = c.productMode === "ALL";
+    if (!matches && c.productMode === "SPECIFIC") {
       try {
-        const ids = JSON.parse(c.productIds) as string[];
-        if (ids.includes(productGid)) return c;
+        matches = (JSON.parse(c.productIds) as string[]).includes(productGid);
       } catch {
         // ignore malformed json
       }
     }
     // COLLECTION matching deferred — needs a Shopify Admin API call.
+    if (!matches) continue;
+    // Marked preorder line, or a presale campaign (every sale is a preorder).
+    if (flagged || c.triggerType !== "STOCK") return { c };
+    // "Only when sold out" + no marker: count just the units sold past zero.
+    const units = await unitsSoldPastZero(shop, li);
+    if (units > 0) return { c, units };
   }
 
   return null;
@@ -220,8 +269,10 @@ export async function processOrderCreate(
   const touchedVariants = new Map<string, Set<string>>();
 
   for (const li of payload.line_items) {
-    const campaign = await resolveCampaignForLineItem(shop, li);
-    if (!campaign) continue;
+    const resolved = await resolveCampaignForLineItem(shop, li);
+    if (!resolved) continue;
+    const campaign = resolved.c;
+    const units = resolved.units ?? li.quantity;
 
     // Find the cohort this campaign points at. MVP: one cohort per campaign,
     // chosen by earliest ship date.
@@ -252,7 +303,7 @@ export async function processOrderCreate(
       set.add(vg);
     }
 
-    const totalCents = Math.round(Number(li.price) * li.quantity * 100);
+    const totalCents = Math.round(Number(li.price) * units * 100);
     const { depositCents, balanceCents } = splitDepositBalance(
       totalCents,
       campaign,
@@ -293,7 +344,7 @@ export async function processOrderCreate(
           : null,
         market: findProperty(li, "_preorder_market") || null,
         locale: (payload.customer_locale ?? "").slice(0, 2) || null,
-        units: li.quantity,
+        units,
         amount: totalCents / 100,
         depositAmount: depositCents > 0 ? depositCents / 100 : null,
         balanceAmount: balanceCents > 0 ? balanceCents / 100 : null,
@@ -475,7 +526,28 @@ export async function processOrderCancelled(
       refundedAt: new Date(),
     },
   });
-  return { updated: updated.count };
+  // Which campaign variants this order held — so the caller can hand the
+  // units back (checkout cap metafields + continue-selling) — 2026-09-28.
+  const rows = (await (
+    prisma as unknown as {
+      preOrder: {
+        findMany(a: {
+          where: Record<string, unknown>;
+          select: Record<string, true>;
+        }): Promise<{ campaignId: string; variantId: string | null }[]>;
+      };
+    }
+  ).preOrder.findMany({
+    where: { shop, shopifyOrderId: orderGid },
+    select: { campaignId: true, variantId: true },
+  })) ?? [];
+  const variantsByCampaign: Record<string, string[]> = {};
+  for (const r of rows) {
+    if (!r.variantId) continue;
+    const gid = r.variantId.startsWith("gid://") ? r.variantId : `gid://shopify/ProductVariant/${r.variantId}`;
+    (variantsByCampaign[r.campaignId] ??= []).push(gid);
+  }
+  return { updated: updated.count, variantsByCampaign };
 }
 
 // ---------- Cohort progress recompute ----------

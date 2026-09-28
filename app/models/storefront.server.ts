@@ -7,6 +7,8 @@
  * one JSON payload served over the /apps/encore/config app proxy.
  */
 
+import { effectiveVariantCap, variantWindowOpen } from "../lib/cap-shared";
+import { STOREFRONT_DEFAULTS } from "../lib/demoStorefront";
 import prisma from "../db.server";
 import { getSettings, getTranslations } from "./settings.server";
 import { getCampaignCapacity } from "./capacity.server";
@@ -140,7 +142,14 @@ export type StorefrontConfig = {
     bgColor: string;
     textColor: string;
     customCss: string;
+    position: string;
+    excludeTags: string[];
+    excludeCollections: string[];
   };
+  /** All shopper-facing strings (translated or English default). */
+  strings: Record<string, string>;
+  /** Keys that have a merchant translation for this language. */
+  translated: string[];
   /** Cart-level copy (independent of any product) — used on /cart and the PDP. */
   cart: { mixedCartWarning: boolean; mixedCartMessage: string };
   backInStock: {
@@ -152,6 +161,11 @@ export type StorefrontConfig = {
     hideBuyNow: boolean;
     collectPhone: boolean;
     syncTarget: string;
+    requireConsent: boolean;
+    buttonColor: string;
+    position: string;
+    excludeTags: string[];
+    excludeCollections: string[];
   };
 };
 
@@ -182,8 +196,7 @@ export async function getPreorderBadgeHandles(
     ),
   ).slice(0, 24);
 
-  const tAll = await getTranslations(shop);
-  const tr: Record<string, string> = tAll[locale] || {};
+  const tr = resolveTranslations(await getTranslations(shop), locale);
   const label = (tr.preorder_badge && tr.preorder_badge.trim()) || "Preorder";
 
   if (!enabled || !clean.length || !admin) return { enabled, label, handles: [] };
@@ -274,7 +287,7 @@ async function productHasPreorderCapacity(
 ): Promise<boolean> {
   const whole = await getCampaignCapacity(shop, campaign, null);
   if (whole.soldOut) return false;
-  let cfgs: { productId?: string; variantId?: string; unitsOffered?: number | null }[] = [];
+  let cfgs: { productId?: string; variantId?: string; unitsOffered?: number | null; endQty?: number | null }[] = [];
   try {
     cfgs = JSON.parse(campaign.variantConfigs) as typeof cfgs;
   } catch {
@@ -282,7 +295,7 @@ async function productHasPreorderCapacity(
   }
   const pid = gidNum(productGid);
   const mine = cfgs.filter(
-    (v) => v.variantId && gidNum(v.productId ?? "") === pid && typeof v.unitsOffered === "number" && v.unitsOffered > 0,
+    (v) => v.variantId && gidNum(v.productId ?? "") === pid && effectiveVariantCap(v) != null,
   );
   if (!mine.length) return true;
   for (const v of mine) {
@@ -290,6 +303,39 @@ async function productHasPreorderCapacity(
     if (!cap.soldOut) return true;
   }
   return false;
+}
+
+/** A campaign column's value, or "" when it still holds the schema default. */
+function ownValue(v: string | null | undefined, schemaDefault: string): string {
+  return v && v.trim() && v !== schemaDefault ? v : "";
+}
+
+/**
+ * Translations are keyed by the store's language codes (e.g. "pt-BR"); the
+ * shopper's language may arrive as "pt-br" or "pt". Match case-insensitively,
+ * exact region first, then the base language (2026-09-28).
+ */
+function resolveTranslations(
+  all: Record<string, Record<string, string>>,
+  locale: string,
+): Record<string, string> {
+  const lower: Record<string, Record<string, string>> = {};
+  for (const [k, v] of Object.entries(all)) lower[k.toLowerCase()] = { ...(lower[k.toLowerCase()] ?? {}), ...v };
+  const loc = (locale || "en").toLowerCase();
+  return { ...(lower[loc.split("-")[0]] ?? {}), ...(lower[loc] ?? {}) };
+}
+
+/** "Archived, Clearance" → ["archived", "clearance"] (case-insensitive match). */
+function splitTags(raw: string): string[] {
+  return raw
+    .split(",")
+    .map((t) => t.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+/** Collection GIDs / ids → numeric ids as strings (liquid exposes numeric ids). */
+function collectionIds(raw: unknown): string[] {
+  return Array.isArray(raw) ? raw.map((c) => gidNum(String(c))).filter(Boolean) : [];
 }
 
 export async function getStorefrontConfig(
@@ -306,8 +352,7 @@ export async function getStorefrontConfig(
   const ls = lowStock as G;
   const bis = backInStock as G;
 
-  const tAll = await getTranslations(shop);
-  const tr: Record<string, string> = tAll[locale] || {};
+  const tr = resolveTranslations(await getTranslations(shop), locale);
   const tv = (k: string): string | undefined => {
     const v = tr[k];
     return v && v.trim() ? v : undefined;
@@ -373,25 +418,41 @@ export async function getStorefrontConfig(
     const cap = await getCampaignCapacity(shop, match, variantId);
     // Per-variant map for this product (units offered live on variant rows).
     const variants: Record<string, { soldOut: boolean; remaining: number | null }> = {};
-    let cfgs: { productId?: string; variantId?: string; unitsOffered?: number | null }[] = [];
+    let cfgs: {
+      productId?: string;
+      variantId?: string;
+      unitsOffered?: number | null;
+      endQty?: number | null;
+      availability?: string;
+      availStart?: string;
+      availEnd?: string;
+    }[] = [];
     try {
       cfgs = JSON.parse(match.variantConfigs) as typeof cfgs;
     } catch {
       cfgs = [];
     }
     const mine = cfgs.filter((v) => v.variantId && (!v.productId || gidNum(v.productId) === pid));
-    for (const v of mine) {
+    // Per-variant availability windows (Available now / from start / until end /
+    // between / not available) — a variant outside its window is simply not on
+    // preorder: it is left out of the map, so the widget shows nothing for it
+    // and the theme's own (DENY-policy) buttons apply.
+    const now = new Date();
+    const open = mine.filter((v) => variantWindowOpen(v, now));
+    for (const v of open) {
       const vc = await getCampaignCapacity(shop, match, v.variantId!);
       variants[gidNum(v.variantId!)] = { soldOut: vc.soldOut, remaining: vc.remaining };
     }
     const variantScoped = mine.length > 0;
-    // Product-level sold out = campaign cap hit, or every configured variant gone.
-    const allVariantsGone = variantScoped && mine.every((v) => variants[gidNum(v.variantId!)].soldOut);
+    // Product-level sold out = campaign cap hit, or every open variant gone.
+    const allVariantsGone =
+      variantScoped && open.length > 0 && open.every((v) => variants[gidNum(v.variantId!)].soldOut);
+    const noneOpen = variantScoped && open.length === 0;
     const soldOut = cap.soldOut || allVariantsGone;
     const shipDate = match.shipDate ? match.shipDate.toISOString() : null;
     const shipText = match.shipDate ? fmtDate(match.shipDate, locale) : "";
     preorder = {
-      active: !soldOut,
+      active: !soldOut && !noneOpen,
       soldOut,
       remaining: cap.remaining,
       variantScoped,
@@ -404,17 +465,24 @@ export async function getStorefrontConfig(
       showBadge: b(g, "showPreorderLabel", true),
       badgeStyle: s(g, "badgeStyle", "pill"),
       badgePosition: s(g, "badgePosition", "auto"),
+      // The preorder's own button placement and delivery note win: both are
+      // seeded from Settings when the preorder is created and can be changed
+      // per preorder (previously Settings always overrode them). A value equal
+      // to the database default ("REPLACE" / "Ships in 4–6 weeks") means the
+      // preorder predates the seeding, so Settings still applies there.
       placement: (
+        ownValue(match.ctaPlacement, "REPLACE") ||
         s(g, "ctaPlacement", "") ||
         match.ctaPlacement ||
         "stack"
       ).toLowerCase(),
       message:
         tv("preorder_note") ||
+        ownValue(match.deliveryNote, "Ships in 4–6 weeks") ||
         s(g, "defaultDeliveryNote", "") ||
         match.deliveryNote ||
         "Ships by {{shipping_date}}",
-      fallback: s(g, "defaultDeliveryFallback", "Ships as soon as it's available."),
+      fallback: tv("preorder_fallback_note") || s(g, "defaultDeliveryFallback", "Ships as soon as it's available."),
       shipDate,
       shipText,
       hideBuyNow: b(g, "hideBuyNow", false),
@@ -424,7 +492,7 @@ export async function getStorefrontConfig(
         enabled: b(g, "showLineItemProps", true),
         preorderLabel:
           tv("cart_preorder_label") || s(g, "preorderPropLabel", "Preorder"),
-        shipLabel: s(g, "shipDatePropLabel", "Ships"),
+        shipLabel: tv("cart_ship_label") || s(g, "shipDatePropLabel", "Ships"),
       },
       mixedCartMessage: s(g, "mixedCartMessage", ""),
       // R0.1: per-campaign trigger, honored by the storefront widget.
@@ -461,6 +529,12 @@ export async function getStorefrontConfig(
     shop,
     locale,
     preorder,
+    // Every other shopper-facing text, translated where the merchant has a
+    // translation for this language (English defaults otherwise).
+    strings: Object.fromEntries(
+      Object.entries(STOREFRONT_DEFAULTS).map(([k, d]) => [k, tv(k) || d]),
+    ),
+    translated: Object.keys(STOREFRONT_DEFAULTS).filter((k) => !!tv(k)),
     lowStock: {
       enabled: b(ls, "enabled", false),
       threshold: num(ls, "threshold", 10),
@@ -470,6 +544,12 @@ export async function getStorefrontConfig(
       bgColor: s(ls, "bgColor", "#F1F1F1"),
       textColor: s(ls, "textColor", "#6B6B6B"),
       customCss: s(ls, "customCss", ""),
+      position: s(ls, "position", "below_price"),
+      // Exclusions are matched in the browser against the product's tags and
+      // collections (rendered by the theme embed) — saved in admin, previously
+      // never applied.
+      excludeTags: splitTags(s(ls, "excludeTags", "")),
+      excludeCollections: collectionIds((ls as Record<string, unknown>).excludeCollections),
     },
     cart: {
       mixedCartWarning: b(g, "mixedCartWarning", true),
@@ -489,14 +569,19 @@ export async function getStorefrontConfig(
       success:
         tv("notify_success") ||
         "You're on the list — we'll let you know when it's back.",
-      consentText: s(
-        bis,
-        "consentText",
-        "I agree to be notified by email about this product.",
-      ),
+      consentText:
+        tv("notify_consent") ||
+        s(bis, "consentText", "I agree to be notified by email about this product."),
+      // "Require the consent box" (stored as doubleOptIn).
+      requireConsent: b(bis, "doubleOptIn", false),
       hideBuyNow: b(bis, "hideBuyNow", false),
       collectPhone: b(bis, "collectPhone", false),
       syncTarget: s(bis, "syncTarget", ""),
+      // Admin styling + exclusions (previously saved but never sent).
+      buttonColor: s(bis, "buttonColor", ""),
+      position: s(bis, "position", "below"),
+      excludeTags: splitTags(s(bis, "excludeTags", "")),
+      excludeCollections: collectionIds((bis as Record<string, unknown>).excludeCollections),
     },
   };
 }

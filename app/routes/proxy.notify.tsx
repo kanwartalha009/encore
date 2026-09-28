@@ -13,6 +13,28 @@ import { emitFlow, FLOW_WAITLIST_SIGNUP } from "../services/flow.server";
 import { getNotificationSettings } from "../services/notifications.server";
 import { subscribeBackInStock } from "../services/klaviyo.server";
 import { isOverNotifyLimit } from "../services/usage.server";
+import { getSettings } from "../models/settings.server";
+
+// Plain, permissive email check (RFC-complete validation isn't the goal — this
+// stops typos like "name@", "name.com" and junk from filling the waitlist).
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+// Light abuse guard: at most N new signups per shop per minute (in memory; the
+// proxy is per-shop signed by Shopify, so this only caps floods).
+const RATE_WINDOW_MS = 60 * 1000;
+const RATE_MAX = 30;
+const recent = new Map<string, number[]>();
+function rateLimited(shop: string): boolean {
+  const now = Date.now();
+  const hits = (recent.get(shop) ?? []).filter((t) => now - t < RATE_WINDOW_MS);
+  if (hits.length >= RATE_MAX) {
+    recent.set(shop, hits);
+    return true;
+  }
+  hits.push(now);
+  recent.set(shop, hits);
+  return false;
+}
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { session } = await authenticate.public.appProxy(request);
@@ -34,6 +56,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (!email && !phone) {
     return Response.json({ ok: false, error: "missing_contact" }, { status: 400 });
   }
+  if (email && !EMAIL_RE.test(email)) {
+    return Response.json({ ok: false, error: "invalid_email" }, { status: 400 });
+  }
+  const consent = body.consent === true || body.consent === "true" || body.consent === "on";
+  // "Require the consent box" (stored as doubleOptIn): no tick → no signup.
+  const bisSettings = (await getSettings(session.shop)).backInStock as { doubleOptIn?: boolean };
+  if (bisSettings?.doubleOptIn === true && !consent) {
+    return Response.json({ ok: false, error: "consent_required" }, { status: 400 });
+  }
 
   const productId = String(body.product_id ?? "");
   if (!productId) {
@@ -50,12 +81,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return Response.json({ ok: false, error: "limit_reached" }, { status: 200 });
   }
 
-  // Dedupe: same shop + product + variant + email, still subscribed.
-  const existing = email
-    ? await prisma.waitlistSubscription.findFirst({
-        where: { shop: session.shop, productId, variantId, email, subscribed: true },
-      })
-    : null;
+  // Dedupe: same shop + product + variant + email (or phone), still subscribed.
+  const existing = await prisma.waitlistSubscription.findFirst({
+    where: {
+      shop: session.shop,
+      productId,
+      variantId,
+      subscribed: true,
+      ...(email ? { email } : { phone }),
+    },
+  });
+
+  if (!existing && rateLimited(session.shop)) {
+    return Response.json({ ok: false, error: "rate_limited" }, { status: 429 });
+  }
 
   if (!existing) {
     await (
@@ -74,6 +113,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         email: email || null,
         phone: phone || null,
         channel,
+        consentAt: consent ? new Date() : null,
       },
     });
 

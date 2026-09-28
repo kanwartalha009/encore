@@ -19,10 +19,31 @@ import {
 import { useLocale } from "../lib/i18n";
 import { getTranslations, saveTranslations } from "../models/settings.server";
 
+const SHOP_LOCALES = `#graphql
+  query EncoreShopLocales { shopLocales { locale name primary published } }`;
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const saved = await getTranslations(session.shop);
-  return { saved };
+  // The store's real languages (was a fixed English/Spanish/French/German demo
+  // list until 2026-09-28). Falls back to that list if the query fails.
+  let locales: { code: string; name: string; primary: boolean; published: boolean }[] = [];
+  try {
+    const res = await admin.graphql(SHOP_LOCALES);
+    const body = (await res.json()) as {
+      data?: { shopLocales?: { locale: string; name: string; primary: boolean; published: boolean }[] };
+    };
+    locales = (body.data?.shopLocales ?? []).map((l) => ({
+      code: l.locale,
+      name: l.name,
+      primary: l.primary,
+      published: l.published,
+    }));
+  } catch (e) {
+    console.error("[translations] shopLocales failed", e);
+  }
+  if (!locales.length) locales = DEMO_LOCALES.map((l) => ({ ...l, primary: !!l.primary, published: !!l.published }));
+  return { saved, locales };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -42,16 +63,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 export const headers: HeadersFunction = (headersArgs) =>
   boundary.headers(headersArgs);
 
-const GROUPS = ["Preorder", "Back in stock", "Low stock"] as const;
+const GROUPS = ["Preorder", "Back in stock", "Low stock", "Cart & messages"] as const;
 
 export default function TranslationsPage() {
   const shopify = useAppBridge();
   const { t } = useLocale();
-  const { saved } = useLoaderData<typeof loader>();
+  const { saved, locales } = useLoaderData<typeof loader>();
   const submit = useSubmit();
 
-  const targets = DEMO_LOCALES.filter((l) => !l.primary);
-  const [locale, setLocale] = useState(targets[0]?.code ?? "es");
+  const targets = locales.filter((l) => !l.primary);
+  const [locale, setLocale] = useState(targets[0]?.code ?? "");
   const [translations, setTranslations] = useState<
     Record<string, Record<string, string>>
   >(() => {
@@ -64,7 +85,7 @@ export default function TranslationsPage() {
     return merged;
   });
 
-  const localeMeta = DEMO_LOCALES.find((l) => l.code === locale);
+  const localeMeta = locales.find((l) => l.code === locale);
 
   const setVal = (key: string, value: string) =>
     setTranslations((prev) => ({
@@ -85,6 +106,20 @@ export default function TranslationsPage() {
     shopify.toast.show(`${t("Translations saved for")} ${localeMeta?.name}`);
   };
 
+  if (!targets.length) {
+    return (
+      <AppPage heading={t("translations.title")} breadcrumb={{ label: t("nav.settings"), to: "/app/settings" }}>
+        <s-section>
+          <s-empty-state heading={t("Your store has one language")}>
+            <s-paragraph slot="subheading">
+              {t("Add a language in Shopify Settings → Languages, then come back here to translate what Encore shows shoppers.")}
+            </s-paragraph>
+          </s-empty-state>
+        </s-section>
+      </AppPage>
+    );
+  }
+
   return (
     <AppPage
       heading={t("translations.title")}
@@ -99,7 +134,7 @@ export default function TranslationsPage() {
         <s-section>
           <s-stack direction="block" gap="base">
             <s-paragraph color="subdued">
-              {t("The admin language follows your Shopify account automatically. Below you translate the storefront text we add (button, badge, cart, popup, low-stock) — these register with Shopify so they switch with the buyer's language alongside Translate & Adapt.")}
+              {t("The admin language follows your Shopify account automatically. Below you translate the text Encore adds to your storefront (button, badge, cart, popup, low stock, messages). Shoppers browsing in a language see your translation; anything left empty shows in English.")}
             </s-paragraph>
             <div className="encore-row-between">
               <s-select label={t("Language to translate")} value={locale} onChange={(e) => setLocale(val(e))}>

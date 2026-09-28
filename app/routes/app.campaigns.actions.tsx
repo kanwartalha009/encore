@@ -25,7 +25,8 @@ import {
   deleteCampaignSellingPlan,
   syncCampaignSellingPlan,
 } from "../models/selling-plan.server";
-import { syncContinueSellingSafe } from "../services/inventory-policy.server";
+import { releaseVariants, syncContinueSellingSafe } from "../services/inventory-policy.server";
+import { recomputeVariantCaps, variantGidsOf } from "../models/preorder-cap.server";
 
 // Loader: nothing to fetch, but block direct GETs.
 // Shopify embedded-app boundary: keep iframe headers on thrown auth responses (same as sibling routes).
@@ -80,7 +81,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       await bulkSetCampaignStatus(session.shop, ids, "LIVE");
       await syncContinueSellingSafe(admin, session.shop, ids);
       break;
-    case "delete":
+    case "delete": {
+      // Variants of the rules being deleted — released after the rows go.
+      const doomed = await prisma.campaign.findMany({
+        where: { shop: session.shop, id: { in: ids } },
+        select: { variantConfigs: true },
+      });
+      const doomedVariants = doomed.flatMap((c) => variantGidsOf(c.variantConfigs));
       // Tear down the Shopify selling plan before the rows disappear.
       await Promise.all(
         ids.map((rowId) =>
@@ -92,7 +99,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       await Promise.all(
         ids.map((rowId) => deleteCampaign(session.shop, rowId)),
       );
+      // No-oversell: clear stale checkout caps and stop selling past zero.
+      await recomputeVariantCaps(admin, session.shop, doomedVariants).catch((e) =>
+        console.error("cap cleanup after bulk delete failed", e),
+      );
+      await releaseVariants(admin, session.shop, doomedVariants);
       break;
+    }
     case "duplicate": {
       if (ids.length === 1) {
         const cloned = await duplicateCampaign(session.shop, ids[0]);

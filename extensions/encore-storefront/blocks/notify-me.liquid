@@ -10,6 +10,8 @@
     class="encore encore-notify"
     data-encore-notify
     data-product-id="{{ product.id }}"
+    data-product-tags="{{ product.tags | join: '||' | escape }}"
+    data-product-collections="{{ product.collections | map: 'id' | join: ',' }}"
     data-variant-id="{{ ev.id }}"
     data-product-title="{{ product.title | escape }}"
     data-available="{% if ev.available %}true{% else %}false{% endif %}"

@@ -781,7 +781,7 @@ export default function CampaignForm({
               {paymentMode === "pay_later" && (
                 <div className="encore-subpanel">
                   <s-text color="subdued">
-                    {t("No money moves until you mark the cohort ready to ship. Card vaulted via Shopify Payments.")}
+                    {t("The card is saved at checkout and charged automatically on the ship date (30 days after checkout if no ship date is set). Needs a payment provider that supports deferred payments, such as Shopify Payments.")}
                   </s-text>
                 </div>
               )}

@@ -255,3 +255,8 @@
   background: #fff8e6; border: 1px solid #f0d48a; color: #5c4a00; font-size: 0.95em;
 }
 .encore-btn--soldout, .encore-btn--soldout:hover { opacity: 0.55; cursor: not-allowed; transform: none; }
+
+/* "Next to Add to cart" placement (best effort — themes with a full-width
+   add-to-cart button still stack). */
+.encore-preorder--beside { display: inline-block; vertical-align: top; margin-inline-start: 8px; }
+.encore-preorder--beside .encore-btn { width: auto; }

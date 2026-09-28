@@ -9,16 +9,20 @@
  *
  * The storefront config uses this to stop offering preorder (and to stop
  * injecting the selling plan) once a cap is hit — the offer reverts to
- * sold-out / back-in-stock. Reversible: if capacity frees up (e.g. a refund),
- * the offer reappears on the next config fetch.
+ * sold-out / back-in-stock. Reversible: cancelled orders (PreOrder rows marked
+ * REFUNDED by the orders/cancelled webhook) no longer count, so their units
+ * come back on the next config fetch.
  *
- * Residual race: two shoppers can both see the last unit between fetch and
- * add — a hard guarantee needs a checkout/cart validation Function (follow-up).
- * This offer-level cap handles the normal case and never *advertises* past the
- * limit.
+ * The per-variant cap is the tighter of Limit quantity and End quantity
+ * (lib/cap-shared.ts). The checkout-validation Function enforces the same
+ * numbers at checkout (preorder-cap.server.ts).
  */
 
 import prisma from "../db.server";
+import { effectiveVariantCap, RELEASED_PAYMENT_STATUSES, type VariantCapConfig } from "../lib/cap-shared";
+
+/** Units that still hold a preorder slot (cancelled / refunded ones don't). */
+const HELD = { paymentStatus: { notIn: [...RELEASED_PAYMENT_STATUSES] } };
 
 export type Capacity = {
   capped: boolean; // a limit applies
@@ -26,7 +30,7 @@ export type Capacity = {
   soldOut: boolean;
 };
 
-type VariantConfig = { variantId?: string; unitsOffered?: number | null };
+type VariantConfig = VariantCapConfig;
 
 // PreOrder.variantId is added via `prisma db push`; the generated client may not
 // know it yet, so reach aggregate through a narrow cast.
@@ -54,7 +58,7 @@ export async function getCampaignCapacity(
   // ---- campaign-level cap ----
   if (campaign.maxPerCampaign != null) {
     const agg = await preOrder.aggregate({
-      where: { shop, campaignId: campaign.id },
+      where: { shop, campaignId: campaign.id, ...HELD },
       _sum: { units: true },
     });
     remaining = Math.max(0, campaign.maxPerCampaign - (agg._sum.units ?? 0));
@@ -67,7 +71,7 @@ export async function getCampaignCapacity(
     try {
       const cfgs = JSON.parse(campaign.variantConfigs) as VariantConfig[];
       const hit = cfgs.find((c) => vid !== "" && numId(c.variantId) === vid);
-      if (hit && typeof hit.unitsOffered === "number") unitsOffered = hit.unitsOffered;
+      unitsOffered = effectiveVariantCap(hit);
     } catch {
       /* ignore malformed variantConfigs */
     }
@@ -79,6 +83,7 @@ export async function getCampaignCapacity(
           campaignId: campaign.id,
           // PreOrder.variantId is stored as the GID; match common forms.
           variantId: { in: [variantId, `gid://shopify/ProductVariant/${vid}`, vid] },
+          ...HELD,
         },
         _sum: { units: true },
       });

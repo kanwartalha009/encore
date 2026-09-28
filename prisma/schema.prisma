@@ -332,6 +332,7 @@ model WaitlistSubscription {
   market       String?  // buyer's Shopify Market id (captured at signup) — demand dimension
 
   subscribed   Boolean  @default(true)
+  consentAt    DateTime? // shopper ticked the consent box at signup (2026-09-28)
   notifiedAt   DateTime?
   convertedAt  DateTime?
 
