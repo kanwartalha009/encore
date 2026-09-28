@@ -7,8 +7,57 @@
 // `encore.preorder_remaining` metafield (kept current by the app). Variants
 // without that metafield aren't capped, so they're ignored.
 //
+// Per-market stock (2026-09-28): also blocks ANY line (preorder or not) of a
+// variant whose `encore.market_blocked` metafield lists the buyer's market —
+// the app writes it when the variant has no stock at the locations serving that
+// market and no preorder is offered there ("sold out in this market"). The
+// value carries an expiry date (`until`) so a block the app failed to clear
+// lapses on its own.
+//
 // Runs in the Shopify Functions sandbox (no DB / network) — all data comes from
 // the input query in cart_validations_generate_run.graphql.
+
+/**
+ * "gid://shopify/Market/123" → "123".
+ * @param {unknown} gid
+ * @returns {string}
+ */
+function numId(gid) {
+  return gid ? String(gid).split("/").pop() || "" : "";
+}
+
+/**
+ * Parse `encore.market_blocked`: {"m": ["123"], "until": "2026-10-01"}.
+ * @param {string | null | undefined} raw
+ * @returns {{ m: string[], until: string } | null}
+ */
+export function parseMarketBlocked(raw) {
+  if (!raw) return null;
+  try {
+    const v = JSON.parse(raw);
+    if (Array.isArray(v)) return { m: v.map((x) => numId(String(x))), until: "" };
+    if (v && typeof v === "object" && Array.isArray(v.m)) {
+      return { m: v.m.map((/** @type {unknown} */ x) => numId(String(x))), until: String(v.until || "") };
+    }
+  } catch (e) {
+    /* unreadable → not blocked */
+  }
+  return null;
+}
+
+/**
+ * Is this variant blocked for the buyer's market today?
+ * @param {string | null | undefined} raw metafield value
+ * @param {string} market numeric market id ("" = unknown → never blocked)
+ * @param {string} today shop-local YYYY-MM-DD ("" = unknown → expiry not applied)
+ */
+export function blockedInMarket(raw, market, today) {
+  if (!market) return false;
+  const v = parseMarketBlocked(raw);
+  if (!v) return false;
+  if (v.until && today && today > v.until) return false; // expired
+  return v.m.indexOf(market) !== -1;
+}
 
 /**
  * @typedef {import("../generated/api").CartValidationsGenerateRunInput} CartValidationsGenerateRunInput
@@ -28,9 +77,30 @@ export function cartValidationsGenerateRun(input) {
   // line alone let 3 + 3 through against 5 remaining (audit 2026-09-28).
   /** @type {Map<string, {qty: number, remaining: number, name: string}>} */
   const byVariant = new Map();
+  const inp = /** @type {any} */ (input);
+  const market = numId(inp.localization && inp.localization.market && inp.localization.market.id);
+  const today = (inp.shop && inp.shop.localTime && inp.shop.localTime.date) || "";
+  /** @type {Set<string>} */
+  const marketBlocked = new Set();
   input.cart.lines.forEach((line, idx) => {
     const m = line.merchandise;
     if (!m || m.__typename !== "ProductVariant") return;
+
+    // Sold out in the buyer's market (no stock at its locations, no preorder
+    // offered there) — applies to every line of the variant, marked or not.
+    const mb = /** @type {any} */ (m).marketBlocked;
+    if (mb && blockedInMarket(mb.value, market, today)) {
+      const key = /** @type {any} */ (m).id || `line:${idx}`;
+      if (!marketBlocked.has(key)) {
+        marketBlocked.add(key);
+        const title = /** @type {any} */ (m).product && /** @type {any} */ (m).product.title;
+        errors.push({
+          message: `${title || "This item"} is sold out in your region.`,
+          target: "$.cart",
+        });
+      }
+      return;
+    }
 
     // Only preorder lines are capped (see the input query). Unmarked lines of a
     // sold-out variant are counted after the order instead (units sold past

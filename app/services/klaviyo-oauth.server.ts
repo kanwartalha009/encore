@@ -18,8 +18,10 @@ import { seal, unseal } from "../lib/seal.server";
 const AUTHORIZE_URL = "https://www.klaviyo.com/oauth/authorize";
 const TOKEN_URL = "https://a.klaviyo.com/oauth/token";
 // Adjust to match the scopes selected in the Klaviyo app registration.
+// lists:read / lists:write (2026-09-28): back-in-stock sign-ups can be added to
+// a Klaviyo list the merchant picks — reconnect Klaviyo once to grant them.
 const SCOPES =
-  "accounts:read events:write profiles:write metrics:read flows:read subscriptions:write";
+  "accounts:read events:write profiles:write metrics:read flows:read subscriptions:write lists:read lists:write";
 
 type TokenResponse = {
   access_token?: string;

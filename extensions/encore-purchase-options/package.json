@@ -1,0 +1,12 @@
+{
+  "name": "encore-purchase-options",
+  "private": true,
+  "version": "1.0.0",
+  "license": "UNLICENSED",
+  "description": "Encore admin UI extension — create and manage preorders from the product page Purchase options card.",
+  "dependencies": {
+    "@preact/signals": "^2.11.1",
+    "@shopify/ui-extensions": "2026.7.4",
+    "preact": "^10.24.0"
+  }
+}

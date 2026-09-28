@@ -9,6 +9,7 @@
  *   - GDPR purge:        once per shop via UninstalledShop.purgedAt
  *   - campaign schedule: start/end dates → LIVE / ENDED (a moved campaign no
  *                        longer matches the query)
+ *   - app pricing:       every 6 h, each shop's plan from the Partner API
  *
  * The /cron/* HTTP endpoints remain (token-guarded) as manual triggers and as
  * an external-scheduler option. Set ENCORE_DISABLE_INTERNAL_CRON=1 to turn the
@@ -21,6 +22,7 @@ import { purgeDueShops } from "./gdpr.server";
 import { reconcileLiveCampaignPolicies, syncCrossedVariantWindows } from "./inventory-policy.server";
 import { applyCampaignSchedules } from "./campaign-schedule.server";
 import { retryFailedAllShops } from "./waitlist-notify.server";
+import { syncAllPlans } from "./app-pricing.server";
 import { unauthenticated } from "../shopify.server";
 
 const OUTBOX_EVERY_MS = 2 * 60 * 1000; // matches the "every 2 minutes" ops spec
@@ -136,6 +138,24 @@ async function policyReconcileTick(): Promise<void> {
   }
 }
 
+/** Shopify App Pricing: re-check every shop's plan (no webhooks) — every 6th hourly tick. */
+let hourlyCount = 0;
+async function planSyncTick(): Promise<void> {
+  if (hourlyCount++ % 6 !== 0) return;
+  try {
+    const shops = await prisma.session.findMany({ distinct: ["shop"], select: { shop: true } });
+    const r = await syncAllPlans(
+      shops.map((s) => s.shop),
+      async (shop) => (await unauthenticated.admin(shop)).admin,
+    );
+    if (r.checked > 0) {
+      console.log(`[scheduler/app-pricing] checked=${r.checked} active=${r.active} none=${r.none} unknown=${r.unknown}`);
+    }
+  } catch (e) {
+    console.error("[scheduler/app-pricing]", e);
+  }
+}
+
 export function startScheduler(): void {
   if (process.env.ENCORE_DISABLE_INTERNAL_CRON === "1") {
     console.log("[scheduler] internal cron disabled via ENCORE_DISABLE_INTERNAL_CRON");
@@ -152,6 +172,7 @@ export function startScheduler(): void {
     void purgeTick();
     void policyReconcileTick();
     void waitlistRetryTick();
+    void planSyncTick();
     setInterval(() => {
       void outboxTick();
       void campaignScheduleTick();
@@ -161,6 +182,7 @@ export function startScheduler(): void {
       void purgeTick();
       void policyReconcileTick();
       void waitlistRetryTick();
+      void planSyncTick();
     }, HOURLY_EVERY_MS);
     console.log("[scheduler] started — outbox + campaign start/end every 2min, reminders/purge/policy-reconcile hourly");
   }, BOOT_DELAY_MS);

@@ -53,6 +53,7 @@ export const loader = async () => {
         secretsEncrypted: /^[0-9a-f]{64}$/i.test(process.env.APP_ENCRYPTION_KEY ?? ""),
         emailSending: Boolean(process.env.ENCORE_EMAIL_API_KEY && process.env.ENCORE_EMAIL_FROM),
         legalContact: Boolean(process.env.ENCORE_SUPPORT_EMAIL),
+        database: (process.env.DATABASE_URL ?? "").startsWith("postgres") ? "postgresql" : "other",
       },
       time: new Date().toISOString(),
     },

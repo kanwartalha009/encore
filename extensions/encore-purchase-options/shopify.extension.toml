@@ -1,0 +1,28 @@
+# Admin UI extension — "Purchase options" card on product and variant pages
+# (App Store requirement 5.4: merchants create and manage selling plans from the
+# product page).
+#
+# Create flow (no sellingPlanId): add this product/variant to an Encore
+# preorder, or start a new one. Edit flow (sellingPlanId given): change payment
+# / ship date, pause/resume, or remove the product from the preorder.
+#
+# The extension never writes selling plans itself: it calls the app's
+# /api/purchase-options route (relative fetch → app_url, Shopify adds the ID
+# token), which edits the Campaign and runs the same selling-plan / cap /
+# continue-selling sync as the app. `uid` is assigned by the Shopify CLI.
+
+api_version = "2026-07"
+
+[[extensions]]
+name = "Encore preorder"
+handle = "encore-purchase-options"
+uid = "6fbc1c4a-a1a2-be2a-f4a0-357cbbbac6e9b4eba5b6"
+type = "ui_extension"
+
+  [[extensions.targeting]]
+  target = "admin.product-purchase-option.action.render"
+  module = "./src/PurchaseOptionsAction.tsx"
+
+  [[extensions.targeting]]
+  target = "admin.product-variant-purchase-option.action.render"
+  module = "./src/PurchaseOptionsAction.tsx"

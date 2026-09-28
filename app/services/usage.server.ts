@@ -10,7 +10,8 @@
  * §8 "must never" violation). No plan / unlimited plan → never blocked.
  */
 import prisma from "../db.server";
-import { getPlan } from "./plans.server";
+import { getPlan, getPlanOverride } from "./plans.server";
+import { pricingConfigured } from "./app-pricing.server";
 import { getBillingState } from "./billing.server";
 
 export type Usage = {
@@ -42,8 +43,14 @@ export async function getUsage(shop: string): Promise<Usage> {
     getBillingState(shop),
   ]);
   const plan = bs?.planCode ? await getPlan(bs.planCode) : null;
-  const preorderLimit = plan?.preorderLimit ?? null;
-  const notifyLimit = plan?.notifyLimit ?? null;
+  // Shopify App Pricing (2026-09-28): a store confirmed to have NO plan (e.g.
+  // cancelled on Shopify's plan page) stops offering NEW preorders / notify-me
+  // sign-ups — existing orders are untouched. Only when the plan check is set
+  // up and succeeded (status NONE), and never for a store Nova comps.
+  const noPlan =
+    pricingConfigured() && bs?.status === "NONE" && (await getPlanOverride(shop)).type !== "FREE";
+  const preorderLimit = noPlan ? 0 : plan?.preorderLimit ?? null;
+  const notifyLimit = noPlan ? 0 : plan?.notifyLimit ?? null;
 
   const usage: Usage = {
     planCode: bs?.planCode ?? null,

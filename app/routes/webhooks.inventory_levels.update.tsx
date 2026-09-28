@@ -1,6 +1,8 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
-import { touchReconciled } from "../models/markets.server";
+import { getMarketRule, touchReconciled } from "../models/markets.server";
+import { invalidateShopStock, syncMarketBlocksSafe } from "../models/market-stock.server";
+import prisma from "../db.server";
 import { hasPendingSubscribers, notifyRestocked } from "../services/waitlist-notify.server";
 
 // inventory_levels/update carries no Protected Customer Data, so it runs without
@@ -12,6 +14,10 @@ import { hasPendingSubscribers, notifyRestocked } from "../services/waitlist-not
 //      atomically before sending, so products/update firing for the same
 //      restock can't send a second email.
 //   2. Per-market reconciliation timestamp (surfaced on /app/markets).
+//   3. Per-market stock (2026-09-28): drop the shop's cached per-location stock
+//      (storefront config) and recompute the variant's `encore.market_blocked`
+//      checkout guard — only for shops with a live product-level preorder, and
+//      market_stock.server returns before any API call for single-market shops.
 type InventoryLevelPayload = {
   inventory_item_id?: number | string;
   location_id?: number | string;
@@ -31,6 +37,30 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     await touchReconciled(shop);
 
     const p = payload as unknown as InventoryLevelPayload;
+    invalidateShopStock(shop);
+    // Isolated: a per-market hiccup must never fail the webhook (Shopify would
+    // retry it) or skip the back-in-stock sends below.
+    try {
+      if (p.inventory_item_id != null && admin) {
+        // One market on record → nothing to guard (0 = never reconciled: the
+        // sync takes the snapshot once).
+        const markets = Object.keys((await getMarketRule(shop)).marketSnapshot).length;
+        const live =
+          markets === 1 ? 0 : await prisma.campaign.count({ where: { shop, status: "LIVE", productMode: "SPECIFIC" } });
+        if (live > 0) {
+          const res = await admin.graphql(VARIANT_FOR_ITEM, {
+            variables: { id: `gid://shopify/InventoryItem/${p.inventory_item_id}` },
+          });
+          const body = (await res.json()) as {
+            data?: { inventoryItem?: { variant?: { id: string } | null } | null };
+          };
+          const vid = body.data?.inventoryItem?.variant?.id;
+          if (vid) await syncMarketBlocksSafe(admin, shop, { variantIds: [vid] });
+        }
+      }
+    } catch (err) {
+      console.error("[webhook] inventory_levels/update: market stock sync failed", err);
+    }
     // Fires on every stock change (sales included) — only look the variant up
     // when someone is actually waiting in this shop.
     if ((p.available ?? 0) > 0 && p.inventory_item_id != null && admin && (await hasPendingSubscribers(shop))) {

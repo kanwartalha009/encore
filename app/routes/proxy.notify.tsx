@@ -14,6 +14,7 @@ import { getNotificationSettings } from "../services/notifications.server";
 import { subscribeBackInStock } from "../services/klaviyo.server";
 import { isOverNotifyLimit } from "../services/usage.server";
 import { getSettings } from "../models/settings.server";
+import { syncContact } from "../services/contact-sync.server";
 
 // Plain, permissive email check (RFC-complete validation isn't the goal — this
 // stops typos like "name@", "name.com" and junk from filling the waitlist).
@@ -37,7 +38,7 @@ function rateLimited(shop: string): boolean {
 }
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.public.appProxy(request);
+  const { session, admin } = await authenticate.public.appProxy(request);
   if (!session) {
     return Response.json({ ok: false, error: "app_not_installed" }, { status: 401 });
   }
@@ -121,9 +122,22 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // new signup, not on a dedupe).
     await emitFlow(session.shop, FLOW_WAITLIST_SIGNUP, {
       email: email || "",
+      phone: phone || "",
       product: body.product_title ? String(body.product_title) : "",
       variant_id: variantId ?? "",
       market: market ?? "",
+    });
+
+    // Save the contact where the merchant chose (Klaviyo list / Shopify
+    // customer) — after answering the shopper, never blocking the popup.
+    void syncContact(session.shop, admin, {
+      email: email || null,
+      phone: phone || null,
+      productTitle: body.product_title ? String(body.product_title) : null,
+      variantTitle: body.variant_title ? String(body.variant_title) : null,
+      locale,
+    }).then((r) => {
+      if (!r.ok) console.error(`[notify] contact sync to ${r.target} failed: ${r.error}`);
     });
 
     // N3: Klaviyo native back-in-stock — subscribe now so Klaviyo's own BIS flow

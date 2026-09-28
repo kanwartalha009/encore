@@ -1,0 +1,86 @@
+{
+  "loading": "Carregando a pré-venda",
+  "retry": "Tentar novamente",
+  "done": "Concluído",
+  "cancel": "Cancelar",
+  "saveChanges": "Salvar alterações",
+  "openInEncore": "Abrir no Encore",
+  "heading": {
+    "add": "Adicionar a uma pré-venda",
+    "manage": "Gerenciar pré-venda"
+  },
+  "add": {
+    "intro": "Permita que clientes façam a pré-compra de {{product}}.",
+    "modeExisting": "Adicionar a uma pré-venda existente",
+    "modeNew": "Criar uma nova pré-venda",
+    "saveExisting": "Adicionar à pré-venda",
+    "saveNew": "Criar pré-venda",
+    "defaultName": "Pré-venda de {{product}}"
+  },
+  "fields": {
+    "mode": "Pré-venda",
+    "preorder": "Escolha uma pré-venda",
+    "name": "Nome da pré-venda",
+    "when": "Quando os clientes podem fazer a pré-compra?",
+    "startDate": "Data de início",
+    "payment": "Pagamento",
+    "depositPct": "Sinal",
+    "shipDate": "Data prevista de envio",
+    "shipDateHelp": "Opcional. Mostrada aos clientes para que saibam quando esperar o pedido."
+  },
+  "when": {
+    "now": "Pré-venda agora",
+    "oos": "Quando esgotar",
+    "date": "A partir de uma data"
+  },
+  "payment": {
+    "payNow": "Pagar o valor total agora",
+    "deposit": "Sinal agora, o restante depois",
+    "payLater": "Pagar depois",
+    "deferredHint": "Sinal e pagamento posterior exigem um provedor de pagamentos que possa cobrar depois, como o Shopify Payments. Caso contrário, os clientes pagam o valor total.",
+    "fixedDepositNote": "Esta pré-venda usa um sinal de valor fixo. Altere-o no Encore."
+  },
+  "manage": {
+    "alreadyOnPreorder": "{{product}} já faz parte desta pré-venda.",
+    "productsCount": {
+      "one": "{{count}} produto nesta pré-venda",
+      "other": "{{count}} produtos nesta pré-venda"
+    },
+    "pause": "Pausar pré-venda",
+    "resume": "Retomar pré-venda",
+    "removeProduct": "Remover produto da pré-venda",
+    "removeVariant": "Remover variante da pré-venda",
+    "removeConfirm": "Clique novamente para remover"
+  },
+  "status": {
+    "live": "Ativa",
+    "scheduled": "Agendada",
+    "paused": "Pausada",
+    "draft": "Rascunho",
+    "ended": "Encerrada"
+  },
+  "notice": {
+    "draft": "Adicionado a uma pré-venda em rascunho. Publique-a no Encore para começar a receber pré-compras.",
+    "syncFailed": "Salvo, mas a Shopify ainda não aceitou a opção de compra. Abra a pré-venda no Encore e salve novamente."
+  },
+  "errors": {
+    "generic": "Algo deu errado. Tente novamente.",
+    "network": "Não foi possível conectar ao Encore. Verifique sua conexão e tente novamente.",
+    "planNotFound": "Não encontramos a pré-venda do Encore para esta opção de compra. Você pode adicionar o produto a uma pré-venda abaixo.",
+    "invalid_target": "Não foi possível carregar este produto. Recarregue a página e tente novamente.",
+    "target_not_found": "Este produto ou variante não existe mais.",
+    "campaign_not_found": "Esta pré-venda não existe mais.",
+    "campaign_not_editable": "Esta pré-venda não pode ser alterada aqui. Abra-a no Encore.",
+    "invalid_campaign": "Escolha uma pré-venda.",
+    "name_required": "Insira um nome para a pré-venda.",
+    "name_too_long": "O nome é muito longo (máximo de 120 caracteres).",
+    "start_date_required": "Escolha uma data de início.",
+    "invalid_date": "Insira uma data válida.",
+    "ship_date_past": "A data de envio não pode estar no passado.",
+    "deposit_pct_range": "O sinal deve ficar entre 1% e 99%.",
+    "nothing_to_update": "Nada para salvar.",
+    "invalid_status": "O status desta pré-venda mudou. Feche e abra novamente para atualizar.",
+    "catalog_missing": "Alguns produtos desta pré-venda não puderam ser carregados. Edite-a no Encore.",
+    "plan_required": "Escolha primeiro um plano do Encore (abra Encore → Planos) para criar ou alterar pré-encomendas."
+  }
+}

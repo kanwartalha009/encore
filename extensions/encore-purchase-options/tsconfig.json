@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "types": [
+      "@shopify/ui-extensions/admin.product-purchase-option.action.render",
+      "@shopify/ui-extensions/admin.product-variant-purchase-option.action.render"
+    ],
+    "jsxImportSource": "preact"
+  },
+  "include": [
+    "src/**/*",
+    "shopify.d.ts"
+  ]
+}

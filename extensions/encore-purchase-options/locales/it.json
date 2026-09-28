@@ -1,0 +1,86 @@
+{
+  "loading": "Caricamento del preordine",
+  "retry": "Riprova",
+  "done": "Fatto",
+  "cancel": "Annulla",
+  "saveChanges": "Salva modifiche",
+  "openInEncore": "Apri in Encore",
+  "heading": {
+    "add": "Aggiungi a un preordine",
+    "manage": "Gestisci preordine"
+  },
+  "add": {
+    "intro": "Consenti ai clienti di preordinare {{product}}.",
+    "modeExisting": "Aggiungi a un preordine esistente",
+    "modeNew": "Crea un nuovo preordine",
+    "saveExisting": "Aggiungi al preordine",
+    "saveNew": "Crea preordine",
+    "defaultName": "Preordine {{product}}"
+  },
+  "fields": {
+    "mode": "Preordine",
+    "preorder": "Scegli un preordine",
+    "name": "Nome del preordine",
+    "when": "Quando possono preordinare i clienti?",
+    "startDate": "Data di inizio",
+    "payment": "Pagamento",
+    "depositPct": "Acconto",
+    "shipDate": "Data di spedizione prevista",
+    "shipDateHelp": "Facoltativa. Mostrata ai clienti per far sapere quando arriverà l'ordine."
+  },
+  "when": {
+    "now": "Preordina subito",
+    "oos": "Quando è esaurito",
+    "date": "Da una data"
+  },
+  "payment": {
+    "payNow": "Paga subito l'intero importo",
+    "deposit": "Acconto ora, saldo dopo",
+    "payLater": "Paga dopo",
+    "deferredHint": "Acconti e pagamento posticipato richiedono un fornitore di pagamenti in grado di addebitare in seguito, come Shopify Payments. In caso contrario, i clienti pagano l'intero importo.",
+    "fixedDepositNote": "Questo preordine usa un acconto a importo fisso. Modificalo in Encore."
+  },
+  "manage": {
+    "alreadyOnPreorder": "{{product}} fa già parte di questo preordine.",
+    "productsCount": {
+      "one": "{{count}} prodotto in questo preordine",
+      "other": "{{count}} prodotti in questo preordine"
+    },
+    "pause": "Metti in pausa il preordine",
+    "resume": "Riprendi il preordine",
+    "removeProduct": "Rimuovi il prodotto dal preordine",
+    "removeVariant": "Rimuovi la variante dal preordine",
+    "removeConfirm": "Fai di nuovo clic per rimuovere"
+  },
+  "status": {
+    "live": "Attivo",
+    "scheduled": "Programmato",
+    "paused": "In pausa",
+    "draft": "Bozza",
+    "ended": "Terminato"
+  },
+  "notice": {
+    "draft": "Aggiunto a un preordine in bozza. Pubblicalo in Encore per iniziare a ricevere preordini.",
+    "syncFailed": "Salvato, ma Shopify non ha ancora accettato l'opzione di acquisto. Apri il preordine in Encore e salvalo di nuovo."
+  },
+  "errors": {
+    "generic": "Si è verificato un errore. Riprova.",
+    "network": "Impossibile raggiungere Encore. Controlla la connessione e riprova.",
+    "planNotFound": "Non abbiamo trovato il preordine Encore per questa opzione di acquisto. Puoi aggiungere il prodotto a un preordine qui sotto.",
+    "invalid_target": "Impossibile caricare questo prodotto. Ricarica la pagina e riprova.",
+    "target_not_found": "Questo prodotto o variante non esiste più.",
+    "campaign_not_found": "Questo preordine non esiste più.",
+    "campaign_not_editable": "Questo preordine non può essere modificato qui. Aprilo in Encore.",
+    "invalid_campaign": "Scegli un preordine.",
+    "name_required": "Inserisci un nome per il preordine.",
+    "name_too_long": "Il nome è troppo lungo (massimo 120 caratteri).",
+    "start_date_required": "Scegli una data di inizio.",
+    "invalid_date": "Inserisci una data valida.",
+    "ship_date_past": "La data di spedizione non può essere nel passato.",
+    "deposit_pct_range": "L'acconto deve essere compreso tra l'1% e il 99%.",
+    "nothing_to_update": "Niente da salvare.",
+    "invalid_status": "Lo stato di questo preordine è cambiato. Chiudi e riapri per aggiornare.",
+    "catalog_missing": "Alcuni prodotti di questo preordine non sono stati caricati. Modificalo in Encore.",
+    "plan_required": "Scegli prima un piano Encore (apri Encore → Piani) per creare o modificare i preordini."
+  }
+}

@@ -13,6 +13,14 @@ import prisma from "../db.server";
 import { getSettings, getTranslations } from "./settings.server";
 import { getCampaignCapacity } from "./capacity.server";
 import { getMarketRule, type AdminGraphqlClient } from "./markets.server";
+import { getMarketVariantStock, servingLocationsFor } from "./market-stock.server";
+import {
+  byMarket,
+  isMarketBlocked,
+  isMultiMarket,
+  marketInScope,
+  type VariantMarketStock,
+} from "../lib/markets-shared";
 import { isOverPreorderLimit } from "../services/usage.server";
 
 // COLLECTION-mode preorders match a product by its membership in the campaign's
@@ -131,8 +139,30 @@ export type StorefrontConfig = {
          * carries its own cap — the storefront re-evaluates on the picker.
          */
         variantScoped: boolean;
-        variants: Record<string, { soldOut: boolean; remaining: number | null }>;
+        variants: Record<
+          string,
+          {
+            soldOut: boolean;
+            remaining: number | null;
+            /** Sellable stock at the buyer market's locations (null = untracked / unknown). */
+            marketStock?: number | null;
+            /** In stock at the buyer market's locations; null = not known (use global). */
+            marketInStock?: boolean | null;
+          }
+        >;
       };
+  /**
+   * Per-market stock (multi-market shops only, else null): each variant's
+   * sellable stock at the locations that serve the buyer's market. When present
+   * the widget uses it instead of the variant's global availability.
+   */
+  marketStock: Record<string, VariantMarketStock> | null;
+  /**
+   * Variant ids (numeric) with no stock at this market's locations and no
+   * preorder offered here → shown Sold out (case 3), even when the variant's
+   * inventory policy lets the theme sell past zero.
+   */
+  marketSoldOut: string[];
   lowStock: {
     enabled: boolean;
     threshold: number;
@@ -369,47 +399,37 @@ export async function getStorefrontConfig(
   // offered to this buyer's market at all (the flagship in-stock-here /
   // preorder-there control).
   const rule = await getMarketRule(shop);
-  const marketAllowed =
-    rule.scope !== "SPECIFIC" ||
-    !marketId ||
-    rule.markets.includes(marketId) ||
-    rule.markets.map(gidNum).includes(gidNum(marketId));
-  let match: (typeof campaigns)[number] | null = null;
-  for (const c of marketAllowed ? campaigns : []) {
-    if (c.startDate && c.startDate > now) continue;
-    if (c.endDate && c.endDate < now) continue;
-    // Per-campaign market targeting (Campaign.markets — [] = all markets).
-    const cm = jsonArr((c as unknown as { markets?: string }).markets);
-    if (
-      cm.length &&
-      marketId &&
-      !cm.includes(marketId) &&
-      !cm.map(gidNum).includes(gidNum(marketId))
-    )
-      continue;
-    if (c.productMode === "ALL") {
-      match = c;
-      break;
-    }
-    if (c.productMode === "SPECIFIC") {
-      const ids = jsonArr(c.productIds).map(gidNum);
-      if (pid && ids.indexOf(pid) !== -1) {
-        match = c;
-        break;
-      }
-    }
+  const marketAllowed = marketInScope(rule, marketId);
+  // Per-market stock only matters when the shop sells in more than one market
+  // and the storefront told us the buyer's market. Single-market shops take
+  // exactly the old path: no extra lookups, no extra Admin API calls.
+  const multi = !!marketId && !!admin && !!pid && isMultiMarket(rule);
+  const covers = async (c: (typeof campaigns)[number]): Promise<boolean> => {
+    if (c.productMode === "ALL") return true;
+    if (c.productMode === "SPECIFIC") return !!pid && jsonArr(c.productIds).map(gidNum).indexOf(pid) !== -1;
     if (c.productMode === "COLLECTION") {
       const collId = (c as unknown as { collectionId?: string | null }).collectionId;
-      if (
-        collId &&
-        admin &&
-        pid &&
-        (await productInCollection(admin, collId, pid, collectionMembership))
-      ) {
-        match = c;
-        break;
-      }
+      return !!(collId && admin && pid && (await productInCollection(admin, collId, pid, collectionMembership)));
     }
+    return false;
+  };
+  let match: (typeof campaigns)[number] | null = null;
+  // Every live campaign covering this product in ANY market (multi only) —
+  // decides which variants Encore manages for the sold-out rule (case 3).
+  const managedBy: (typeof campaigns)[number][] = [];
+  for (const c of campaigns) {
+    if (c.startDate && c.startDate > now) continue;
+    if (c.endDate && c.endDate < now) continue;
+    // Store-level scope + per-campaign market targeting (Campaign.markets — [] = all markets).
+    const cm = jsonArr((c as unknown as { markets?: string }).markets);
+    const inMarket =
+      marketAllowed &&
+      !(cm.length && marketId && !cm.includes(marketId) && !cm.map(gidNum).includes(gidNum(marketId)));
+    if (!inMarket && !multi) continue;
+    if (!(await covers(c))) continue;
+    if (inMarket && !match) match = c;
+    if (!multi) break;
+    managedBy.push(c);
   }
 
   let preorder: StorefrontConfig["preorder"] = null;
@@ -512,8 +532,9 @@ export async function getStorefrontConfig(
       sellingPlanId: gidNum(
         (match as unknown as { sellingPlanId?: string | null }).sellingPlanId,
       ) || null,
+      // byMarket: the admin saves GID keys, the storefront sends numeric ids.
       forcePreorder: Boolean(
-        marketId && rule.perMarketOverrides[marketId]?.forcePreorder,
+        marketId && byMarket(rule.perMarketOverrides, marketId)?.forcePreorder,
       ),
     };
   }
@@ -525,10 +546,51 @@ export async function getStorefrontConfig(
     preorder = { ...preorder, active: false, soldOut: true };
   }
 
+  // ---- per-market stock (multi-location brands) ----
+  let marketStock: Record<string, VariantMarketStock> | null = null;
+  const marketSoldOut: string[] = [];
+  if (multi && managedBy.length && admin) {
+    const serving = await servingLocationsFor(admin, shop, marketId, rule);
+    marketStock = serving ? await getMarketVariantStock(admin, shop, pid, serving) : null;
+  }
+  if (marketStock) {
+    // Which variants Encore manages here: a campaign's variant rows for this
+    // product, or the whole product when it has none.
+    let allManaged = false;
+    const managed = new Set<string>();
+    for (const c of managedBy) {
+      let rows: { productId?: string; variantId?: string }[] = [];
+      try {
+        rows = JSON.parse(c.variantConfigs) as typeof rows;
+      } catch {
+        rows = [];
+      }
+      const mine = rows.filter((v) => v.variantId && (!v.productId || gidNum(v.productId) === pid));
+      if (!mine.length) allManaged = true;
+      else mine.forEach((v) => managed.add(gidNum(v.variantId)));
+    }
+    for (const [vid, st] of Object.entries(marketStock)) {
+      const entry = preorder?.variants[vid];
+      if (entry) {
+        entry.marketStock = st.stock;
+        entry.marketInStock = st.inStock;
+      }
+      const offered =
+        !!preorder &&
+        preorder.active &&
+        (preorder.variantScoped ? !!entry && !entry.soldOut : true);
+      if (isMarketBlocked({ managed: allManaged || managed.has(vid), inStockHere: st.inStock, offered })) {
+        marketSoldOut.push(vid);
+      }
+    }
+  }
+
   return {
     shop,
     locale,
     preorder,
+    marketStock,
+    marketSoldOut,
     // Every other shopper-facing text, translated where the merchant has a
     // translation for this language (English defaults otherwise).
     strings: Object.fromEntries(

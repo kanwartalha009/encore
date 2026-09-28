@@ -7,6 +7,8 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 
 import { authenticate } from "../shopify.server";
+import { pricingConfigured, needsPlan } from "../services/app-pricing.server";
+import { planSelectionUrl } from "../lib/admin-url.server";
 import {
   LocaleProvider,
   toSupportedLocale,
@@ -24,8 +26,30 @@ export const links: LinksFunction = () => [{ rel: "stylesheet", href: appStyles 
 const LOCALE_TTL_MS = 60 * 60 * 1000;
 const localeCache = new Map<string, { locale: Locale; at: number }>();
 
+// Just picked a plan (the welcome link carries `plan_handle`): don't send the
+// merchant back to the plan page for a few minutes even if the Partner API
+// hasn't caught up yet.
+const PLAN_GRACE_MS = 10 * 60 * 1000;
+const planGrace = new Map<string, number>();
+const PLAN_GATE_EXEMPT = ["/app/help"];
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { admin, session } = await authenticate.admin(request);
+  const { admin, session, redirect } = await authenticate.admin(request);
+
+  // Shopify App Pricing (2026-09-28): a store must pick a plan (plans carry the
+  // free trial) before using Encore. Off until the Partner API is configured;
+  // any error fails open (app-pricing.server).
+  if (pricingConfigured()) {
+    const url = new URL(request.url);
+    const justPicked = url.searchParams.has("plan_handle");
+    if (justPicked) planGrace.set(session.shop, Date.now() + PLAN_GRACE_MS);
+    const inGrace = (planGrace.get(session.shop) ?? 0) > Date.now();
+    const exempt = PLAN_GATE_EXEMPT.some((p) => url.pathname.startsWith(p));
+    const noPlan = await needsPlan(admin, session.shop, { force: justPicked });
+    if (noPlan && !inGrace && !exempt) {
+      throw redirect(planSelectionUrl(session.shop), { target: "_top" });
+    }
+  }
 
   // Store's primary locale → default admin language (manual choice still wins).
   let storeLocale: Locale = "en";

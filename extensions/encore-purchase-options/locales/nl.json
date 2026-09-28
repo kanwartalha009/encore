@@ -1,0 +1,86 @@
+{
+  "loading": "Voorverkoop laden",
+  "retry": "Opnieuw proberen",
+  "done": "Klaar",
+  "cancel": "Annuleren",
+  "saveChanges": "Wijzigingen opslaan",
+  "openInEncore": "Openen in Encore",
+  "heading": {
+    "add": "Toevoegen aan een voorverkoop",
+    "manage": "Voorverkoop beheren"
+  },
+  "add": {
+    "intro": "Laat klanten {{product}} vooraf bestellen.",
+    "modeExisting": "Toevoegen aan een bestaande voorverkoop",
+    "modeNew": "Nieuwe voorverkoop maken",
+    "saveExisting": "Toevoegen aan voorverkoop",
+    "saveNew": "Voorverkoop maken",
+    "defaultName": "Voorverkoop {{product}}"
+  },
+  "fields": {
+    "mode": "Voorverkoop",
+    "preorder": "Kies een voorverkoop",
+    "name": "Naam van de voorverkoop",
+    "when": "Wanneer kunnen klanten vooraf bestellen?",
+    "startDate": "Startdatum",
+    "payment": "Betaling",
+    "depositPct": "Aanbetaling",
+    "shipDate": "Verwachte verzenddatum",
+    "shipDateHelp": "Optioneel. Wordt aan klanten getoond zodat ze weten wanneer hun bestelling komt."
+  },
+  "when": {
+    "now": "Nu vooraf bestellen",
+    "oos": "Als het uitverkocht is",
+    "date": "Vanaf een datum"
+  },
+  "payment": {
+    "payNow": "Nu volledig betalen",
+    "deposit": "Nu aanbetalen, de rest later",
+    "payLater": "Later betalen",
+    "deferredHint": "Aanbetalingen en later betalen vereisen een betaalprovider die later kan afschrijven, zoals Shopify Payments. Anders betalen klanten het volledige bedrag.",
+    "fixedDepositNote": "Deze voorverkoop gebruikt een vaste aanbetaling. Wijzig deze in Encore."
+  },
+  "manage": {
+    "alreadyOnPreorder": "{{product}} maakt al deel uit van deze voorverkoop.",
+    "productsCount": {
+      "one": "{{count}} product in deze voorverkoop",
+      "other": "{{count}} producten in deze voorverkoop"
+    },
+    "pause": "Voorverkoop pauzeren",
+    "resume": "Voorverkoop hervatten",
+    "removeProduct": "Product uit voorverkoop verwijderen",
+    "removeVariant": "Variant uit voorverkoop verwijderen",
+    "removeConfirm": "Klik nogmaals om te verwijderen"
+  },
+  "status": {
+    "live": "Actief",
+    "scheduled": "Gepland",
+    "paused": "Gepauzeerd",
+    "draft": "Concept",
+    "ended": "Beëindigd"
+  },
+  "notice": {
+    "draft": "Toegevoegd aan een conceptvoorverkoop. Publiceer deze in Encore om voorbestellingen aan te nemen.",
+    "syncFailed": "Opgeslagen, maar Shopify heeft de aankoopoptie nog niet geaccepteerd. Open de voorverkoop in Encore en sla opnieuw op."
+  },
+  "errors": {
+    "generic": "Er is iets misgegaan. Probeer het opnieuw.",
+    "network": "Kan Encore niet bereiken. Controleer je verbinding en probeer het opnieuw.",
+    "planNotFound": "We konden de Encore-voorverkoop voor deze aankoopoptie niet vinden. Je kunt het product hieronder aan een voorverkoop toevoegen.",
+    "invalid_target": "Dit product kon niet worden geladen. Vernieuw de pagina en probeer het opnieuw.",
+    "target_not_found": "Dit product of deze variant bestaat niet meer.",
+    "campaign_not_found": "Deze voorverkoop bestaat niet meer.",
+    "campaign_not_editable": "Deze voorverkoop kan hier niet worden gewijzigd. Open deze in Encore.",
+    "invalid_campaign": "Kies een voorverkoop.",
+    "name_required": "Voer een naam in voor de voorverkoop.",
+    "name_too_long": "De naam is te lang (max. 120 tekens).",
+    "start_date_required": "Kies een startdatum.",
+    "invalid_date": "Voer een geldige datum in.",
+    "ship_date_past": "De verzenddatum kan niet in het verleden liggen.",
+    "deposit_pct_range": "De aanbetaling moet tussen 1% en 99% liggen.",
+    "nothing_to_update": "Niets om op te slaan.",
+    "invalid_status": "De status van deze voorverkoop is gewijzigd. Sluit en open opnieuw om te vernieuwen.",
+    "catalog_missing": "Sommige producten van deze voorverkoop konden niet worden geladen. Bewerk deze in Encore.",
+    "plan_required": "Kies eerst een Encore-abonnement (open Encore → Abonnementen) om pre-orders te maken of te wijzigen."
+  }
+}

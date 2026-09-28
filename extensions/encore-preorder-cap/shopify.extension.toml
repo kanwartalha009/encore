@@ -2,7 +2,10 @@
 # Hard no-oversell guard: blocks checkout when a preorder line's quantity exceeds
 # the variant's `encore.preorder_remaining` metafield (maintained by the app —
 # see app/models/preorder-cap.server.ts). Complements the offer-level hide in
-# capacity.server.ts. Built to Wasm by the Shopify CLI on deploy (javy).
+# capacity.server.ts. Also (2026-09-28) blocks a variant in a market listed in its
+# `encore.market_blocked` metafield — no stock at that market's locations and no
+# preorder offered there (app/models/market-stock.server.ts).
+# Built to Wasm by the Shopify CLI on deploy (javy).
 api_version = "2026-07"
 
 [[extensions]]
@@ -10,7 +13,7 @@ name = "Encore preorder cap"
 handle = "encore-preorder-cap"
 uid = "a80f1552-1f81-04dc-b3d8-26b6fe653572b845798f"
 type = "function"
-description = "Blocks checkout when a preorder line exceeds its remaining cap."
+description = "Blocks checkout when a preorder line exceeds its remaining cap, or an item is sold out in the buyer's market."
 
   [[extensions.targeting]]
   target = "cart.validations.generate.run"

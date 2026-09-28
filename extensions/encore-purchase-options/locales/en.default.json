@@ -1,0 +1,86 @@
+{
+  "loading": "Loading preorder details",
+  "retry": "Try again",
+  "done": "Done",
+  "cancel": "Cancel",
+  "saveChanges": "Save changes",
+  "openInEncore": "Open in Encore",
+  "heading": {
+    "add": "Add to a preorder",
+    "manage": "Manage preorder"
+  },
+  "add": {
+    "intro": "Let customers preorder {{product}}.",
+    "modeExisting": "Add to an existing preorder",
+    "modeNew": "Create a new preorder",
+    "saveExisting": "Add to preorder",
+    "saveNew": "Create preorder",
+    "defaultName": "{{product}} preorder"
+  },
+  "fields": {
+    "mode": "Preorder",
+    "preorder": "Choose a preorder",
+    "name": "Preorder name",
+    "when": "When can customers preorder?",
+    "startDate": "Start date",
+    "payment": "Payment",
+    "depositPct": "Deposit",
+    "shipDate": "Expected ship date",
+    "shipDateHelp": "Optional. Shown to customers so they know when to expect their order."
+  },
+  "when": {
+    "now": "Preorder now",
+    "oos": "When it sells out",
+    "date": "On a date"
+  },
+  "payment": {
+    "payNow": "Pay in full now",
+    "deposit": "Pay a deposit now, the rest later",
+    "payLater": "Pay later",
+    "deferredHint": "Deposits and pay later need a payment provider that can charge later, such as Shopify Payments. If yours can't, customers pay in full.",
+    "fixedDepositNote": "This preorder uses a fixed deposit amount. Change it in Encore."
+  },
+  "manage": {
+    "alreadyOnPreorder": "{{product}} is already on this preorder.",
+    "productsCount": {
+      "one": "{{count}} product on this preorder",
+      "other": "{{count}} products on this preorder"
+    },
+    "pause": "Pause preorder",
+    "resume": "Resume preorder",
+    "removeProduct": "Remove product from preorder",
+    "removeVariant": "Remove variant from preorder",
+    "removeConfirm": "Click again to remove"
+  },
+  "status": {
+    "live": "Live",
+    "scheduled": "Scheduled",
+    "paused": "Paused",
+    "draft": "Draft",
+    "ended": "Ended"
+  },
+  "notice": {
+    "draft": "Added to a draft preorder. Publish it in Encore to start taking preorders.",
+    "syncFailed": "Saved, but Shopify didn't accept the purchase option yet. Open the preorder in Encore and save it again."
+  },
+  "errors": {
+    "generic": "Something went wrong. Please try again.",
+    "network": "Couldn't reach Encore. Check your connection and try again.",
+    "planNotFound": "We couldn't find the Encore preorder for this purchase option. You can add the product to a preorder below.",
+    "invalid_target": "This product couldn't be loaded. Reload the page and try again.",
+    "target_not_found": "This product or variant no longer exists.",
+    "campaign_not_found": "This preorder no longer exists.",
+    "campaign_not_editable": "This preorder can't be changed here. Open it in Encore.",
+    "invalid_campaign": "Choose a preorder.",
+    "name_required": "Enter a name for the preorder.",
+    "name_too_long": "The name is too long (120 characters max).",
+    "start_date_required": "Choose a start date.",
+    "invalid_date": "Enter a valid date.",
+    "ship_date_past": "The ship date can't be in the past.",
+    "deposit_pct_range": "The deposit must be between 1% and 99%.",
+    "nothing_to_update": "Nothing to save.",
+    "invalid_status": "This preorder's status has changed. Close and reopen to refresh.",
+    "catalog_missing": "Some products on this preorder couldn't be loaded. Edit it in Encore instead.",
+    "plan_required": "Pick an Encore plan first (open Encore → Plans) to create or change preorders."
+  }
+}

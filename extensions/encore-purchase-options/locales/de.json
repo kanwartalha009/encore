@@ -1,0 +1,86 @@
+{
+  "loading": "Vorbestellung wird geladen",
+  "retry": "Erneut versuchen",
+  "done": "Fertig",
+  "cancel": "Abbrechen",
+  "saveChanges": "Änderungen speichern",
+  "openInEncore": "In Encore öffnen",
+  "heading": {
+    "add": "Zu einer Vorbestellung hinzufügen",
+    "manage": "Vorbestellung verwalten"
+  },
+  "add": {
+    "intro": "Lass Kunden {{product}} vorbestellen.",
+    "modeExisting": "Zu einer bestehenden Vorbestellung hinzufügen",
+    "modeNew": "Neue Vorbestellung erstellen",
+    "saveExisting": "Zur Vorbestellung hinzufügen",
+    "saveNew": "Vorbestellung erstellen",
+    "defaultName": "Vorbestellung {{product}}"
+  },
+  "fields": {
+    "mode": "Vorbestellung",
+    "preorder": "Vorbestellung auswählen",
+    "name": "Name der Vorbestellung",
+    "when": "Wann können Kunden vorbestellen?",
+    "startDate": "Startdatum",
+    "payment": "Zahlung",
+    "depositPct": "Anzahlung",
+    "shipDate": "Voraussichtliches Versanddatum",
+    "shipDateHelp": "Optional. Wird Kunden angezeigt, damit sie wissen, wann ihre Bestellung kommt."
+  },
+  "when": {
+    "now": "Ab sofort vorbestellen",
+    "oos": "Wenn ausverkauft",
+    "date": "Ab einem Datum"
+  },
+  "payment": {
+    "payNow": "Jetzt vollständig bezahlen",
+    "deposit": "Jetzt anzahlen, Rest später",
+    "payLater": "Später bezahlen",
+    "deferredHint": "Anzahlungen und spätere Zahlung erfordern einen Zahlungsanbieter, der später abbuchen kann, z. B. Shopify Payments. Andernfalls zahlen Kunden den vollen Betrag.",
+    "fixedDepositNote": "Diese Vorbestellung nutzt eine feste Anzahlung. Ändere sie in Encore."
+  },
+  "manage": {
+    "alreadyOnPreorder": "{{product}} ist bereits Teil dieser Vorbestellung.",
+    "productsCount": {
+      "one": "{{count}} Produkt in dieser Vorbestellung",
+      "other": "{{count}} Produkte in dieser Vorbestellung"
+    },
+    "pause": "Vorbestellung pausieren",
+    "resume": "Vorbestellung fortsetzen",
+    "removeProduct": "Produkt aus der Vorbestellung entfernen",
+    "removeVariant": "Variante aus der Vorbestellung entfernen",
+    "removeConfirm": "Zum Entfernen erneut klicken"
+  },
+  "status": {
+    "live": "Aktiv",
+    "scheduled": "Geplant",
+    "paused": "Pausiert",
+    "draft": "Entwurf",
+    "ended": "Beendet"
+  },
+  "notice": {
+    "draft": "Zu einer Entwurfs-Vorbestellung hinzugefügt. Veröffentliche sie in Encore, um Vorbestellungen anzunehmen.",
+    "syncFailed": "Gespeichert, aber Shopify hat die Kaufoption noch nicht übernommen. Öffne die Vorbestellung in Encore und speichere sie erneut."
+  },
+  "errors": {
+    "generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
+    "network": "Encore ist nicht erreichbar. Prüfe deine Verbindung und versuche es erneut.",
+    "planNotFound": "Wir konnten die Encore-Vorbestellung zu dieser Kaufoption nicht finden. Du kannst das Produkt unten zu einer Vorbestellung hinzufügen.",
+    "invalid_target": "Dieses Produkt konnte nicht geladen werden. Lade die Seite neu und versuche es erneut.",
+    "target_not_found": "Dieses Produkt bzw. diese Variante existiert nicht mehr.",
+    "campaign_not_found": "Diese Vorbestellung existiert nicht mehr.",
+    "campaign_not_editable": "Diese Vorbestellung kann hier nicht geändert werden. Öffne sie in Encore.",
+    "invalid_campaign": "Wähle eine Vorbestellung aus.",
+    "name_required": "Gib einen Namen für die Vorbestellung ein.",
+    "name_too_long": "Der Name ist zu lang (max. 120 Zeichen).",
+    "start_date_required": "Wähle ein Startdatum.",
+    "invalid_date": "Gib ein gültiges Datum ein.",
+    "ship_date_past": "Das Versanddatum darf nicht in der Vergangenheit liegen.",
+    "deposit_pct_range": "Die Anzahlung muss zwischen 1 % und 99 % liegen.",
+    "nothing_to_update": "Nichts zu speichern.",
+    "invalid_status": "Der Status dieser Vorbestellung hat sich geändert. Schließe und öffne sie erneut.",
+    "catalog_missing": "Einige Produkte dieser Vorbestellung konnten nicht geladen werden. Bearbeite sie stattdessen in Encore.",
+    "plan_required": "Wähle zuerst einen Encore-Tarif (Encore → Tarife öffnen), um Vorbestellungen zu erstellen oder zu ändern."
+  }
+}

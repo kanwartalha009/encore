@@ -32,7 +32,13 @@ localhost fallback) — `app/routes/app.plans.tsx`, `app/services/klaviyo-oauth.
   (`/health` → `config.emailSending`).
 - `ENCORE_LEGAL_NAME`, `ENCORE_SUPPORT_EMAIL` — company + contact shown on `/privacy` and `/terms`
   (`/health` → `config.legalContact`).
-- `DATABASE_URL` (Postgres)
+- `DATABASE_URL` — Railway Postgres in the same project: `${{Postgres.DATABASE_URL}}` (private network). Since
+  2026-09-28 the schema provider is `postgresql`; the app will not boot on a SQLite URL.
+- `SQLITE_IMPORT_URL` — first boot after the switch only: the OLD SQLite `DATABASE_URL` (e.g. `file:/data/prod.sqlite`,
+  volume still attached). `npm run setup` copies it once (`scripts/sqlite-import.mjs`, logs `[sqlite-import] done`);
+  a marker table prevents a second import. Remove the variable afterwards.
+- `SHOPIFY_PARTNER_ORG_ID`, `SHOPIFY_PARTNER_API_TOKEN` — Shopify App Pricing: Partner Dashboard → Settings →
+  Partner API clients → client with "Manage apps". Until both are set the "must pick a plan" gate is off.
 - `NOVA_API`, `NOVA_INSTALL_CONFIRM_SECRET`, `NOVA_INGRESS_HMAC_SECRET` — HMAC secrets must **match the Nova platform deployment**.
 - Klaviyo OAuth client id/secret (if Klaviyo notifications used).
 

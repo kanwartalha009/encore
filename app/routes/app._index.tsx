@@ -7,6 +7,10 @@ import { getDashboard } from "../models/dashboard.server";
 import { getShopCurrency } from "../models/shop.server";
 import { getProductThumbs } from "../models/product-thumbs.server";
 import { getEmbedStatus, embedActivationUrl } from "../models/theme-embed.server";
+import prisma from "../db.server";
+import { getNotificationSettings } from "../services/notifications.server";
+import { getSettings } from "../models/settings.server";
+import { setupSteps, type SetupStep } from "../lib/setup-guide";
 import {
   CartIcon,
   CashDollarIcon,
@@ -96,6 +100,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     getEmbedStatus(admin),
   ]);
   const data = await getDashboard(session.shop, currency);
+  // Setup guide facts (real store state).
+  const [preorderCount, orderCount, notif, settings] = await Promise.all([
+    prisma.campaign.count({ where: { shop: session.shop } }),
+    prisma.preOrder.count({ where: { shop: session.shop } }),
+    getNotificationSettings(session.shop),
+    getSettings(session.shop),
+  ]);
   // Product thumbnails for the preorder rows (best-effort; icon tile fallback).
   const thumbs = await getProductThumbs(
     admin,
@@ -106,6 +117,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     campaigns: data.campaigns.map((c) => ({ ...c, thumb: c.productId ? thumbs[c.productId] ?? null : null })),
     embed: embed.checked ? { checked: true as const, enabled: embed.enabled, themeName: embed.themeName } : { checked: false as const },
     embedUrl: embedActivationUrl(session.shop),
+    setup: {
+      preorders: preorderCount,
+      orders: orderCount,
+      provider: notif.provider,
+      backInStockSaved: Object.keys(settings.backInStock ?? {}).length > 0,
+    },
   };
 };
 
@@ -364,6 +381,69 @@ function PreordersCard({ campaigns }: { campaigns: CampaignRow[] }) {
   );
 }
 
+/**
+ * Setup guide (2026-09-28): what's left to go live, each step checked against
+ * real store state with a one-click way to do it. Replaces the old welcome
+ * banner (its text is the intro, its Get help button is kept). Hides itself
+ * when every step is done; can be hidden earlier (per browser).
+ */
+function SetupGuide({ steps, embedUrl, onHide }: { steps: SetupStep[]; embedUrl: string; onHide: () => void }) {
+  const { t } = useLocale();
+  const navigate = useNavigate();
+  const done = steps.filter((s) => s.done).length;
+  const next = steps.find((s) => !s.done)?.id;
+  return (
+    <s-section>
+      <CardHeader
+        icon={CheckIcon}
+        tone="violet"
+        title={t("Get set up")}
+        sub={t("{done} of {total} done").replace("{done}", String(done)).replace("{total}", String(steps.length))}
+        action={
+          <s-stack direction="inline" gap="small-200">
+            <s-button variant="tertiary" onClick={() => navigate("/app/help")}>
+              {t("Get help")}
+            </s-button>
+            <s-button variant="tertiary" onClick={onHide}>
+              {t("Hide guide")}
+            </s-button>
+          </s-stack>
+        }
+      />
+      <div className="encore-card-body encore-setup">
+        <s-paragraph color="subdued">
+          {t("Preorders are set up at the variant level. Pick variants, set units, set a ship date — that's it. Customers pay full at checkout by default; toggle deposit or pay-later inside any preorder.")}
+        </s-paragraph>
+        <s-progress value={Math.round((done / steps.length) * 100)} max={100} accessibilityLabel={t("Setup progress")} />
+        <div className="encore-list">
+          {steps.map((s) => (
+            <div key={s.id} className="encore-list-row">
+              <span className={`encore-status-dot${s.done ? "" : " encore-status-dot--idle"}`} aria-hidden="true" />
+              <span className="encore-list-row__main">
+                <span className="encore-list-row__title">
+                  {s.done ? <s>{t(s.title)}</s> : t(s.title)}
+                </span>
+                {!s.done && <span className="encore-list-row__sub">{t(s.sub)}</span>}
+              </span>
+              {s.done ? (
+                <s-badge tone="success">{t("Done")}</s-badge>
+              ) : s.to === "embed" ? (
+                <s-button variant={s.id === next ? "primary" : "secondary"} href={embedUrl} target="_blank">
+                  {t(s.cta)}
+                </s-button>
+              ) : (
+                <s-button variant={s.id === next ? "primary" : "secondary"} onClick={() => navigate(s.to)}>
+                  {t(s.cta)}
+                </s-button>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </s-section>
+  );
+}
+
 // ---------- Page ----------
 export default function DashboardIndex() {
   const navigate = useNavigate();
@@ -377,6 +457,8 @@ export default function DashboardIndex() {
       setWelcomeDismissed(false);
     }
   }, []);
+  const steps = setupSteps({ embed: data.embed, ...data.setup });
+  const setupComplete = steps.every((s) => s.done);
   const METRICS: Metric[] = data.kpis.map((k, i) => ({
     label: t(k.label),
     value: k.value,
@@ -428,25 +510,16 @@ export default function DashboardIndex() {
       </s-button>
 
       <div className="encore-stack">
-        {/* Onboarding banner — dismissible, persisted per browser (R0.3). */}
-        {!welcomeDismissed && (
-          <s-banner
-            heading={t("Welcome to Encore")}
-            tone="info"
-            dismissible
-            onDismiss={() => {
+        {/* Setup guide — replaces the R0.3 welcome banner; hidden per browser. */}
+        {!welcomeDismissed && !setupComplete && (
+          <SetupGuide
+            steps={steps}
+            embedUrl={data.embedUrl}
+            onHide={() => {
               setWelcomeDismissed(true);
               try { localStorage.setItem("encore_welcome_dismissed", "1"); } catch { /* private mode */ }
             }}
-          >
-            {t("Preorders are set up at the variant level. Pick variants, set units, set a ship date — that's it. Customers pay full at checkout by default; toggle deposit or pay-later inside any preorder.")}
-            <s-button slot="secondary-actions" onClick={() => navigate("/app/onboarding")}>
-              {t("Set up your first preorder")}
-            </s-button>
-            <s-button slot="secondary-actions" variant="tertiary" onClick={() => navigate("/app/help")}>
-              {t("Get help")}
-            </s-button>
-          </s-banner>
+          />
         )}
 
         {/* Nothing shows on the storefront until the app embed is on. */}

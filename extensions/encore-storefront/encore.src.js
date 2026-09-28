@@ -225,6 +225,120 @@
     return root.getAttribute("data-in-stock") === "true";
   }
 
+  // ---------- Per-market stock (multi-location brands) ----------
+  // Multi-market shops get each variant's stock at the locations that serve
+  // the shopper's market (cfg.marketStock). When known it replaces the
+  // variant's global availability: in stock here → normal checkout; out of
+  // stock here → Preorder when offered in this market, else Sold out
+  // (cfg.marketSoldOut). null = unknown → keep the global behaviour.
+  function marketInStockFor(cfg, vid) {
+    var ms = cfg && cfg.marketStock;
+    var row = ms && ms[String(vid)];
+    if (row && typeof row.inStock === "boolean") return row.inStock;
+    var pv = cfg && cfg.preorder && cfg.preorder.variants && cfg.preorder.variants[String(vid)];
+    if (pv && typeof pv.marketInStock === "boolean") return pv.marketInStock;
+    return null;
+  }
+
+  function marketSoldOutFor(cfg, vid) {
+    var list = (cfg && cfg.marketSoldOut) || [];
+    return list.indexOf(String(vid)) !== -1;
+  }
+
+  // Market sold out = the theme's own sold-out state: its add-to-cart button
+  // disabled and relabelled, dynamic checkout hidden. Restored on the next
+  // variant that is buyable here.
+  var THEME_ADD_SELECTORS = ['[name="add"]', ".product-form__submit", 'button[type="submit"]', 'input[type="submit"]'];
+
+  function themeAddButtons(form, root) {
+    var out = [];
+    if (!form) return out;
+    for (var i = 0; i < THEME_ADD_SELECTORS.length; i++) {
+      var nodes = form.querySelectorAll(THEME_ADD_SELECTORS[i]);
+      for (var j = 0; j < nodes.length; j++) {
+        if (root.contains(nodes[j]) || out.indexOf(nodes[j]) !== -1) continue;
+        out.push(nodes[j]);
+      }
+    }
+    return out;
+  }
+
+  // The element holding the button's visible label (Dawn wraps it in a span
+  // next to a spinner; vintage themes put plain text in the button).
+  function labelHost(btn) {
+    if (btn.tagName === "INPUT") return null;
+    var spans = btn.querySelectorAll("span");
+    for (var i = 0; i < spans.length; i++) {
+      if (!spans[i].children.length && (spans[i].textContent || "").replace(/\s+/g, "")) return spans[i];
+    }
+    return btn.children.length ? null : btn;
+  }
+
+  function setThemeSoldOut(form, root, label) {
+    var btns = themeAddButtons(form, root);
+    for (var i = 0; i < btns.length; i++) {
+      var b = btns[i];
+      var host = labelHost(b);
+      if (!b.__encoreMso) {
+        b.__encoreMso = {
+          disabled: !!b.disabled,
+          text: b.tagName === "INPUT" ? b.value : host ? host.textContent : null,
+        };
+      }
+      b.disabled = true;
+      b.setAttribute("aria-disabled", "true");
+      b.setAttribute("data-encore-market-soldout", "1");
+      if (b.tagName === "INPUT") b.value = label;
+      else if (host && host.textContent !== label) host.textContent = label;
+    }
+    var pay = form ? form.querySelectorAll(".shopify-payment-button") : [];
+    for (var k = 0; k < pay.length; k++) {
+      if (root.contains(pay[k])) continue;
+      if (pay[k].__encoreMsoDisplay == null) pay[k].__encoreMsoDisplay = pay[k].style.display || "";
+      pay[k].style.display = "none";
+    }
+  }
+
+  // availableHere: the variant now selected is buyable (global availability
+  // from the embed's variants JSON; null = unknown).
+  function clearThemeSoldOut(form, root, label, availableHere) {
+    var btns = themeAddButtons(form, root);
+    for (var i = 0; i < btns.length; i++) {
+      var b = btns[i];
+      var saved = b.__encoreMso;
+      if (!saved) continue;
+      b.__encoreMso = null;
+      b.removeAttribute("data-encore-market-soldout");
+      // The theme itself shows this variant as sold out → leave it that way.
+      if (availableHere === false) continue;
+      b.disabled = saved.disabled;
+      if (!saved.disabled) b.removeAttribute("aria-disabled");
+      var host = labelHost(b);
+      // Only undo our own label — the theme may already have written its own.
+      if (b.tagName === "INPUT") {
+        if (b.value === label && saved.text != null) b.value = saved.text;
+      } else if (host && host.textContent === label && saved.text != null) {
+        host.textContent = saved.text;
+      }
+    }
+    var pay = form ? form.querySelectorAll(".shopify-payment-button") : [];
+    for (var k = 0; k < pay.length; k++) {
+      if (pay[k].__encoreMsoDisplay != null) {
+        pay[k].style.display = pay[k].__encoreMsoDisplay;
+        pay[k].__encoreMsoDisplay = null;
+      }
+    }
+  }
+
+  function variantAvailable(productId, vid) {
+    var list = readJSON('[data-encore-variants="' + productId + '"]');
+    if (!list || !list.length) return null;
+    for (var i = 0; i < list.length; i++) {
+      if (String(list[i].id) === String(vid)) return !!list[i].available;
+    }
+    return null;
+  }
+
   // ---------- Universal auto-mount (works on ANY theme, vintage included) ----
   // The app embed renders hidden fallback shells for the Preorder button,
   // Notify-me and Low-stock UI on every product page. If the merchant added
@@ -400,8 +514,11 @@
       var skel = root.querySelector("[data-encore-pre-skeleton]");
       if (skel && skel.parentNode) skel.parentNode.removeChild(skel);
 
-      if (!cfg || !cfg.preorder) return;
-      var p = cfg.preorder;
+      if (!cfg) return;
+      // No preorder here, but a variant may still be sold out in this market
+      // (no local stock, preorder not offered to this market) → keep going.
+      if (!cfg.preorder && !(cfg.marketSoldOut && cfg.marketSoldOut.length)) return;
+      var p = cfg.preorder || { active: false, soldOut: false, variants: {} };
       var form = closestForm(root);
 
       // Auto-mounted shells carry no per-block placement choice — follow the
@@ -442,6 +559,22 @@
         }
         if (p.sellingPlanId) setSellingPlan(form, p.sellingPlanId);
         if (market) setProp(form, "_preorder_market", market);
+      }
+
+      var soldOutLabel = str(cfg, "sold_out", "Sold out");
+
+      function leaveMarketSoldOut(vid) {
+        clearThemeSoldOut(form, root, soldOutLabel, variantAvailable(productId, vid));
+      }
+
+      // Case 3: sold out in this market — the theme's own button shows it.
+      function showMarketSoldOut() {
+        clearEncoreFields(form);
+        showThemeBuyButtons(form, root);
+        setThemeSoldOut(form, root, soldOutLabel);
+        if (badge) badge.hidden = true;
+        if (mixedEl) mixedEl.hidden = true;
+        ui.hidden = true;
       }
 
       function showPreorder() {
@@ -495,18 +628,53 @@
       // properties must follow the picker, not the product.
       function apply() {
         var vid = currentVariantId(form, root.getAttribute("data-variant-id"));
-        var offer = variantOffer(p, vid);
-        var stocked = variantInStock(root, productId, vid);
+        var offer = variantOffer(cfg.preorder, vid);
+        // Stock at this market's own locations when the config knows it,
+        // otherwise the variant's global stock (single-market shops).
+        var here = marketInStockFor(cfg, vid);
+        var stocked = here != null ? here : variantInStock(root, productId, vid);
         var next;
         if (offer === "none") next = "none";
         else if (offer === "soldout") next = stocked ? "none" : "soldout";
         else if (stocked && p.trigger !== "always" && !p.forcePreorder) next = "none";
         else next = "preorder";
-        if (next === current) return;
+        if (next === "none" && !stocked && marketSoldOutFor(cfg, vid)) next = "marketsoldout";
+        // Market sold out is re-asserted on every variant change: the theme
+        // re-enables its own button when the picker moves.
+        if (next === current && next !== "marketsoldout") return;
+        if (current === "marketsoldout" && next !== "marketsoldout") leaveMarketSoldOut(vid);
         current = next;
         if (next === "preorder") showPreorder();
         else if (next === "soldout") showSoldOut();
+        else if (next === "marketsoldout") showMarketSoldOut();
         else showNothing();
+      }
+
+      // Themes re-render / re-enable their button asynchronously (section
+      // swaps, their own variant JS). While sold out here, keep it disabled and
+      // refuse the submit even if something re-enabled it.
+      if (cfg.marketSoldOut && cfg.marketSoldOut.length) {
+        window.setInterval(function () {
+          if (current !== "marketsoldout") return;
+          var bs = themeAddButtons(form, root);
+          for (var i = 0; i < bs.length; i++) {
+            if (!bs[i].disabled || !bs[i].__encoreMso) {
+              setThemeSoldOut(form, root, soldOutLabel);
+              break;
+            }
+          }
+        }, 500);
+        var guard = function (e) {
+          if (current !== "marketsoldout" || !form) return;
+          var t = e.target;
+          var hit = e.type === "submit" ? t === form : form.contains(t) && !root.contains(t) && t.closest &&
+            t.closest(THEME_ADD_SELECTORS.join(","));
+          if (!hit) return;
+          e.preventDefault();
+          e.stopImmediatePropagation();
+        };
+        document.addEventListener("submit", guard, true);
+        document.addEventListener("click", guard, true);
       }
 
       // Add to cart directly (R1.5 E2E fix). Themes attach their own submit
@@ -610,6 +778,9 @@
       var p = cfg.preorder;
       if (!p.endDate) return;
       var inStock = root.getAttribute("data-in-stock") === "true";
+      // Multi-market: stock at the shopper's market locations wins.
+      var here = marketInStockFor(cfg, currentVariantId(closestForm(root), root.getAttribute("data-variant-id")));
+      if (here != null) inStock = here;
       if (inStock && p.trigger !== "always" && !p.forcePreorder) return;
 
       var end = Date.parse(p.endDate);
@@ -840,6 +1011,9 @@
           return;
         }
         var qty = rec.qty;
+        // Multi-market: count only the stock at this market's locations.
+        var ms = cfg && cfg.marketStock && cfg.marketStock[String(vid)];
+        if (ms && typeof ms.stock === "number") qty = ms.stock;
         if (qty == null || qty <= 0 || qty > threshold) {
           ui.hidden = true;
           return;

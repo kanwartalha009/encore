@@ -633,3 +633,8 @@
 .encore-curve-row { display: grid; grid-template-columns: 56px minmax(0, 1fr) 40px; align-items: center; gap: 12px; }
 .encore-curve-row > :last-child { text-align: end; }
 .encore-bar--lg { height: 12px; }
+
+/* Dashboard setup guide (2026-09-28) */
+.encore-setup > * + * { margin-top: 12px; }
+.encore-setup .encore-list-row__sub { white-space: normal; }
+.encore-setup .encore-list-row__title s { color: var(--s-color-text-secondary, #616161); }

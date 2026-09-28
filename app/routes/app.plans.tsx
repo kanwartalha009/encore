@@ -1,45 +1,42 @@
 /**
- * Plans & billing (/app/plans). Plans + pricing + limits come from Nova
- * (plans.server). Monthly / Annual toggle (annual = 20% off). Subscribe creates a
- * Shopify app subscription (billing.server) and redirects to Shopify's approval.
+ * Plans & billing (/app/plans). Since 2026-09-28 Encore uses Shopify App
+ * Pricing: prices, trials and plan changes live on Shopify's own plan page
+ * (every "Choose plan" / "Change plan" button opens it). This page shows the
+ * current plan (synced from the Partner API — app-pricing.server), this
+ * month's usage, and each plan's limits from the Nova catalog.
  */
-import { useEffect, useState } from "react";
-import type { HeadersFunction, LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
-import { useLoaderData, useFetcher, useRevalidator } from "react-router";
+import { useState } from "react";
+import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
+import { useLoaderData, useRevalidator } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppPage } from "../components/ui";
 import { flag } from "../components/wc";
 
 import { authenticate } from "../shopify.server";
 import { useLocale } from "../lib/i18n";
-import { getPlans } from "../services/plans.server";
+import { getPlans, getPlanOverride } from "../services/plans.server";
 import { getUsage } from "../services/usage.server";
-import { getBillingState, createSubscription } from "../services/billing.server";
-import { adminAppUrl } from "../lib/admin-url.server";
+import { getBillingState } from "../services/billing.server";
+import { syncPlan, pricingConfigured } from "../services/app-pricing.server";
+import { planSelectionUrl } from "../lib/admin-url.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const [plans, usage, billing] = await Promise.all([
+  const { admin, session } = await authenticate.admin(request);
+  // Fresh plan on this page (the merchant may just have changed it).
+  if (pricingConfigured()) await syncPlan(admin, session.shop, { force: true });
+  const [plans, usage, billing, override] = await Promise.all([
     getPlans(),
     getUsage(session.shop),
     getBillingState(session.shop),
+    getPlanOverride(session.shop),
   ]);
-  return { plans, usage, billing };
-};
-
-export const action = async ({ request }: ActionFunctionArgs) => {
-  const { admin, session } = await authenticate.admin(request);
-  const fd = await request.formData();
-  const planCode = String(fd.get("planCode") ?? "");
-  const interval = String(fd.get("interval") ?? "EVERY_30_DAYS") === "ANNUAL"
-    ? "ANNUAL"
-    : "EVERY_30_DAYS";
-  // Shopify sends the merchant here after approving the charge: land them back
-  // INSIDE the admin (a bare app URL has no shop/host and shows the login form).
-  const returnUrl = adminAppUrl(session.shop, "/app/plans?billing=active");
-
-  const r = await createSubscription(admin, session.shop, planCode, interval, returnUrl);
-  return r;
+  return {
+    plans,
+    usage,
+    billing,
+    comped: override.type === "FREE",
+    manageUrl: planSelectionUrl(session.shop),
+  };
 };
 
 export const headers: HeadersFunction = (h) => boundary.headers(h);
@@ -49,24 +46,12 @@ const money = (minor: number, currency: string) =>
 
 export default function PlansPage() {
   const { t } = useLocale();
-  const { plans, usage, billing } = useLoaderData<typeof loader>();
-  const fetcher = useFetcher<typeof action>();
+  const { plans, usage, billing, comped, manageUrl } = useLoaderData<typeof loader>();
   const revalidator = useRevalidator();
   const [interval, setInterval] = useState<"EVERY_30_DAYS" | "ANNUAL">("EVERY_30_DAYS");
-
-  // On subscribe, Shopify returns a top-level approval URL.
-  useEffect(() => {
-    const url = (fetcher.data as { confirmationUrl?: string } | undefined)?.confirmationUrl;
-    if (url) {
-      // Embedded apps cannot set window.top.location cross-origin; App Bridge
-      // patches window.open so "_top" performs the top-level redirect.
-      window.open(url, "_top");
-    }
-  }, [fetcher.data]);
-
-  const subscribing = fetcher.state !== "idle";
-  const err = (fetcher.data as { error?: string } | undefined)?.error;
-  const comped = (fetcher.data as { comped?: boolean } | undefined)?.comped;
+  // Shopify's plan page is outside the app iframe: App Bridge routes "_top".
+  const openPlans = () => window.open(manageUrl, "_top");
+  const onPlan = billing?.status === "ACTIVE" || billing?.status === "TRIAL";
 
   const limitText = (n: number | null) => (n == null ? t("Unlimited") : n.toLocaleString());
   const usageBar = (used: number, limit: number | null) =>
@@ -74,20 +59,24 @@ export default function PlansPage() {
 
   return (
     <AppPage heading={t("Plans & billing")} intro={t("Limits reset monthly. Save 20% on annual.")}>
-        {err && <s-banner tone="critical">{err}</s-banner>}
         {comped && <s-banner tone="success">{t("Your plan is comped — no charge.")}</s-banner>}
 
         <s-section>
           <s-stack direction="block" gap="base">
             <div className="encore-row-between">
               <s-heading>{t("This month's usage")}</s-heading>
-              {billing?.planCode ? (
-                <s-badge tone={billing.status === "ACTIVE" ? "success" : "caution"}>
-                  {`${billing.planCode.toUpperCase()} · ${billing.status ?? "—"}`}
-                </s-badge>
-              ) : (
-                <s-badge>{t("No plan")}</s-badge>
-              )}
+              <s-stack direction="inline" gap="small-200" alignItems="center">
+                {billing?.planCode && onPlan ? (
+                  <s-badge tone={billing.status === "TRIAL" ? "info" : "success"}>
+                    {`${billing.planCode.toUpperCase()} · ${billing.status === "TRIAL" ? t("Free trial") : t("Active")}`}
+                  </s-badge>
+                ) : (
+                  <s-badge>{t("No plan")}</s-badge>
+                )}
+                <s-button variant="secondary" onClick={openPlans}>
+                  {onPlan ? t("Change plan") : t("Choose plan")}
+                </s-button>
+              </s-stack>
             </div>
             <s-divider />
             <div className="encore-layout encore-layout--equal">
@@ -143,7 +132,7 @@ export default function PlansPage() {
             <div className="encore-grid encore-grid--3">
               {plans.map((p) => {
                 const minor = interval === "ANNUAL" ? p.amountAnnual : p.amountMonthly;
-                const current = billing?.planCode === p.code && billing?.status === "ACTIVE";
+                const current = billing?.planCode === p.code && onPlan;
                 return (
                   <s-section key={p.code}>
                     <s-stack direction="block" gap="base">
@@ -172,14 +161,8 @@ export default function PlansPage() {
                       </s-stack>
                       <s-button
                         variant={current ? "secondary" : "primary"}
-                        disabled={flag(current || subscribing)}
-                        loading={flag(subscribing)}
-                        onClick={() => {
-                          const data = new FormData();
-                          data.set("planCode", p.code);
-                          data.set("interval", interval);
-                          fetcher.submit(data, { method: "post" });
-                        }}
+                        disabled={flag(current)}
+                        onClick={openPlans}
                       >
                         {current ? t("Current plan") : t("Choose plan")}
                       </s-button>
@@ -192,7 +175,7 @@ export default function PlansPage() {
         )}
 
         <s-paragraph color="subdued" fontSize="small">
-          {t("Billed through Shopify. Cancel or change plans any time; usage resets monthly.")}
+          {t("Billed through Shopify. Choose, change or cancel your plan on Shopify's plan page any time; usage resets monthly.")}
         </s-paragraph>
     </AppPage>
   );

@@ -1,0 +1,86 @@
+{
+  "loading": "Chargement de la précommande",
+  "retry": "Réessayer",
+  "done": "Terminé",
+  "cancel": "Annuler",
+  "saveChanges": "Enregistrer",
+  "openInEncore": "Ouvrir dans Encore",
+  "heading": {
+    "add": "Ajouter à une précommande",
+    "manage": "Gérer la précommande"
+  },
+  "add": {
+    "intro": "Permettez à vos clients de précommander {{product}}.",
+    "modeExisting": "Ajouter à une précommande existante",
+    "modeNew": "Créer une nouvelle précommande",
+    "saveExisting": "Ajouter à la précommande",
+    "saveNew": "Créer la précommande",
+    "defaultName": "Précommande {{product}}"
+  },
+  "fields": {
+    "mode": "Précommande",
+    "preorder": "Choisissez une précommande",
+    "name": "Nom de la précommande",
+    "when": "Quand les clients peuvent-ils précommander ?",
+    "startDate": "Date de début",
+    "payment": "Paiement",
+    "depositPct": "Acompte",
+    "shipDate": "Date d'expédition prévue",
+    "shipDateHelp": "Facultatif. Affichée aux clients pour qu'ils sachent quand attendre leur commande."
+  },
+  "when": {
+    "now": "Précommande dès maintenant",
+    "oos": "En cas de rupture de stock",
+    "date": "À une date donnée"
+  },
+  "payment": {
+    "payNow": "Paiement intégral maintenant",
+    "deposit": "Acompte maintenant, le solde plus tard",
+    "payLater": "Payer plus tard",
+    "deferredHint": "Les acomptes et le paiement différé nécessitent un prestataire de paiement capable de débiter plus tard, comme Shopify Payments. Sinon, les clients paient la totalité.",
+    "fixedDepositNote": "Cette précommande utilise un acompte à montant fixe. Modifiez-le dans Encore."
+  },
+  "manage": {
+    "alreadyOnPreorder": "{{product}} fait déjà partie de cette précommande.",
+    "productsCount": {
+      "one": "{{count}} produit dans cette précommande",
+      "other": "{{count}} produits dans cette précommande"
+    },
+    "pause": "Suspendre la précommande",
+    "resume": "Reprendre la précommande",
+    "removeProduct": "Retirer le produit de la précommande",
+    "removeVariant": "Retirer la variante de la précommande",
+    "removeConfirm": "Cliquez à nouveau pour retirer"
+  },
+  "status": {
+    "live": "Active",
+    "scheduled": "Programmée",
+    "paused": "Suspendue",
+    "draft": "Brouillon",
+    "ended": "Terminée"
+  },
+  "notice": {
+    "draft": "Ajouté à une précommande en brouillon. Publiez-la dans Encore pour commencer à prendre des précommandes.",
+    "syncFailed": "Enregistré, mais Shopify n'a pas encore accepté l'option d'achat. Ouvrez la précommande dans Encore et enregistrez-la à nouveau."
+  },
+  "errors": {
+    "generic": "Une erreur s'est produite. Veuillez réessayer.",
+    "network": "Impossible de joindre Encore. Vérifiez votre connexion et réessayez.",
+    "planNotFound": "Nous n'avons pas trouvé la précommande Encore liée à cette option d'achat. Vous pouvez ajouter le produit à une précommande ci-dessous.",
+    "invalid_target": "Impossible de charger ce produit. Rechargez la page et réessayez.",
+    "target_not_found": "Ce produit ou cette variante n'existe plus.",
+    "campaign_not_found": "Cette précommande n'existe plus.",
+    "campaign_not_editable": "Cette précommande ne peut pas être modifiée ici. Ouvrez-la dans Encore.",
+    "invalid_campaign": "Choisissez une précommande.",
+    "name_required": "Saisissez un nom pour la précommande.",
+    "name_too_long": "Le nom est trop long (120 caractères maximum).",
+    "start_date_required": "Choisissez une date de début.",
+    "invalid_date": "Saisissez une date valide.",
+    "ship_date_past": "La date d'expédition ne peut pas être dans le passé.",
+    "deposit_pct_range": "L'acompte doit être compris entre 1 % et 99 %.",
+    "nothing_to_update": "Rien à enregistrer.",
+    "invalid_status": "Le statut de cette précommande a changé. Fermez et rouvrez pour actualiser.",
+    "catalog_missing": "Certains produits de cette précommande n'ont pas pu être chargés. Modifiez-la dans Encore.",
+    "plan_required": "Choisissez d'abord un forfait Encore (ouvrez Encore → Forfaits) pour créer ou modifier des précommandes."
+  }
+}

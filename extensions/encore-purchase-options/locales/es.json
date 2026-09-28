@@ -1,0 +1,86 @@
+{
+  "loading": "Cargando detalles de la preventa",
+  "retry": "Reintentar",
+  "done": "Listo",
+  "cancel": "Cancelar",
+  "saveChanges": "Guardar cambios",
+  "openInEncore": "Abrir en Encore",
+  "heading": {
+    "add": "Añadir a una preventa",
+    "manage": "Gestionar preventa"
+  },
+  "add": {
+    "intro": "Permite a los clientes reservar {{product}}.",
+    "modeExisting": "Añadir a una preventa existente",
+    "modeNew": "Crear una preventa nueva",
+    "saveExisting": "Añadir a la preventa",
+    "saveNew": "Crear preventa",
+    "defaultName": "Preventa de {{product}}"
+  },
+  "fields": {
+    "mode": "Preventa",
+    "preorder": "Elige una preventa",
+    "name": "Nombre de la preventa",
+    "when": "¿Cuándo pueden reservar los clientes?",
+    "startDate": "Fecha de inicio",
+    "payment": "Pago",
+    "depositPct": "Depósito",
+    "shipDate": "Fecha de envío prevista",
+    "shipDateHelp": "Opcional. Se muestra a los clientes para que sepan cuándo recibirán su pedido."
+  },
+  "when": {
+    "now": "Preventa ya",
+    "oos": "Cuando se agote",
+    "date": "En una fecha"
+  },
+  "payment": {
+    "payNow": "Pago completo ahora",
+    "deposit": "Depósito ahora, el resto después",
+    "payLater": "Pagar después",
+    "deferredHint": "Los depósitos y el pago posterior requieren un proveedor de pagos que pueda cobrar más tarde, como Shopify Payments. Si el tuyo no puede, los clientes pagan el total.",
+    "fixedDepositNote": "Esta preventa usa un depósito de importe fijo. Cámbialo en Encore."
+  },
+  "manage": {
+    "alreadyOnPreorder": "{{product}} ya está en esta preventa.",
+    "productsCount": {
+      "one": "{{count}} producto en esta preventa",
+      "other": "{{count}} productos en esta preventa"
+    },
+    "pause": "Pausar preventa",
+    "resume": "Reanudar preventa",
+    "removeProduct": "Quitar el producto de la preventa",
+    "removeVariant": "Quitar la variante de la preventa",
+    "removeConfirm": "Haz clic de nuevo para quitar"
+  },
+  "status": {
+    "live": "Activa",
+    "scheduled": "Programada",
+    "paused": "En pausa",
+    "draft": "Borrador",
+    "ended": "Finalizada"
+  },
+  "notice": {
+    "draft": "Añadido a una preventa en borrador. Publícala en Encore para empezar a recibir reservas.",
+    "syncFailed": "Guardado, pero Shopify aún no aceptó la opción de compra. Abre la preventa en Encore y guárdala de nuevo."
+  },
+  "errors": {
+    "generic": "Algo salió mal. Inténtalo de nuevo.",
+    "network": "No se pudo conectar con Encore. Revisa tu conexión e inténtalo de nuevo.",
+    "planNotFound": "No encontramos la preventa de Encore para esta opción de compra. Puedes añadir el producto a una preventa a continuación.",
+    "invalid_target": "No se pudo cargar este producto. Recarga la página e inténtalo de nuevo.",
+    "target_not_found": "Este producto o variante ya no existe.",
+    "campaign_not_found": "Esta preventa ya no existe.",
+    "campaign_not_editable": "Esta preventa no se puede cambiar aquí. Ábrela en Encore.",
+    "invalid_campaign": "Elige una preventa.",
+    "name_required": "Escribe un nombre para la preventa.",
+    "name_too_long": "El nombre es demasiado largo (máximo 120 caracteres).",
+    "start_date_required": "Elige una fecha de inicio.",
+    "invalid_date": "Introduce una fecha válida.",
+    "ship_date_past": "La fecha de envío no puede estar en el pasado.",
+    "deposit_pct_range": "El depósito debe estar entre el 1 % y el 99 %.",
+    "nothing_to_update": "No hay nada que guardar.",
+    "invalid_status": "El estado de esta preventa ha cambiado. Cierra y vuelve a abrir para actualizar.",
+    "catalog_missing": "No se pudieron cargar algunos productos de esta preventa. Edítala en Encore.",
+    "plan_required": "Primero elige un plan de Encore (abre Encore → Planes) para crear o cambiar prepedidos."
+  }
+}

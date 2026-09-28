@@ -53,6 +53,7 @@ export async function getPlans(): Promise<Plan[]> {
     try {
       const res = await fetch(`${NOVA_API}/v1/apps/${APP_SLUG}/plans`, {
         headers: { accept: "application/json" },
+        signal: AbortSignal.timeout(3000),
       });
       if (res.ok) {
         const body = (await res.json()) as { plans?: Partial<Plan>[] };
@@ -79,12 +80,29 @@ export async function getPlan(code: string): Promise<Plan | null> {
 // Per-store comp/discount from Nova (Installation.planOverride). Best-effort.
 export type PlanOverride = { type: "NONE" | "FREE" | "PERCENT" | "FIXED"; value: number };
 
+// Cached 10 min per shop, and the last good answer is kept when Nova is
+// unreachable — a comped store must never be sent to the paid plan page (or
+// lose its storefront) because Nova blinked (2026-09-28).
+const overrideCache = new Map<string, { at: number; value: PlanOverride }>();
+const OVERRIDE_TTL = 10 * 60 * 1000;
+
 export async function getPlanOverride(shop: string): Promise<PlanOverride> {
   if (!NOVA_API) return { type: "NONE", value: 0 };
+  const hit = overrideCache.get(shop);
+  if (hit && Date.now() - hit.at < OVERRIDE_TTL) return hit.value;
+  const fresh = await fetchPlanOverride(shop);
+  if (fresh) {
+    overrideCache.set(shop, { at: Date.now(), value: fresh });
+    return fresh;
+  }
+  return hit?.value ?? { type: "NONE", value: 0 };
+}
+
+async function fetchPlanOverride(shop: string): Promise<PlanOverride | null> {
   try {
     const res = await fetch(
       `${NOVA_API}/v1/apps/${APP_SLUG}/installations/${encodeURIComponent(shop)}/plan-override`,
-      { headers: { accept: "application/json" } },
+      { headers: { accept: "application/json" }, signal: AbortSignal.timeout(3000) },
     );
     if (res.ok) {
       const b = (await res.json()) as { type?: string; value?: number };
@@ -92,8 +110,10 @@ export async function getPlanOverride(shop: string): Promise<PlanOverride> {
         b.type === "FREE" || b.type === "PERCENT" || b.type === "FIXED" ? b.type : "NONE";
       return { type, value: Number(b.value ?? 0) };
     }
+    // Nova answered "no such installation / no override" → a real NONE.
+    if (res.status === 404) return { type: "NONE", value: 0 };
   } catch {
-    /* ignore — default to no override */
+    /* unreachable — caller keeps the last good value */
   }
-  return { type: "NONE", value: 0 };
+  return null;
 }

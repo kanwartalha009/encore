@@ -1,6 +1,8 @@
 // Preorder Novafied — Prisma schema
-// SQLite for dev. We use String columns for enums and JSON arrays since SQLite +
-// Prisma doesn't support native enums. The `app/models/campaign.server.ts`
+// PostgreSQL (Railway Postgres, same project, private network) since 2026-09-28;
+// before that SQLite on a Railway volume — scripts/sqlite-import.mjs copies the
+// old file once (SQLITE_IMPORT_URL). Enums and JSON arrays stay String columns
+// (the SQLite-era convention) so no data-shape change was needed. The `app/models/campaign.server.ts`
 // helpers serialize/parse JSON so the rest of the app sees clean types.
 
 generator client {
@@ -8,7 +10,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -415,4 +417,17 @@ model Translation {
 
   @@unique([shop, locale, key])
   @@index([shop])
+}
+
+// ---------- SqliteImport ----------
+// Marker for the one-time SQLite → Postgres copy (scripts/sqlite-import.mjs,
+// 2026-09-28): one row once the copy succeeded, so it never runs twice. Part
+// of the schema so `prisma db push` keeps it (an unknown table with data would
+// make db push refuse to start).
+model SqliteImport {
+  id     Int      @id
+  doneAt DateTime @default(now())
+  counts String?
+
+  @@map("_encore_sqlite_import")
 }

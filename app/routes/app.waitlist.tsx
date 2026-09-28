@@ -20,15 +20,20 @@ import { CollectionPicker } from "../lib/storefrontKit";
 import { useLocale } from "../lib/i18n";
 import { prettyDate } from "../lib/format";
 import { getSettings, saveSettingsSection } from "../models/settings.server";
+import { klaviyoHasAuth, klaviyoLists } from "../services/klaviyo.server";
+import { contactsCsv, type ContactRow } from "../lib/contacts-shared";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
-  const [groups, settings, collections] = await Promise.all([
+  const [groups, settings, collections, klaviyoReady] = await Promise.all([
     listWaitlistGroups(session.shop),
     getSettings(session.shop),
     listCollections(admin),
+    klaviyoHasAuth(session.shop),
   ]);
-  return { groups, saved: settings.backInStock, collections };
+  // Lists for "add sign-ups to this Klaviyo list" (null = couldn't be read).
+  const klaviyoListOptions = klaviyoReady ? await klaviyoLists(session.shop) : null;
+  return { groups, saved: settings.backInStock, collections, klaviyoReady, klaviyoListOptions };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -73,7 +78,7 @@ export const headers: HeadersFunction = (headersArgs) =>
   boundary.headers(headersArgs);
 
 export default function BackInStockPage() {
-  const { groups, saved, collections } = useLoaderData<typeof loader>();
+  const { groups, saved, collections, klaviyoReady, klaviyoListOptions } = useLoaderData<typeof loader>();
   const shopify = useAppBridge();
   const { t, locale } = useLocale();
   const submit = useSubmit();
@@ -89,6 +94,7 @@ export default function BackInStockPage() {
     consentText?: string;
     doubleOptIn?: boolean;
     syncTarget?: string;
+    klaviyoListId?: string;
     excludeTags?: string;
     excludeCollections?: string[];
   };
@@ -117,6 +123,7 @@ export default function BackInStockPage() {
   );
   const [doubleOptIn, setDoubleOptIn] = useState(v.doubleOptIn ?? false);
   const [syncTarget, setSyncTarget] = useState(v.syncTarget ?? "klaviyo");
+  const [klaviyoListId, setKlaviyoListId] = useState(v.klaviyoListId ?? "");
   const [excludeTags, setExcludeTags] = useState(v.excludeTags ?? "archived");
   const [excludeCollections, setExcludeCollections] = useState<string[]>(
     v.excludeCollections ?? [],
@@ -127,7 +134,7 @@ export default function BackInStockPage() {
       {
         payload: JSON.stringify({
           enabled, buttonText, position, buttonColor, hideBuyNow, popupTitle,
-          collectPhone, showProductInfo, consentText, doubleOptIn, syncTarget,
+          collectPhone, showProductInfo, consentText, doubleOptIn, syncTarget, klaviyoListId,
           excludeTags, excludeCollections,
         }),
       },
@@ -165,6 +172,28 @@ export default function BackInStockPage() {
     URL.revokeObjectURL(url);
     shopify.toast.show(t("Subscribers exported"));
   };
+
+  // Every sign-up with email + phone, for the merchant's own tools (Encore
+  // doesn't send SMS). Rows come from /app/waitlist-contacts; CSV built here.
+  const contactsFetcher = useFetcher<{ rows?: ContactRow[]; truncated?: boolean }>();
+  const contactsRequested = useRef(false);
+  const exportContacts = () => {
+    contactsRequested.current = true;
+    contactsFetcher.load("/app/waitlist-contacts");
+  };
+  useEffect(() => {
+    const rows = contactsFetcher.data?.rows;
+    if (!contactsRequested.current || !rows || contactsFetcher.state !== "idle") return;
+    contactsRequested.current = false;
+    if (typeof document === "undefined") return;
+    const url = URL.createObjectURL(new Blob([contactsCsv(rows)], { type: "text/csv" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "back-in-stock-contacts.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+    shopify.toast.show(t("Contacts exported"));
+  }, [contactsFetcher.data, contactsFetcher.state, shopify, t]);
 
   const notifyFetcher = useFetcher<{
     ok?: boolean;
@@ -309,12 +338,12 @@ export default function BackInStockPage() {
     {
       value: "klaviyo",
       label: `${t("Klaviyo")} · ${t("recommended")}`,
-      helpText: t("Subscribers land in Klaviyo and your Klaviyo flow sends the restock email."),
+      helpText: t("Each sign-up (email and phone) is saved as a Klaviyo profile and added to the list you pick, ready for your Klaviyo email and SMS flows."),
     },
     {
       value: "shopify",
       label: t("Shopify customers"),
-      helpText: t("Customers are tagged in Shopify and Encore sends the restock email for you."),
+      helpText: t("Each sign-up becomes a Shopify customer tagged encore-back-in-stock (plus encore-back-in-stock-sms when they leave a phone number), for your Shopify Flow, Messaging or SMS app."),
     },
     {
       value: "none",
@@ -354,6 +383,15 @@ export default function BackInStockPage() {
         </s-button>,
         <s-button key="export" icon="export" onClick={exportCsv} disabled={flag(groups.length === 0)}>
           {t("common.export")}
+        </s-button>,
+        <s-button
+          key="export-contacts"
+          icon="export"
+          onClick={exportContacts}
+          loading={flag(contactsFetcher.state !== "idle")}
+          disabled={flag(groups.length === 0)}
+        >
+          {t("Export contacts")}
         </s-button>,
       ]}
     >
@@ -521,10 +559,33 @@ export default function BackInStockPage() {
                   selected={[syncTarget]}
                   onChange={(v) => setSyncTarget(v[0] ?? "klaviyo")}
                 />
+                {syncTarget === "klaviyo" && (
+                  <div className="encore-subpanel">
+                    {!klaviyoReady ? (
+                      <s-text color="subdued">
+                        {t("Connect Klaviyo in Settings → Notifications first — until then sign-ups stay in Encore.")}
+                      </s-text>
+                    ) : klaviyoListOptions === null ? (
+                      <s-text color="subdued">
+                        {t("Couldn't read your Klaviyo lists. Reconnect Klaviyo in Settings → Notifications to allow list access.")}
+                      </s-text>
+                    ) : (
+                      <SelectField
+                        label={t("Add sign-ups to this Klaviyo list")}
+                        options={[
+                          { value: "", label: t("No list — profile only") },
+                          ...klaviyoListOptions.map((l) => ({ value: l.id, label: l.name })),
+                        ]}
+                        value={klaviyoListId}
+                        onChange={setKlaviyoListId}
+                      />
+                    )}
+                  </div>
+                )}
                 {syncTarget === "shopify" && (
                   <div className="encore-subpanel">
                     <s-text color="subdued">
-                      {t("Shopify Email has no automatic back-in-stock trigger, so we'll send the restock email for you and tag the customer.")}
+                      {t("Encore doesn't send text messages. Restock emails still go out through the provider you chose in Settings → Notifications.")}
                     </s-text>
                   </div>
                 )}

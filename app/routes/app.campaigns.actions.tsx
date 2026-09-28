@@ -26,6 +26,7 @@ import {
   syncCampaignSellingPlan,
 } from "../models/selling-plan.server";
 import { releaseVariants, syncContinueSellingSafe } from "../services/inventory-policy.server";
+import { syncMarketBlocksSafe } from "../models/market-stock.server";
 import { recomputeVariantCaps, variantGidsOf } from "../models/preorder-cap.server";
 
 // Loader: nothing to fetch, but block direct GETs.
@@ -85,9 +86,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       // Variants of the rules being deleted — released after the rows go.
       const doomed = await prisma.campaign.findMany({
         where: { shop: session.shop, id: { in: ids } },
-        select: { variantConfigs: true },
+        select: { variantConfigs: true, productIds: true },
       });
       const doomedVariants = doomed.flatMap((c) => variantGidsOf(c.variantConfigs));
+      const doomedProducts = doomed.flatMap((c) => {
+        try {
+          const v = JSON.parse(c.productIds ?? "[]");
+          return Array.isArray(v) ? v.map(String) : [];
+        } catch {
+          return [];
+        }
+      });
       // Tear down the Shopify selling plan before the rows disappear.
       await Promise.all(
         ids.map((rowId) =>
@@ -104,6 +113,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         console.error("cap cleanup after bulk delete failed", e),
       );
       await releaseVariants(admin, session.shop, doomedVariants);
+      // Per-market checkout guard: these products are no longer managed.
+      await syncMarketBlocksSafe(admin, session.shop, { productIds: doomedProducts });
       break;
     }
     case "duplicate": {

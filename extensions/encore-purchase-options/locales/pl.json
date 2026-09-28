@@ -1,0 +1,88 @@
+{
+  "loading": "Wczytywanie przedsprzedaży",
+  "retry": "Spróbuj ponownie",
+  "done": "Gotowe",
+  "cancel": "Anuluj",
+  "saveChanges": "Zapisz zmiany",
+  "openInEncore": "Otwórz w Encore",
+  "heading": {
+    "add": "Dodaj do przedsprzedaży",
+    "manage": "Zarządzaj przedsprzedażą"
+  },
+  "add": {
+    "intro": "Pozwól klientom zamawiać {{product}} w przedsprzedaży.",
+    "modeExisting": "Dodaj do istniejącej przedsprzedaży",
+    "modeNew": "Utwórz nową przedsprzedaż",
+    "saveExisting": "Dodaj do przedsprzedaży",
+    "saveNew": "Utwórz przedsprzedaż",
+    "defaultName": "Przedsprzedaż {{product}}"
+  },
+  "fields": {
+    "mode": "Przedsprzedaż",
+    "preorder": "Wybierz przedsprzedaż",
+    "name": "Nazwa przedsprzedaży",
+    "when": "Kiedy klienci mogą składać zamówienia przedpremierowe?",
+    "startDate": "Data rozpoczęcia",
+    "payment": "Płatność",
+    "depositPct": "Zaliczka",
+    "shipDate": "Przewidywana data wysyłki",
+    "shipDateHelp": "Opcjonalnie. Pokazywana klientom, aby wiedzieli, kiedy spodziewać się zamówienia."
+  },
+  "when": {
+    "now": "Przedsprzedaż od teraz",
+    "oos": "Gdy się wyprzeda",
+    "date": "Od wybranej daty"
+  },
+  "payment": {
+    "payNow": "Pełna płatność teraz",
+    "deposit": "Zaliczka teraz, reszta później",
+    "payLater": "Zapłać później",
+    "deferredHint": "Zaliczki i płatność później wymagają dostawcy płatności, który może pobrać środki później, np. Shopify Payments. W przeciwnym razie klienci płacą całą kwotę.",
+    "fixedDepositNote": "Ta przedsprzedaż ma zaliczkę o stałej kwocie. Zmień ją w Encore."
+  },
+  "manage": {
+    "alreadyOnPreorder": "{{product}} jest już w tej przedsprzedaży.",
+    "productsCount": {
+      "one": "{{count}} produkt w tej przedsprzedaży",
+      "few": "{{count}} produkty w tej przedsprzedaży",
+      "many": "{{count}} produktów w tej przedsprzedaży",
+      "other": "{{count}} produktu w tej przedsprzedaży"
+    },
+    "pause": "Wstrzymaj przedsprzedaż",
+    "resume": "Wznów przedsprzedaż",
+    "removeProduct": "Usuń produkt z przedsprzedaży",
+    "removeVariant": "Usuń wariant z przedsprzedaży",
+    "removeConfirm": "Kliknij ponownie, aby usunąć"
+  },
+  "status": {
+    "live": "Aktywna",
+    "scheduled": "Zaplanowana",
+    "paused": "Wstrzymana",
+    "draft": "Wersja robocza",
+    "ended": "Zakończona"
+  },
+  "notice": {
+    "draft": "Dodano do przedsprzedaży w wersji roboczej. Opublikuj ją w Encore, aby zacząć przyjmować zamówienia.",
+    "syncFailed": "Zapisano, ale Shopify jeszcze nie przyjął opcji zakupu. Otwórz przedsprzedaż w Encore i zapisz ją ponownie."
+  },
+  "errors": {
+    "generic": "Coś poszło nie tak. Spróbuj ponownie.",
+    "network": "Nie można połączyć się z Encore. Sprawdź połączenie i spróbuj ponownie.",
+    "planNotFound": "Nie znaleźliśmy przedsprzedaży Encore dla tej opcji zakupu. Możesz dodać produkt do przedsprzedaży poniżej.",
+    "invalid_target": "Nie udało się wczytać tego produktu. Odśwież stronę i spróbuj ponownie.",
+    "target_not_found": "Ten produkt lub wariant już nie istnieje.",
+    "campaign_not_found": "Ta przedsprzedaż już nie istnieje.",
+    "campaign_not_editable": "Tej przedsprzedaży nie można zmienić tutaj. Otwórz ją w Encore.",
+    "invalid_campaign": "Wybierz przedsprzedaż.",
+    "name_required": "Wpisz nazwę przedsprzedaży.",
+    "name_too_long": "Nazwa jest za długa (maks. 120 znaków).",
+    "start_date_required": "Wybierz datę rozpoczęcia.",
+    "invalid_date": "Wpisz prawidłową datę.",
+    "ship_date_past": "Data wysyłki nie może być w przeszłości.",
+    "deposit_pct_range": "Zaliczka musi wynosić od 1% do 99%.",
+    "nothing_to_update": "Nie ma nic do zapisania.",
+    "invalid_status": "Status tej przedsprzedaży się zmienił. Zamknij i otwórz ponownie, aby odświeżyć.",
+    "catalog_missing": "Nie udało się wczytać niektórych produktów tej przedsprzedaży. Edytuj ją w Encore.",
+    "plan_required": "Najpierw wybierz plan Encore (otwórz Encore → Plany), aby tworzyć lub zmieniać zamówienia przedpremierowe."
+  }
+}

@@ -23,6 +23,17 @@ import {
 } from "../models/selling-plan.server";
 import prisma from "../db.server";
 import { releaseVariants, syncContinueSellingSafe } from "../services/inventory-policy.server";
+import { syncMarketBlocksSafe } from "../models/market-stock.server";
+
+/** Numeric product ids from a Campaign.productIds JSON column. */
+function productIdsOf(raw: string | null | undefined): string[] {
+  try {
+    const v = JSON.parse(raw ?? "[]");
+    return Array.isArray(v) ? v.map((p) => String(p).split("/").pop() || "").filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
 import { recomputeVariantCaps, variantGidsOf } from "../models/preorder-cap.server";
 import { notifyShipDateChanged } from "../services/notify-events.server";
 import { listCollections } from "../models/collections.server";
@@ -81,9 +92,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   // Variants on the rule before this request — to release any that leave it.
   const prior = await prisma.campaign.findFirst({
     where: { shop: session.shop, id },
-    select: { variantConfigs: true },
+    select: { variantConfigs: true, productIds: true },
   });
   const priorVariants = prior ? variantGidsOf(prior.variantConfigs) : [];
+  const priorProducts = prior ? productIdsOf(prior.productIds) : [];
 
   if (intent === "delete") {
     // Remove the Shopify selling plan before the campaign row disappears.
@@ -99,6 +111,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       console.error("cap cleanup after delete failed", e),
     );
     await releaseVariants(admin, session.shop, priorVariants);
+    // Per-market checkout guard: the rule's products are no longer managed.
+    await syncMarketBlocksSafe(admin, session.shop, { productIds: priorProducts });
     return redirect("/app/campaigns");
   }
 
@@ -150,6 +164,12 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   await syncContinueSellingSafe(admin, session.shop, [id]);
   // Variants taken off the rule go back to DENY (unless another live rule has them).
   await releaseVariants(admin, session.shop, removedVariants);
+  // Products taken off the rule: clear their per-market checkout guard.
+  const nextProducts = new Set(productIdsOf(JSON.stringify(parsed.input.productIds ?? [])));
+  const removedProducts = priorProducts.filter((p) => !nextProducts.has(p));
+  if (removedProducts.length) {
+    await syncMarketBlocksSafe(admin, session.shop, { productIds: removedProducts });
+  }
 
   return redirect(`/app/campaigns/${id}`);
 };

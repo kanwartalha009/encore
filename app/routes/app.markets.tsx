@@ -19,7 +19,12 @@ import {
   type MarketRuleData,
   type PerMarketOverride,
 } from "../models/markets.server";
-import { marketExperience } from "../lib/markets-shared";
+import { marketExperience, marketStockWording } from "../lib/markets-shared";
+import {
+  invalidateShopStock,
+  marketStockSummary,
+  syncMarketBlocksSafe,
+} from "../models/market-stock.server";
 import { useLocale } from "../lib/i18n";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -28,11 +33,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // read the fresh rule.
   const { markets, unreadable } = await reconcileMarkets(admin, session.shop);
   const rule = await getMarketRule(session.shop);
-  return { markets, rule, unreadable };
+  // Real per-market stock for the preorder items (first few live products):
+  // how many are sellable at each market's own locations.
+  const stock =
+    !unreadable && markets.length > 1
+      ? await marketStockSummary(admin, session.shop, rule, markets.map((m) => m.id))
+      : null;
+  return { markets, rule, unreadable, stock };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const fd = await request.formData();
   const scope = String(fd.get("scope") ?? "ALL");
   let markets: string[] = [];
@@ -48,6 +59,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     overrides = {};
   }
   await saveMarketRule(session.shop, { scope, markets, perMarketOverrides: overrides });
+  // Scope / forced markets / locations changed → recompute where preorder
+  // variants are sold out (checkout guard) and drop cached storefront stock.
+  invalidateShopStock(session.shop);
+  await syncMarketBlocksSafe(admin, session.shop, { reconcile: true });
   return Response.json({ ok: true });
 };
 
@@ -61,7 +76,7 @@ function expTone(e: "Buy" | "Preorder" | "Off"): "success" | "attention" | undef
 }
 
 export default function MarketsPage() {
-  const { markets, rule, unreadable } = useLoaderData<typeof loader>();
+  const { markets, rule, unreadable, stock } = useLoaderData<typeof loader>();
   const shopify = useAppBridge();
   const { t } = useLocale();
   const submit = useSubmit();
@@ -127,6 +142,9 @@ export default function MarketsPage() {
 
   const rows = markets.map((m: MarketRow) => {
     const exp = marketExperience(m, effectiveRule);
+    // What a shopper here gets for a preorder item, by its stock at this
+    // market's own locations (same decision the storefront and checkout use).
+    const wording = marketStockWording(m, effectiveRule);
     return (
       <s-table-row key={m.id}>
         <s-table-cell>
@@ -136,18 +154,31 @@ export default function MarketsPage() {
           </s-stack>
         </s-table-cell>
         <s-table-cell>
-          <s-text color="subdued">
-            {m.stock != null
-              ? `${m.stock} ${t("in stock")}`
-              : effectiveRule.marketSnapshot[m.id]?.fulfillable
-                ? t("Served by a location")
-                : t("No serving location")}
-          </s-text>
+          <s-stack direction="block" gap="small-300">
+            <s-text color="subdued">
+              {m.stock != null
+                ? `${m.stock} ${t("in stock")}`
+                : effectiveRule.marketSnapshot[m.id]?.fulfillable
+                  ? t("Served by a location")
+                  : t("No serving location")}
+            </s-text>
+            {stock?.summary[m.id] && stock.summary[m.id].total > 0 && (
+              <s-text color="subdued">
+                {t("{n} of {total} preorder items in stock here")
+                  .replace("{n}", String(stock.summary[m.id].inStock))
+                  .replace("{total}", String(stock.summary[m.id].total))}
+              </s-text>
+            )}
+          </s-stack>
         </s-table-cell>
         <s-table-cell>
-          <s-badge tone={badgeTone(expTone(exp))}>
-            {exp === "Buy" ? t("Buy") : exp === "Preorder" ? t("Preorder") : t("Not offered")}
-          </s-badge>
+          <s-stack direction="block" gap="small-300">
+            <s-badge tone={badgeTone(expTone(exp))}>
+              {exp === "Buy" ? t("Buy") : exp === "Preorder" ? t("Preorder") : t("Not offered")}
+            </s-badge>
+            <s-text>{t(wording.inStock)}</s-text>
+            <s-text>{t(wording.outOfStock)}</s-text>
+          </s-stack>
         </s-table-cell>
         <s-table-cell>
           <s-checkbox
@@ -227,6 +258,13 @@ export default function MarketsPage() {
             ? t("Some scoped markets have sellable stock — Encore shows Buy there, never preorder.")
             : t("Encore never shows preorder in a market that has sellable stock; it auto-reconciles when inventory changes.")}
           {rule.lastReconciledAt ? ` ${t("Last reconciled")}: ${new Date(rule.lastReconciledAt).toLocaleString()}.` : ""}
+        </s-banner>
+
+        <s-banner tone="info">
+          {t("Stock is counted at the locations that serve each market. Where an item is out of stock at those locations and preorder isn't offered, shoppers there see it as sold out — at checkout too.")}
+          {stock && stock.totalProducts > stock.products
+            ? ` ${t("Stock counts above are based on your first {n} preorder products.").replace("{n}", String(stock.products))}`
+            : ""}
         </s-banner>
     </AppPage>
   );

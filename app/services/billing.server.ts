@@ -1,18 +1,13 @@
 /**
- * Shopify app billing (Nova-priced). We call `appSubscriptionCreate` directly with
- * the price fetched from Nova (not the library's static billing config) so pricing
- * is controlled in the Nova admin. `BillingState` records the shop's current plan;
- * `app_subscriptions/update` keeps it authoritative.
+ * Billing state. Since 2026-09-28 Encore uses Shopify App Pricing (managed
+ * pricing): plans are defined in the Partner Dashboard and chosen on Shopify's
+ * plan page, and app-pricing.server syncs the merchant's plan into
+ * `BillingState` from the Partner API. The old Nova-priced
+ * `appSubscriptionCreate` flow was removed — Shopify doesn't allow creating
+ * charges with the Billing API once App Pricing is on. Choosing / changing a
+ * plan still works, on Shopify's page (App Store requirement 1.2.3).
  */
 import prisma from "../db.server";
-import { getPlan, getPlanOverride } from "./plans.server";
-
-type AdminGraphql = {
-  graphql: (
-    query: string,
-    options?: { variables?: Record<string, unknown> },
-  ) => Promise<Response>;
-};
 
 export type BillingRow = {
   shop: string;
@@ -49,99 +44,4 @@ export async function saveBillingState(
     create: { shop, ...data },
     update: { ...data },
   });
-}
-
-// Test charges in any non-production environment (no real money in dev/pilot).
-function isTest(): boolean {
-  return (
-    process.env.ENCORE_BILLING_TEST === "1" ||
-    (process.env.NODE_ENV ?? "") !== "production"
-  );
-}
-
-const CREATE = `#graphql
-mutation EncoreSubscriptionCreate(
-  $name: String!
-  $lineItems: [AppSubscriptionLineItemInput!]!
-  $returnUrl: URL!
-  $trialDays: Int
-  $test: Boolean
-) {
-  appSubscriptionCreate(
-    name: $name
-    returnUrl: $returnUrl
-    lineItems: $lineItems
-    trialDays: $trialDays
-    test: $test
-  ) {
-    userErrors { field message }
-    confirmationUrl
-    appSubscription { id }
-  }
-}`;
-
-export async function createSubscription(
-  admin: AdminGraphql,
-  shop: string,
-  planCode: string,
-  interval: "EVERY_30_DAYS" | "ANNUAL",
-  returnUrl: string,
-): Promise<{ confirmationUrl?: string; comped?: boolean; error?: string }> {
-  const plan = await getPlan(planCode);
-  if (!plan) return { error: "unknown_plan" };
-
-  const override = await getPlanOverride(shop);
-  const amount = (interval === "ANNUAL" ? plan.amountAnnual : plan.amountMonthly) / 100;
-
-  // Free comp → no Shopify charge; record ACTIVE locally.
-  if (override.type === "FREE") {
-    await saveBillingState(shop, {
-      planCode,
-      interval,
-      status: "ACTIVE",
-      subscriptionId: null,
-    });
-    return { comped: true };
-  }
-
-  const pricing: Record<string, unknown> = {
-    price: { amount, currencyCode: plan.currency },
-    interval,
-  };
-  if (override.type === "PERCENT" && override.value > 0) {
-    pricing.discount = { value: { percentage: Math.min(1, override.value / 100) } };
-  } else if (override.type === "FIXED" && override.value > 0) {
-    pricing.discount = { value: { amount: override.value / 100 } };
-  }
-
-  const res = await admin.graphql(CREATE, {
-    variables: {
-      name: `Encore — ${plan.name} (${interval === "ANNUAL" ? "Annual" : "Monthly"})`,
-      returnUrl,
-      trialDays: plan.trialDays,
-      test: isTest(),
-      lineItems: [{ plan: { appRecurringPricingDetails: pricing } }],
-    },
-  });
-  const body = (await res.json()) as {
-    data?: {
-      appSubscriptionCreate?: {
-        userErrors?: { message: string }[];
-        confirmationUrl?: string;
-        appSubscription?: { id: string };
-      };
-    };
-  };
-  const r = body.data?.appSubscriptionCreate;
-  if (r?.userErrors?.length) {
-    return { error: r.userErrors.map((e) => e.message).join("; ") };
-  }
-  // Record PENDING; app_subscriptions/update flips it to ACTIVE on approval.
-  await saveBillingState(shop, {
-    planCode,
-    interval,
-    status: "PENDING",
-    subscriptionId: r?.appSubscription?.id ?? null,
-  });
-  return { confirmationUrl: r?.confirmationUrl };
 }

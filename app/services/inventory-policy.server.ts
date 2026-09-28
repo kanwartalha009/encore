@@ -21,6 +21,7 @@ import { getSettings } from "../models/settings.server";
 import { getCampaignCapacity } from "../models/capacity.server";
 import { variantWindowBoundaries, variantWindowOpen, type VariantWindowConfig } from "../lib/cap-shared";
 import type { AdminGraphqlClient } from "../models/selling-plan.server";
+import { syncMarketBlocksSafe } from "../models/market-stock.server";
 
 const toGid = (id: string, kind: "Product" | "ProductVariant") =>
   id.startsWith("gid://") ? id : `gid://shopify/${kind}/${id}`;
@@ -180,6 +181,18 @@ export async function syncContinueSellingSafe(
       console.error("[inventory-policy] sync failed", id, e);
     }
   }
+  // Per-market checkout guard (multi-market shops only): the campaigns' status
+  // or scope just changed, so recompute where their variants are sold out.
+  try {
+    const rows = (await prisma.campaign.findMany({
+      where: { shop, id: { in: campaignIds } },
+      select: { productIds: true },
+    })) as { productIds: string }[] | undefined;
+    const productIds = (rows ?? []).flatMap((r) => parseJson<string[]>(r.productIds, []).map(String));
+    await syncMarketBlocksSafe(admin, shop, { productIds });
+  } catch (e) {
+    console.error("[inventory-policy] market block sync failed", e);
+  }
 }
 
 /**
@@ -217,6 +230,9 @@ export async function reconcileLiveCampaignPolicies(
         console.error("[inventory-policy/reconcile]", shop, id, e);
       }
     }
+    // Hourly: refresh the market ↔ location snapshot and the per-market
+    // checkout guard (keeps `encore.market_blocked` from expiring).
+    await syncMarketBlocksSafe(admin, shop, { reconcile: true });
   }
   return { shops: byShop.size, campaigns: live.length, variants };
 }
@@ -285,6 +301,8 @@ export async function releaseVariants(
       denied += variants.length;
     }
     if (denied) console.log(`[inventory-policy] ${shop}: ${denied} released variant(s) → DENY`);
+    // Released variants are no longer managed → clear any per-market block.
+    await syncMarketBlocksSafe(admin, shop, { variantIds: ids });
     return { denied };
   } catch (e) {
     console.error("[inventory-policy] releaseVariants failed", e);

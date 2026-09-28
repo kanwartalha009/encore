@@ -13,6 +13,11 @@ description = "Fires when a shopper joins an Encore back-in-stock waitlist. Sync
 
   [[settings.fields]]
   type = "single_line_text_field"
+  key = "phone"
+  description = "The phone number the shopper gave (as typed), or blank."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
   key = "email"
   description = "The shopper's email address (waitlist contact)."
 

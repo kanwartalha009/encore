@@ -14,10 +14,12 @@ embedded = true
 # Cart & Checkout Validation (validationCreate). Per-variant config lives in
 # product/variant metafields (write_products), so the metaobject scopes were
 # dropped on 2026-09-28 — unused scopes get apps rejected in review.
+# write_customers (replaces read_customers, 2026-09-28): back-in-stock sign-ups
+# can be saved as tagged Shopify customers ("Where subscribers are saved").
 # read_locales (added 2026-09-28): Translations lists the store's real languages
 # via shopLocales, which requires it (without it the page showed demo languages).
 # Keep the SCOPES env var on Railway identical to this list.
-scopes = "read_products,write_products,write_purchase_options,read_inventory,read_locations,read_orders,write_orders,read_markets,read_customers,read_themes,read_discounts,read_locales,write_validations"
+scopes = "read_products,write_products,write_purchase_options,read_inventory,read_locations,read_orders,write_orders,read_markets,write_customers,read_themes,read_discounts,read_locales,write_validations"
 
 [auth]
 redirect_urls = [ "https://encore-production-7c8f.up.railway.app/auth/callback" ]

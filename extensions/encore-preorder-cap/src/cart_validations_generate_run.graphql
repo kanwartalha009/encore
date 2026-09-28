@@ -2,6 +2,20 @@
 # (CartValidationsGenerateRunInput) and to avoid colliding with the schema's
 # own `Input` type in generated/api.ts (tsc TS2300 on 2026-09-01).
 query CartValidationsGenerateRunInput {
+  # Per-market stock (2026-09-28): the buyer's market + the shop's local date
+  # let the Function honour `encore.market_blocked` (see below). `market` is
+  # deprecated in the Function schema but present in 2026-07 (this extension's
+  # pinned api_version); the build fails loudly if a future version drops it.
+  localization {
+    market {
+      id
+    }
+  }
+  shop {
+    localTime {
+      date
+    }
+  }
   cart {
     lines {
       id
@@ -25,6 +39,13 @@ query CartValidationsGenerateRunInput {
           # Maintained by the app (preorder-cap.server.ts). Only capped preorder
           # variants have this metafield, so its presence gates the check.
           remaining: metafield(namespace: "encore", key: "preorder_remaining") {
+            value
+          }
+          # Maintained by the app (market-stock.server.ts) for multi-market
+          # shops: {"m": [numeric market ids], "until": "YYYY-MM-DD"} — markets
+          # where this variant has no stock at the serving locations and no
+          # preorder is offered, so it must not be sold there.
+          marketBlocked: metafield(namespace: "encore", key: "market_blocked") {
             value
           }
           product {

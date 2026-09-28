@@ -173,6 +173,7 @@ async function dispatchOne(subscriber: Sub, ctx: Ctx): Promise<"SENT" | "FAILED"
       // send with the reason — it used to be recorded as SENT regardless.
       const r = await emitFlowStrict(ctx.shop, FLOW_BACK_IN_STOCK_READY, {
         email: subscriber.email,
+        phone: subscriber.phone ?? "",
         product: subscriber.productTitle ?? "",
         variant: subscriber.variantTitle ?? "",
         product_url: "",

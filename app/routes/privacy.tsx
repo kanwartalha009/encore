@@ -61,8 +61,11 @@ export default function Privacy() {
         email address, and a phone number if the store asks for one and the
         customer gives it, the product the customer is waiting for, language,
         market, whether and when they ticked the consent box, and whether the
-        notification was sent. Customer data is used only to run the features
-        the merchant turned on.
+        notification was sent. The App does not send text messages; if the
+        merchant chooses, back-in-stock sign-ups (email and phone) are saved to
+        the merchant’s own Klaviyo account or as customers in their Shopify
+        store, and the merchant can export them. Customer data is used only to
+        run the features the merchant turned on.
       </p>
       <p>
         <strong>Automatically:</strong> standard server logs (such as IP
